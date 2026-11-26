@@ -1,0 +1,84 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "data": {
+      "id": "orq_0000TEST",
+      "live_mode": false,
+      "cabin_class": "economy",
+      "offers": [
+        {
+          "id": "off_0000TEST1",
+          "total_amount": "412.30",
+          "total_currency": "USD",
+          "base_amount": "350.00",
+          "tax_amount": "62.30",
+          "expires_at": "2026-12-01T10:00:00Z",
+          "owner": {
+            "name": "Duffel Airways",
+            "iata_code": "ZZ"
+          },
+          "slices": [
+            {
+              "origin": {
+                "iata_code": "JFK"
+              },
+              "destination": {
+                "iata_code": "LAX"
+              },
+              "duration": "PT8H5M",
+              "segments": [
+                {
+                  "origin": {
+                    "iata_code": "JFK"
+                  },
+                  "destination": {
+                    "iata_code": "ORD"
+                  },
+                  "departing_at": "2026-12-10T08:00:00",
+                  "arriving_at": "2026-12-10T09:45:00",
+                  "duration": "PT2H45M",
+                  "marketing_carrier": {
+                    "iata_code": "ZZ",
+                    "name": "Duffel Airways"
+                  },
+                  "marketing_carrier_flight_number": "1001",
+                  "operating_carrier": {
+                    "iata_code": "ZZ",
+                    "name": "Duffel Airways"
+                  },
+                  "operating_carrier_flight_number": "1001"
+                },
+                {
+                  "origin": {
+                    "iata_code": "ORD"
+                  },
+                  "destination": {
+                    "iata_code": "LAX"
+                  },
+                  "departing_at": "2026-12-10T11:00:00",
+                  "arriving_at": "2026-12-10T13:05:00",
+                  "duration": "PT4H5M",
+                  "marketing_carrier": {
+                    "iata_code": "ZZ",
+                    "name": "Duffel Airways"
+                  },
+                  "marketing_carrier_flight_number": "1002",
+                  "operating_carrier": {
+                    "iata_code": "ZZ",
+                    "name": "Duffel Airways"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "off_bad",
+          "total_amount": null,
+          "total_currency": "USD",
+          "slices": []
+        }
+      ]
+    }
+  }
+}

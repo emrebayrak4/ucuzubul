@@ -1,0 +1,58 @@
+name: pricora
+
+services:
+  postgres:
+    image: postgres:17.12-alpine
+    container_name: pricora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pricora
+      POSTGRES_USER: pricora
+      POSTGRES_PASSWORD: pricora
+    ports:
+      - "5434:5432"
+    volumes:
+      - pricora_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pricora -d pricora"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: pricora-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - pricora_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.58.0
+    container_name: pricora-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-pricora_dev_master_key_change_me_32chars}
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - pricora_meili:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7700/health || wget -qO- http://localhost:7700/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pricora_pg:
+  pricora_redis:
+  pricora_meili:

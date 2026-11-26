@@ -1,0 +1,106 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "searchResult": {
+      "totalResultCount": 2,
+      "searchURL": "https://www.amazon.com/s?k=headphones&tag=test-20",
+      "items": [
+        {
+          "asin": "B0TEST0001",
+          "detailPageURL": "https://www.amazon.com/dp/B0TEST0001?tag=test-20&linkCode=ogi",
+          "itemInfo": {
+            "title": {
+              "displayValue": "Acme Noise Cancelling Headphones X100, Black"
+            },
+            "byLineInfo": {
+              "brand": {
+                "displayValue": "Acme"
+              },
+              "manufacturer": {
+                "displayValue": "Acme Audio Inc."
+              }
+            },
+            "externalIds": {
+              "upcs": {
+                "displayValues": [
+                  "012345678905"
+                ]
+              }
+            },
+            "manufactureInfo": {
+              "model": {
+                "displayValue": "X100"
+              },
+              "itemPartNumber": {
+                "displayValue": "X100-BLK"
+              }
+            },
+            "classifications": {
+              "productGroup": {
+                "displayValue": "Electronics"
+              }
+            }
+          },
+          "images": {
+            "primary": {
+              "large": {
+                "url": "https://m.media-amazon.com/images/I/test1.jpg",
+                "height": 500,
+                "width": 500
+              }
+            }
+          },
+          "offersV2": {
+            "listings": [
+              {
+                "isBuyBoxWinner": true,
+                "price": {
+                  "money": {
+                    "amount": 199.99,
+                    "currency": "USD",
+                    "displayAmount": "$199.99"
+                  },
+                  "savingBasis": {
+                    "money": {
+                      "amount": 249.99,
+                      "currency": "USD"
+                    },
+                    "savingBasisType": "LIST_PRICE"
+                  },
+                  "savings": {
+                    "money": {
+                      "amount": 50.0,
+                      "currency": "USD"
+                    },
+                    "percentage": 20
+                  }
+                },
+                "availability": {
+                  "type": "IN_STOCK"
+                },
+                "condition": {
+                  "value": "New"
+                },
+                "merchantInfo": {
+                  "name": "Amazon.com"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "asin": "B0TEST0002",
+          "detailPageURL": "https://www.amazon.com/dp/B0TEST0002?tag=test-20",
+          "itemInfo": {
+            "title": {
+              "displayValue": "Acme Headphone Case"
+            }
+          },
+          "offersV2": {
+            "listings": []
+          }
+        }
+      ]
+    }
+  }
+}

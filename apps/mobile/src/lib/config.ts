@@ -1,0 +1,29 @@
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+import { brand } from "@pricora/config/brand";
+
+type Extra = { apiUrl?: string | null; webUrl?: string; eas?: { projectId?: string } };
+const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
+
+/**
+ * API origin resolution (no trailing /v1):
+ * 1. EXPO_PUBLIC_API_URL (inlined at build time) / app.config `extra.apiUrl`
+ * 2. In development on a physical device: the Metro host's LAN IP + :4400 (from Expo's hostUri)
+ * 3. Android emulator default http://10.0.2.2:4400 (host loopback), iOS simulator http://localhost:4400
+ */
+function resolveApiUrl(): string {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL || extra.apiUrl;
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
+
+  const hostUri = Constants.expoConfig?.hostUri; // e.g. "192.168.1.20:8081"
+  const host = hostUri?.split(":")[0];
+  if (__DEV__ && host && Constants.isDevice && host !== "localhost" && host !== "127.0.0.1") {
+    return `http://${host}:4400`;
+  }
+  return Platform.OS === "android" ? "http://10.0.2.2:4400" : "http://localhost:4400";
+}
+
+export const API_URL = resolveApiUrl();
+export const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || extra.webUrl || brand.url).replace(/\/+$/, "");
+export const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || extra.eas?.projectId || null;
+export { brand };

@@ -1,0 +1,36 @@
+{
+  "name": "@pricora/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pricora design tokens: TS object (web + React Native), CSS variables, Tailwind CSS v4 theme.",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./tokens.css": "./css/tokens.css",
+    "./tailwind.css": "./css/tailwind.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "css"
+  ],
+  "scripts": {
+    "build": "tsup && node scripts/build-css.mjs",
+    "typecheck": "tsc --noEmit",
+    "contrast": "node scripts/build-css.mjs --report"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  }
+}

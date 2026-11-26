@@ -1,0 +1,25 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "e2e"
+minimumReleaseAgeExclude:
+  - "@types/node@24.19.4"
+  - "@vitest/mocker@5.1.2"
+  - "@vitest/spy@5.1.2"
+  - vitest@5.1.2
+  - vite@8.4.0
+
+# Packages allowed to run install scripts (pnpm >= 10 blocks them by default).
+allowBuilds:
+  "@scarf/scarf": false # swagger-ui telemetry
+  msgpackr-extract: false # optional native accelerator for bullmq; JS fallback is used
+  "@parcel/watcher": true
+  "@prisma/engines": true
+  esbuild: true
+  prisma: true
+
+# The repo lives under a very deep path on the dev machine; Windows CreateProcess cannot spawn
+# executables (esbuild.exe, turbo.exe) whose absolute path exceeds 260 chars, which happens with the
+# isolated node_modules/.pnpm layout. Hoisted (flat) layout keeps binaries shallow. Expo also
+# recommends the hoisted linker for pnpm monorepos.
+nodeLinker: hoisted

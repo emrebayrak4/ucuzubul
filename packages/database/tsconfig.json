@@ -1,0 +1,14 @@
+{
+  "extends": "@pricora/config/tsconfig/library.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src",
+    "prisma",
+    "prisma.config.ts",
+    "tsup.config.ts"
+  ]
+}

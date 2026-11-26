@@ -1,0 +1,37 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "query": "tv",
+    "sort": "relevance",
+    "start": 1,
+    "numItems": 2,
+    "totalResults": 2,
+    "items": [
+      {
+        "itemId": 123456789,
+        "parentItemId": 123456789,
+        "name": "Acme 55\" Class 4K UHD Smart TV A55U",
+        "salePrice": 298.0,
+        "msrp": 379.99,
+        "upc": "098765432105",
+        "brandName": "Acme",
+        "modelNumber": "A55U",
+        "categoryPath": "Electronics/TV & Video/Smart TVs",
+        "largeImage": "https://i5.walmartimages.com/test-large.jpeg",
+        "productTrackingUrl": "https://goto.walmart.com/c/TEST/123456789",
+        "stock": "Available",
+        "availableOnline": true,
+        "standardShipRate": 0.0,
+        "marketplace": false,
+        "color": "Black"
+      },
+      {
+        "itemId": 987654321,
+        "name": "Acme Wall Mount",
+        "salePrice": null,
+        "stock": "Not available",
+        "availableOnline": false
+      }
+    ]
+  }
+}

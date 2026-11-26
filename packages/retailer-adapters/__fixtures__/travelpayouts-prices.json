@@ -1,0 +1,26 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "success": true,
+    "currency": "usd",
+    "data": [
+      {
+        "origin": "NYC",
+        "destination": "LAX",
+        "origin_airport": "JFK",
+        "destination_airport": "LAX",
+        "price": 187,
+        "airline": "XX",
+        "flight_number": "123",
+        "departure_at": "2026-12-10T06:00:00-05:00",
+        "return_at": "2026-12-17T18:00:00-08:00",
+        "transfers": 0,
+        "return_transfers": 1,
+        "duration": 720,
+        "duration_to": 360,
+        "duration_back": 360,
+        "link": "/search/NYC1012LAX17121?t=XX17654000001765421000000360JFKLAX_0000"
+      }
+    ]
+  }
+}

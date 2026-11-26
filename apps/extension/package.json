@@ -1,0 +1,43 @@
+{
+  "name": "@pricora/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pricora browser extension (Chrome MV3 + Firefox MV3): price comparison banner, store coupons, checkout coupon tester.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:chrome": "node scripts/build.mjs --target=chrome",
+    "build:firefox": "node scripts/build.mjs --target=firefox",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource-variable/nunito-sans": "5.3.0",
+    "@pricora/algorithms": "workspace:*",
+    "@pricora/config": "workspace:*",
+    "@pricora/contracts": "workspace:*",
+    "@pricora/design-tokens": "workspace:*",
+    "@pricora/utils": "workspace:*",
+    "lucide-react": "1.79.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/chrome": "0.3.7",
+    "@types/node": "24.19.4",
+    "@types/react": "19.3.1",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.15.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "jsdom": "31.0.1",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.74.0",
+    "vite": "8.4.0",
+    "vitest": "5.1.2"
+  }
+}

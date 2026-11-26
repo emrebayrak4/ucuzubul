@@ -1,0 +1,56 @@
+{
+  "name": "@pricora/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsup",
+    "dev": "tsup --watch",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:reset": "prisma migrate reset --force",
+    "seed": "tsx prisma/seed.ts",
+    "studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@node-rs/argon2": "2.2.2",
+    "@pricora/config": "workspace:*",
+    "@pricora/utils": "workspace:*",
+    "@types/node": "24.19.4",
+    "@types/pg": "8.23.1",
+    "prisma": "7.10.1",
+    "tsup": "8.5.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.1.2"
+  }
+}

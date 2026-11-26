@@ -1,0 +1,5 @@
+/* Build-time smoke test: proves the token theme + @source scanning of dist compile with Tailwind v4.
+   Run `pnpm --filter @pricora/ui verify:css` after `build`. Output is dist/.verify.css (not shipped). */
+@import "tailwindcss";
+@import "@pricora/design-tokens/tailwind.css";
+@source "../dist";

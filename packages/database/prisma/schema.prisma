@@ -1,0 +1,1647 @@
+// Pricora — Prisma 7 schema (PostgreSQL 17)
+// Rules: money = Int cents + currency; percentages = Int basis points; every price row has `source`.
+// See docs/DATABASE_SCHEMA.md for entity notes, partitioning and retention.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum Role {
+  USER
+  MERCHANT
+  EDITOR
+  ANALYST
+  ADMIN
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum DataSource {
+  api
+  feed
+  merchant_upload
+  affiliate
+  demo
+}
+
+enum ProductCondition {
+  new
+  refurbished
+  used
+  open_box
+}
+
+enum StockStatus {
+  in_stock
+  low_stock
+  out_of_stock
+  preorder
+  unknown
+}
+
+enum IntegrationStatus {
+  live
+  pending_configuration
+  error
+  disabled
+}
+
+enum IntegrationKind {
+  retailer_api
+  affiliate_network
+  product_feed
+  merchant_portal
+  travel_api
+}
+
+enum ProductStatus {
+  active
+  draft
+  archived
+}
+
+enum IdentifierType {
+  UPC
+  EAN
+  GTIN
+  ISBN
+  MPN
+  ASIN
+  SKU
+}
+
+enum MatchStatus {
+  auto_matched
+  pending_review
+  approved
+  rejected
+}
+
+enum MatchMethod {
+  gtin
+  brand_mpn
+  attributes
+  semantic
+  manual
+}
+
+enum ReviewDecision {
+  approve
+  reject
+  reassign
+  split
+}
+
+enum AlertType {
+  below_price
+  drop_percent
+  back_in_stock
+  new_cheaper_store
+  all_time_low
+  coupon
+}
+
+enum NotificationChannel {
+  email
+  push
+  in_app
+}
+
+enum JobStatus {
+  queued
+  processing
+  completed
+  failed
+}
+
+enum FeedFormat {
+  csv
+  xml
+  json
+}
+
+enum AffiliateNetwork {
+  amazon_associates
+  cj
+  impact
+  awin
+  rakuten
+  ebay_partner
+  walmart
+  travelpayouts
+  booking
+  expedia
+  direct
+}
+
+enum ConversionStatus {
+  pending
+  approved
+  reversed
+}
+
+enum CommissionStatus {
+  pending
+  approved
+  paid
+  reversed
+}
+
+enum CashbackStatus {
+  pending
+  confirmed
+  reversed
+  payable
+  paid
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  incomplete
+}
+
+enum BillingInterval {
+  month
+  year
+}
+
+enum CampaignStatus {
+  draft
+  active
+  paused
+  ended
+}
+
+enum DealStatus {
+  pending
+  active
+  expired
+  rejected
+}
+
+enum ModerationStatus {
+  visible
+  hidden
+  flagged
+}
+
+enum VerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
+}
+
+enum ClickKind {
+  product
+  flight
+  hotel
+  coupon
+}
+
+enum AnomalyKind {
+  price_spike
+  price_drop_outlier
+  stale_offer
+  fake_discount
+  feed_error
+}
+
+enum Severity {
+  low
+  medium
+  high
+}
+
+enum CabinClass {
+  economy
+  premium_economy
+  business
+  first
+}
+
+enum BoardType {
+  room_only
+  breakfast
+  half_board
+  full_board
+  all_inclusive
+}
+
+enum TravelAlertKind {
+  flight
+  hotel
+}
+
+enum CouponDiscountType {
+  percent
+  amount
+  free_shipping
+  bogo
+  other
+}
+
+enum CouponSource {
+  api
+  feed
+  affiliate
+  merchant
+  community
+  admin
+  demo
+}
+
+enum CouponStatus {
+  active
+  expired
+  unverified
+  reported
+  pending_approval
+  rejected
+}
+
+enum CouponEventType {
+  created
+  activated
+  worked
+  failed
+  expired
+  reported
+  status_changed
+}
+
+enum CouponChannel {
+  web
+  extension
+  mobile
+  system
+  admin
+}
+
+enum LogoSource {
+  official_site
+  admin_upload
+  logo_provider
+}
+
+enum DevicePlatform {
+  ios
+  android
+}
+
+enum ThemePreference {
+  system
+  light
+  dark
+}
+
+// ───────────────────────────── Users & auth ─────────────────────────────
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  passwordHash    String?
+  name            String?
+  role            Role       @default(USER)
+  status          UserStatus @default(active)
+  emailVerifiedAt DateTime?  @db.Timestamptz(3)
+  avatarUrl       String?
+  lastLoginAt     DateTime?  @db.Timestamptz(3)
+  createdAt       DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @db.Timestamptz(3)
+  deletedAt       DateTime?  @db.Timestamptz(3)
+
+  sessions            UserSession[]
+  oauthAccounts       OAuthAccount[]
+  passwordResetTokens PasswordResetToken[]
+  preference          UserPreference?
+  addresses           Address[]
+  favorites           Favorite[]
+  alerts              PriceAlert[]
+  notifications       Notification[]
+  lists               ShoppingList[]
+  comparisons         ProductComparison[]
+  recentlyViewed      RecentlyViewed[]
+  clicks              AffiliateClick[]
+  cashback            CashbackTransaction[]
+  subscriptions       Subscription[]
+  deals               Deal[]
+  dealVotes           DealVote[]
+  dealComments        DealComment[]
+  searchEvents        SearchEvent[]
+  auditLogs           AuditLog[]
+  matchReviews        MatchReview[]
+  merchantAccount     MerchantAccount?
+  travelAlerts        TravelAlert[]
+  pushDevices         PushDevice[]
+  couponsCreated      Coupon[]       @relation("CouponCreatedBy")
+  couponFollows       CouponFollow[]
+  couponVotes         CouponVote[]
+  couponEvents        CouponEvent[]
+  integrationCreds    IntegrationCredential[]
+
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+/// Opaque session token in httpOnly cookie `pc_session`; only SHA-256 hash stored.
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  email             String?
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model UserPreference {
+  userId              String          @id
+  zip                 String?
+  favoriteRetailers   String[]        @default([])
+  preferredCategories String[]        @default([])
+  memberships         String[]        @default([])
+  notifyEmail         Boolean         @default(true)
+  notifyPush          Boolean         @default(false)
+  notifyPriceDrops    Boolean         @default(true)
+  weeklyDigest        Boolean         @default(false)
+  marketingOptIn      Boolean         @default(false)
+  theme               ThemePreference @default(system)
+  homeAirport         String?         @db.Char(3)
+  updatedAt           DateTime        @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+/// Admin-managed credentials for an external integration (adapter or app integration).
+/// `ciphertext` = AES-256-GCM encrypted JSON of field values (key: CREDENTIALS_ENCRYPTION_KEY). Never returned in plaintext.
+model IntegrationCredential {
+  id                String    @id @default(cuid())
+  adapterId         String    @unique
+  ciphertext        String
+  enabled           Boolean   @default(true)
+  updatedById       String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+  lastTestAt        DateTime? @db.Timestamptz(3)
+  lastTestStatus    String?
+  lastTestMessage   String?
+  lastTestLatencyMs Int?
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("integration_credentials")
+}
+
+/// Expo push tokens registered by the mobile app (POST /v1/me/devices).
+model PushDevice {
+  id         String         @id @default(cuid())
+  userId     String
+  token      String         @unique
+  platform   DevicePlatform
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  lastSeenAt DateTime       @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_devices")
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String?
+  line1     String
+  line2     String?
+  city      String
+  state     String   @db.Char(2)
+  zip       String
+  country   String   @default("US") @db.Char(2)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ───────────────────────────── Catalog ─────────────────────────────
+
+model Category {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  parentId    String?
+  /// Materialized path of slugs, e.g. "electronics/tv-home-theater" — fast subtree queries.
+  path        String   @unique
+  depth       Int      @default(0)
+  description String?
+  icon        String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+  coupons  Coupon[]
+
+  @@index([parentId, sortOrder])
+  @@map("categories")
+}
+
+model Brand {
+  id            String      @id @default(cuid())
+  slug          String      @unique
+  name          String      @unique
+  description   String?
+  website       String?
+  /// Public URL of the stored logo (see LogoSource). Trademark of its owner, used nominatively.
+  logoUrl       String?
+  logoSource    LogoSource?
+  logoUpdatedAt DateTime?   @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @db.Timestamptz(3)
+
+  products Product[]
+
+  @@map("brands")
+}
+
+/// Canonical product. Variants differing in storage/color/size/pack/condition are separate Products,
+/// linked as siblings through ProductVariant.familyKey — never merged.
+model Product {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  title       String
+  description String?
+  brandId     String?
+  categoryId  String?
+  model       String?
+  mpn         String?
+  condition   ProductCondition @default(new)
+  status      ProductStatus    @default(active)
+  /// True for seeded demo catalog rows (UI must label "Demo data").
+  isDemo      Boolean          @default(false)
+  releasedAt  DateTime?        @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+
+  brand          Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  category       Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variant        ProductVariant?
+  identifiers    ProductIdentifier[]
+  attributes     ProductAttribute[]
+  images         ProductImage[]
+  offers         Offer[]
+  priceHistory   PriceHistory[]
+  matches        ProductMatch[]
+  alerts         PriceAlert[]
+  favorites      Favorite[]
+  listItems      ShoppingListItem[]
+  recentlyViewed RecentlyViewed[]
+  deals          Deal[]
+  clicks         AffiliateClick[]
+  anomalies      PriceAnomaly[]
+  coupons        Coupon[]
+
+  @@index([categoryId, status])
+  @@index([brandId])
+  @@index([brandId, mpn])
+  @@index([status, updatedAt])
+  /// Trigram index for the Postgres search fallback (pg_trgm, created in migration).
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_title_trgm_idx")
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String @id @default(cuid())
+  productId  String @unique
+  /// Products sharing a familyKey are variants of one another (e.g. "apple-iphone-16-pro").
+  familyKey  String
+  /// Short label, e.g. "256 GB · Black Titanium".
+  label      String
+  /// Distinguishing attributes, e.g. {"storage":"256 GB","color":"Black Titanium"}.
+  attributes Json
+  sortOrder  Int    @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([familyKey, sortOrder])
+  @@map("product_variants")
+}
+
+model ProductIdentifier {
+  id         String         @id @default(cuid())
+  productId  String
+  type       IdentifierType
+  value      String
+  /// Set for retailer-scoped identifiers (ASIN, SKU).
+  retailerId String?
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer Retailer? @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, type, value])
+  @@index([type, value])
+  @@index([value])
+  @@map("product_identifiers")
+}
+
+model ProductAttribute {
+  id        String  @id @default(cuid())
+  productId String
+  group     String?
+  name      String
+  value     String
+  unit      String?
+  sortOrder Int     @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@index([name, value])
+  @@map("product_attributes")
+}
+
+model ProductImage {
+  id        String     @id @default(cuid())
+  productId String
+  url       String
+  alt       String
+  width     Int?
+  height    Int?
+  sortOrder Int        @default(0)
+  source    DataSource @default(demo)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}
+
+// ───────────────────────────── Retailers & offers ─────────────────────────────
+
+model Retailer {
+  id                         String            @id @default(cuid())
+  slug                       String            @unique
+  name                       String
+  domain                     String            @unique
+  websiteUrl                 String
+  /// Public URL of the stored logo (see LogoSource). Trademark of its owner, used nominatively.
+  logoUrl                    String?
+  logoSource                 LogoSource?
+  logoUpdatedAt              DateTime?         @db.Timestamptz(3)
+  /// Hex color for text-logo tiles (no trademark images without license).
+  brandColor                 String?
+  integrationStatus          IntegrationStatus @default(pending_configuration)
+  isActive                   Boolean           @default(true)
+  /// Null until computed from real signals (returns, fulfilment, complaints). Never invented.
+  trustScore                 Int?
+  freeShippingThresholdCents Int?
+  membershipName             String?
+  membershipKey              String?
+  returnPolicyUrl            String?
+  affiliateDisclosure        String?
+  /// Outbound redirect allow-list (anti open-redirect). Includes `domain` implicitly.
+  allowedRedirectHosts       String[]          @default([])
+  createdAt                  DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime          @updatedAt @db.Timestamptz(3)
+
+  integrations      RetailerIntegration[]
+  feeds             RetailerFeed[]
+  offers            Offer[]
+  priceHistory      PriceHistory[]
+  identifiers       ProductIdentifier[]
+  matches           ProductMatch[]
+  affiliatePrograms AffiliateProgram[]
+  clicks            AffiliateClick[]
+  campaigns         SponsoredCampaign[]
+  ingestionJobs     DataIngestionJob[]
+  integrationErrors IntegrationError[]
+  merchantAccount   MerchantAccount?
+  alerts            PriceAlert[]
+  coupons           Coupon[]
+  couponFollows     CouponFollow[]
+  couponEvents      CouponEvent[]
+  checkoutConfig    RetailerCheckoutConfig?
+
+  @@index([isActive])
+  @@map("retailers")
+}
+
+model RetailerIntegration {
+  id         String            @id @default(cuid())
+  retailerId String
+  kind       IntegrationKind
+  /// Adapter id, e.g. "bestbuy-products-api", "cj-feed".
+  provider   String
+  status     IntegrationStatus @default(pending_configuration)
+  /// Non-secret settings only. Secrets live in env / secret manager.
+  config     Json?
+  lastSyncAt DateTime?         @db.Timestamptz(3)
+  lastError  String?
+  createdAt  DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @db.Timestamptz(3)
+
+  retailer Retailer           @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  errors   IntegrationError[]
+
+  @@unique([retailerId, provider])
+  @@map("retailer_integrations")
+}
+
+model RetailerFeed {
+  id                String     @id @default(cuid())
+  retailerId        String
+  merchantAccountId String?
+  name              String
+  format            FeedFormat @default(csv)
+  /// Remote URL (scheduled feeds) or null for uploads.
+  url               String?
+  /// Object-storage key for uploaded files.
+  fileKey           String?
+  status            JobStatus  @default(queued)
+  rowsTotal         Int?
+  rowsAccepted      Int?
+  rowsRejected      Int?
+  errors            Json?
+  uploadedAt        DateTime   @default(now()) @db.Timestamptz(3)
+  completedAt       DateTime?  @db.Timestamptz(3)
+
+  retailer        Retailer           @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  merchantAccount MerchantAccount?   @relation(fields: [merchantAccountId], references: [id], onDelete: SetNull)
+  offers          Offer[]
+  jobs            DataIngestionJob[]
+
+  @@index([retailerId, uploadedAt])
+  @@index([merchantAccountId])
+  @@map("retailer_feeds")
+}
+
+model Offer {
+  id                String           @id @default(cuid())
+  productId         String
+  retailerId        String
+  retailerSku       String
+  title             String
+  /// Canonical retailer product URL (validated against allow-list before redirect).
+  url               String
+  affiliateUrl      String?
+  condition         ProductCondition @default(new)
+  priceCents        Int
+  listPriceCents    Int?
+  /// null = unknown, 0 = free.
+  shippingCents     Int?
+  shippingDaysMin   Int?
+  shippingDaysMax   Int?
+  pickupAvailable   Boolean          @default(false)
+  currency          String           @default("USD") @db.Char(3)
+  stock             StockStatus      @default(unknown)
+  couponCode        String?
+  couponDescription String?
+  source            DataSource
+  isActive          Boolean          @default(true)
+  feedId            String?
+  merchantAccountId String?
+  firstSeenAt       DateTime         @default(now()) @db.Timestamptz(3)
+  lastCheckedAt     DateTime         @default(now()) @db.Timestamptz(3)
+  lastChangedAt     DateTime         @default(now()) @db.Timestamptz(3)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @db.Timestamptz(3)
+
+  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer        Retailer         @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  feed            RetailerFeed?    @relation(fields: [feedId], references: [id], onDelete: SetNull)
+  merchantAccount MerchantAccount? @relation(fields: [merchantAccountId], references: [id], onDelete: SetNull)
+  history         PriceHistory[]
+  matches         ProductMatch[]
+  clicks          AffiliateClick[]
+  deals           Deal[]
+  anomalies       PriceAnomaly[]
+
+  @@unique([retailerId, retailerSku])
+  @@index([productId, isActive, priceCents])
+  @@index([retailerId, isActive])
+  @@index([source])
+  @@index([lastCheckedAt])
+  @@map("offers")
+}
+
+/// Append-only price observations, keyed (offerId, observedAt).
+/// Designed for monthly RANGE partitioning on observedAt (see docs/DATABASE_SCHEMA.md).
+model PriceHistory {
+  offerId       String
+  observedAt    DateTime    @db.Timestamptz(3)
+  productId     String
+  retailerId    String
+  priceCents    Int
+  shippingCents Int?
+  currency      String      @default("USD") @db.Char(3)
+  stock         StockStatus @default(unknown)
+  source        DataSource
+
+  offer    Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@id([offerId, observedAt])
+  @@index([productId, observedAt])
+  @@index([retailerId, observedAt])
+  @@map("price_history")
+}
+
+model PriceAnomaly {
+  id         String      @id @default(cuid())
+  kind       AnomalyKind
+  severity   Severity    @default(medium)
+  offerId    String?
+  productId  String?
+  message    String
+  context    Json?
+  detectedAt DateTime    @default(now()) @db.Timestamptz(3)
+  resolvedAt DateTime?   @db.Timestamptz(3)
+
+  offer   Offer?   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([resolvedAt, detectedAt])
+  @@map("price_anomalies")
+}
+
+// ───────────────────────────── Matching ─────────────────────────────
+
+model ProductMatch {
+  id             String      @id @default(cuid())
+  retailerId     String
+  offerId        String?
+  productId      String?
+  candidateTitle String
+  /// Raw candidate payload (identifiers, attributes) used by the matcher.
+  candidateData  Json
+  /// Confidence in basis points (9800 = 0.98).
+  confidenceBp   Int
+  method         MatchMethod
+  status         MatchStatus @default(pending_review)
+  conflicts      String[]    @default([])
+  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @db.Timestamptz(3)
+
+  retailer Retailer      @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  offer    Offer?        @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  product  Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  reviews  MatchReview[]
+
+  @@index([status, createdAt])
+  @@index([productId])
+  @@map("product_matches")
+}
+
+model MatchReview {
+  id         String         @id @default(cuid())
+  matchId    String
+  reviewerId String?
+  decision   ReviewDecision
+  productId  String?
+  note       String?
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+
+  match    ProductMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  reviewer User?        @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([matchId])
+  @@map("match_reviews")
+}
+
+// ───────────────────────────── User features ─────────────────────────────
+
+model PriceAlert {
+  id               String                @id @default(cuid())
+  userId           String
+  productId        String
+  type             AlertType
+  targetPriceCents Int?
+  dropPercentBp    Int?
+  retailerId       String?
+  channels         NotificationChannel[] @default([email, in_app])
+  active           Boolean               @default(true)
+  lastTriggeredAt  DateTime?             @db.Timestamptz(3)
+  cooldownUntil    DateTime?             @db.Timestamptz(3)
+  createdAt        DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime              @updatedAt @db.Timestamptz(3)
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailer      Retailer?      @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([productId, active])
+  @@map("price_alerts")
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  alertId   String?
+  type      String
+  title     String
+  body      String
+  url       String?
+  channel   NotificationChannel @default(in_app)
+  /// Dedupe key (e.g. alertId + price) to avoid duplicate sends.
+  dedupeKey String?             @unique
+  sentAt    DateTime?           @db.Timestamptz(3)
+  readAt    DateTime?           @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert PriceAlert? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("favorites")
+}
+
+model ShoppingList {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isPublic  Boolean  @default(false)
+  shareSlug String?  @unique
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ShoppingListItem[]
+
+  @@index([userId])
+  @@map("shopping_lists")
+}
+
+model ShoppingListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  productId String
+  quantity  Int      @default(1)
+  note      String?
+  addedAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  list    ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, productId])
+  @@map("shopping_list_items")
+}
+
+model ProductComparison {
+  id         String   @id @default(cuid())
+  userId     String?
+  productIds String[]
+  shareSlug  String?  @unique
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("product_comparisons")
+}
+
+model RecentlyViewed {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  viewedAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, viewedAt])
+  @@map("recently_viewed")
+}
+
+// ───────────────────────────── Monetization ─────────────────────────────
+
+model AffiliateProgram {
+  id               String            @id @default(cuid())
+  retailerId       String?
+  network          AffiliateNetwork
+  name             String
+  /// Network-side advertiser/program id.
+  externalId       String?
+  commissionRateBp Int?
+  cookieDays       Int?
+  status           IntegrationStatus @default(pending_configuration)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+
+  retailer    Retailer?             @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  conversions AffiliateConversion[]
+
+  @@unique([network, externalId])
+  @@index([retailerId])
+  @@map("affiliate_programs")
+}
+
+model AffiliateClick {
+  id          String    @id @default(cuid())
+  kind        ClickKind @default(product)
+  /// Unique sub-id passed to the network for conversion attribution.
+  subId       String    @unique
+  offerId     String?
+  productId   String?
+  retailerId  String?
+  /// FlightOffer / HotelRate id for travel clicks.
+  travelRefId String?
+  couponId   String?
+  userId      String?
+  placement   String?
+  targetHost  String
+  /// SHA-256 of IP + daily salt (no raw IPs stored).
+  ipHash      String?
+  userAgent   String?
+  referrer    String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  offer       Offer?                @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  product     Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  retailer    Retailer?             @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  user        User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  coupon      Coupon?               @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  conversions AffiliateConversion[]
+
+  @@index([createdAt])
+  @@index([retailerId, createdAt])
+  @@index([userId])
+  @@map("affiliate_clicks")
+}
+
+model AffiliateConversion {
+  id               String           @id @default(cuid())
+  programId        String?
+  clickId          String?
+  network          AffiliateNetwork
+  externalId       String
+  orderAmountCents Int
+  commissionCents  Int
+  currency         String           @default("USD") @db.Char(3)
+  status           ConversionStatus @default(pending)
+  occurredAt       DateTime         @db.Timestamptz(3)
+  importedAt       DateTime         @default(now()) @db.Timestamptz(3)
+  raw              Json?
+
+  program    AffiliateProgram?     @relation(fields: [programId], references: [id], onDelete: SetNull)
+  click      AffiliateClick?       @relation(fields: [clickId], references: [id], onDelete: SetNull)
+  commission Commission?
+  cashback   CashbackTransaction[]
+
+  @@unique([network, externalId])
+  @@index([clickId])
+  @@index([occurredAt])
+  @@map("affiliate_conversions")
+}
+
+model Commission {
+  id           String           @id @default(cuid())
+  conversionId String           @unique
+  amountCents  Int
+  currency     String           @default("USD") @db.Char(3)
+  status       CommissionStatus @default(pending)
+  reconciledAt DateTime?        @db.Timestamptz(3)
+  paidAt       DateTime?        @db.Timestamptz(3)
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+
+  conversion AffiliateConversion @relation(fields: [conversionId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("commissions")
+}
+
+/// Never credited without a verified conversion. Payouts disabled until legal review.
+model CashbackTransaction {
+  id           String         @id @default(cuid())
+  userId       String
+  conversionId String?
+  amountCents  Int
+  currency     String         @default("USD") @db.Char(3)
+  status       CashbackStatus @default(pending)
+  note         String?
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
+
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversion AffiliateConversion? @relation(fields: [conversionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@map("cashback_transactions")
+}
+
+model SubscriptionPlan {
+  id            String          @id @default(cuid())
+  code          String          @unique
+  name          String
+  priceCents    Int
+  currency      String          @default("USD") @db.Char(3)
+  interval      BillingInterval
+  features      Json
+  stripePriceId String?         @unique
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime        @updatedAt @db.Timestamptz(3)
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  planId               String
+  status               SubscriptionStatus @default(incomplete)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?            @unique
+  currentPeriodEnd     DateTime?          @db.Timestamptz(3)
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+/// Sponsored placements are always labeled and never alter organic ranking or Deal Score.
+model SponsoredCampaign {
+  id                String         @id @default(cuid())
+  retailerId        String?
+  merchantAccountId String?
+  name              String
+  status            CampaignStatus @default(draft)
+  placement         String
+  productIds        String[]       @default([])
+  label             String         @default("Sponsored")
+  budgetCents       Int
+  spentCents        Int            @default(0)
+  startsAt          DateTime?      @db.Timestamptz(3)
+  endsAt            DateTime?      @db.Timestamptz(3)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+
+  retailer        Retailer?        @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  merchantAccount MerchantAccount? @relation(fields: [merchantAccountId], references: [id], onDelete: SetNull)
+
+  @@index([status, placement])
+  @@map("sponsored_campaigns")
+}
+
+// ───────────────────────────── Community (feature-flagged) ─────────────────────────────
+
+model Deal {
+  id         String     @id @default(cuid())
+  userId     String?
+  productId  String?
+  offerId    String?
+  title      String
+  body       String?
+  url        String
+  priceCents Int?
+  currency   String     @default("USD") @db.Char(3)
+  status     DealStatus @default(pending)
+  voteScore  Int        @default(0)
+  expiresAt  DateTime?  @db.Timestamptz(3)
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime   @updatedAt @db.Timestamptz(3)
+
+  user     User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product  Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  offer    Offer?        @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  votes    DealVote[]
+  comments DealComment[]
+
+  @@index([status, createdAt])
+  @@map("deals")
+}
+
+model DealVote {
+  id        String   @id @default(cuid())
+  dealId    String
+  userId    String
+  /// +1 or -1
+  value     Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dealId, userId])
+  @@map("deal_votes")
+}
+
+model DealComment {
+  id        String           @id @default(cuid())
+  dealId    String
+  userId    String
+  parentId  String?
+  body      String
+  status    ModerationStatus @default(visible)
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @db.Timestamptz(3)
+
+  deal    Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  DealComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies DealComment[] @relation("CommentThread")
+
+  @@index([dealId, createdAt])
+  @@map("deal_comments")
+}
+
+// ───────────────────────────── Ops / analytics ─────────────────────────────
+
+model SearchEvent {
+  id              String   @id @default(cuid())
+  query           String
+  normalizedQuery String
+  userId          String?
+  sessionHash     String?
+  resultCount     Int
+  filters         Json?
+  degraded        Boolean  @default(false)
+  tookMs          Int?
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([normalizedQuery, createdAt])
+  @@map("search_events")
+}
+
+model FeatureFlag {
+  key            String   @id
+  description    String?
+  enabled        Boolean  @default(false)
+  rolloutPercent Int      @default(0)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("feature_flags")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  diff       Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model DataIngestionJob {
+  id         String    @id @default(cuid())
+  kind       String
+  retailerId String?
+  feedId     String?
+  status     JobStatus @default(queued)
+  stats      Json?
+  error      String?
+  queuedAt   DateTime  @default(now()) @db.Timestamptz(3)
+  startedAt  DateTime? @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+
+  retailer Retailer?     @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  feed     RetailerFeed? @relation(fields: [feedId], references: [id], onDelete: SetNull)
+
+  @@index([status, queuedAt])
+  @@index([retailerId, queuedAt])
+  @@map("data_ingestion_jobs")
+}
+
+model IntegrationError {
+  id            String    @id @default(cuid())
+  integrationId String?
+  retailerId    String?
+  provider      String
+  code          String
+  message       String
+  context       Json?
+  occurredAt    DateTime  @default(now()) @db.Timestamptz(3)
+  resolvedAt    DateTime? @db.Timestamptz(3)
+
+  integration RetailerIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  retailer    Retailer?            @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+
+  @@index([provider, occurredAt])
+  @@index([resolvedAt])
+  @@map("integration_errors")
+}
+
+// ───────────────────────────── Merchants ─────────────────────────────
+
+model MerchantAccount {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  retailerId         String?            @unique
+  companyName        String
+  contactEmail       String
+  website            String?
+  verificationStatus VerificationStatus @default(unverified)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  retailer  Retailer?           @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  apiKeys   ApiKey[]
+  feeds     RetailerFeed[]
+  offers    Offer[]
+  campaigns SponsoredCampaign[]
+  coupons   Coupon[]
+
+  @@map("merchant_accounts")
+}
+
+model ApiKey {
+  id                String    @id @default(cuid())
+  merchantAccountId String
+  name              String
+  /// Displayable prefix, e.g. "pk_live_ab12".
+  prefix            String
+  /// SHA-256 of the full key. The key itself is shown once.
+  keyHash           String    @unique
+  scopes            String[]
+  lastUsedAt        DateTime? @db.Timestamptz(3)
+  revokedAt         DateTime? @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+
+  merchantAccount MerchantAccount @relation(fields: [merchantAccountId], references: [id], onDelete: Cascade)
+
+  @@index([merchantAccountId])
+  @@map("api_keys")
+}
+
+// ───────────────────────────── Travel ─────────────────────────────
+
+model Airport {
+  iata       String  @id @db.Char(3)
+  icao       String? @db.Char(4)
+  name       String
+  city       String
+  region     String?
+  country    String  @db.Char(2)
+  lat        Float?
+  lon        Float?
+  timezone   String?
+  /// Higher = shown first in autocomplete.
+  searchRank Int     @default(0)
+
+  @@index([city])
+  @@index([country, searchRank])
+  @@map("airports")
+}
+
+model Airline {
+  iata    String  @id @db.Char(2)
+  icao    String? @db.Char(3)
+  name    String
+  country String? @db.Char(2)
+  logoUrl String?
+
+  @@map("airlines")
+}
+
+/// Short-lived cache of provider search results.
+model FlightSearch {
+  id        String   @id @default(cuid())
+  cacheKey  String   @unique
+  params    Json
+  providers Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+
+  offers FlightOffer[]
+
+  @@index([expiresAt])
+  @@map("flight_searches")
+}
+
+/// Snapshot of a fare at fetch time.
+model FlightOffer {
+  id               String     @id @default(cuid())
+  searchId         String?
+  provider         String
+  providerOfferId  String?
+  fromIata         String     @db.Char(3)
+  toIata           String     @db.Char(3)
+  departAt         DateTime   @db.Timestamptz(3)
+  returnAt         DateTime?  @db.Timestamptz(3)
+  cabin            CabinClass @default(economy)
+  adults           Int        @default(1)
+  stops            Int        @default(0)
+  durationMinutes  Int
+  marketingCarrier String     @db.Char(2)
+  totalPriceCents  Int
+  currency         String     @default("USD") @db.Char(3)
+  /// Full slices/segments payload matching contracts FlightSlice[].
+  slices           Json
+  deepLink         String?
+  source           DataSource
+  fetchedAt        DateTime   @default(now()) @db.Timestamptz(3)
+  expiresAt        DateTime?  @db.Timestamptz(3)
+
+  search FlightSearch? @relation(fields: [searchId], references: [id], onDelete: Cascade)
+
+  @@index([fromIata, toIata, departAt])
+  @@index([searchId])
+  @@map("flight_offers")
+}
+
+model Hotel {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  name         String
+  starRating   Float?
+  address      String?
+  city         String
+  region       String?
+  country      String     @default("US") @db.Char(2)
+  lat          Float?
+  lon          Float?
+  description  String?
+  amenities    String[]   @default([])
+  imageUrl     String?
+  checkinTime  String?
+  checkoutTime String?
+  /// Provider ids, e.g. {"expedia":"123","booking":"456"}.
+  providerRefs Json?
+  source       DataSource
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+
+  rates HotelRate[]
+
+  @@index([city])
+  @@map("hotels")
+}
+
+/// Snapshot of a room rate at fetch time.
+model HotelRate {
+  id                String     @id @default(cuid())
+  hotelId           String
+  provider          String
+  roomName          String
+  boardType         BoardType?
+  refundable        Boolean?
+  checkin           DateTime   @db.Date
+  checkout          DateTime   @db.Date
+  guests            Int        @default(2)
+  rooms             Int        @default(1)
+  nightlyPriceCents Int
+  totalPriceCents   Int
+  taxesAndFeesCents Int?
+  currency          String     @default("USD") @db.Char(3)
+  deepLink          String?
+  source            DataSource
+  fetchedAt         DateTime   @default(now()) @db.Timestamptz(3)
+
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@index([hotelId, checkin])
+  @@map("hotel_rates")
+}
+
+model TravelAlert {
+  id               String          @id @default(cuid())
+  userId           String
+  kind             TravelAlertKind
+  fromIata         String?         @db.Char(3)
+  toIata           String?         @db.Char(3)
+  city             String?
+  departDate       DateTime?       @db.Date
+  returnDate       DateTime?       @db.Date
+  targetPriceCents Int?
+  active           Boolean         @default(true)
+  lastTriggeredAt  DateTime?       @db.Timestamptz(3)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("travel_alerts")
+}
+
+// ───────────────────────────── Coupons ─────────────────────────────
+
+/// Store coupon or promo. Deal-type promos have no code. discountValue: basis points for percent, cents for amount.
+model Coupon {
+  id                String             @id @default(cuid())
+  retailerId        String
+  code              String?
+  title             String
+  description       String?
+  discountType      CouponDiscountType
+  discountValue     Int?
+  minSpendCents     Int?
+  /// Optional scope; both null = store-wide.
+  categoryId        String?
+  productId         String?
+  startsAt          DateTime?          @db.Timestamptz(3)
+  expiresAt         DateTime?          @db.Timestamptz(3)
+  source            CouponSource
+  affiliateUrl      String?
+  status            CouponStatus       @default(unverified)
+  lastVerifiedAt    DateTime?          @db.Timestamptz(3)
+  successCount      Int                @default(0)
+  failCount         Int                @default(0)
+  /// Weighted success rate over the last 90 days of real usage reports (0..10000 bp); null = no data.
+  successRateBp     Int?
+  lastWorkedAt      DateTime?          @db.Timestamptz(3)
+  lastFailedAt      DateTime?          @db.Timestamptz(3)
+  avgSavingsCents   Int?
+  createdById       String?
+  merchantAccountId String?
+  /// Network-side id for feed-ingested coupons (dedupe).
+  externalId        String?
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+
+  retailer        Retailer         @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  category        Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  product         Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdBy       User?            @relation("CouponCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  merchantAccount MerchantAccount? @relation(fields: [merchantAccountId], references: [id], onDelete: SetNull)
+  votes           CouponVote[]
+  clicks          AffiliateClick[]
+  events          CouponEvent[]
+
+  @@unique([source, externalId])
+  @@index([retailerId, status])
+  @@index([status, expiresAt])
+  @@index([productId])
+  @@map("coupons")
+}
+
+/// User follows a store to be notified of its new coupons.
+model CouponFollow {
+  id         String   @id @default(cuid())
+  userId     String
+  retailerId String
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, retailerId])
+  @@index([retailerId])
+  @@map("coupon_follows")
+}
+
+model CouponVote {
+  id        String   @id @default(cuid())
+  userId    String
+  couponId  String
+  worked    Boolean
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, couponId])
+  @@map("coupon_votes")
+}
+
+/// Append-only coupon history (created/worked/failed/expired…). Stats are computed from these real events only.
+model CouponEvent {
+  id              String          @id @default(cuid())
+  couponId        String?
+  retailerId      String
+  type            CouponEventType
+  channel         CouponChannel?
+  userId          String?
+  /// sha256 of device id / client fingerprint (+ server salt); never raw identifiers.
+  fingerprintHash String?
+  orderTotalCents Int?
+  savingsCents    Int?
+  /// Authenticated reports weigh more than anonymous ones.
+  weight          Int             @default(1)
+  note            String?
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+
+  coupon   Coupon?  @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([couponId, createdAt])
+  @@index([retailerId, createdAt])
+  @@index([fingerprintHash, couponId])
+  @@map("coupon_events")
+}
+
+/// Browser-extension checkout automation per store. Selectors must be filled and verified by an admin.
+model RetailerCheckoutConfig {
+  id                       String   @id @default(cuid())
+  retailerId               String   @unique
+  hostPatterns             String[] @default([])
+  checkoutUrlPatterns      String[] @default([])
+  couponInputSelector      String?
+  applyButtonSelector      String?
+  totalSelector            String?
+  successIndicatorSelector String?
+  errorIndicatorSelector   String?
+  removeButtonSelector     String?
+  enabled                  Boolean  @default(false)
+  version                  Int      @default(1)
+  updatedById              String?
+  createdAt                DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime @updatedAt @db.Timestamptz(3)
+
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@map("retailer_checkout_configs")
+}

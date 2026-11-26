@@ -1,0 +1,57 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": [
+    {
+      "property_id": "12345",
+      "status": "available",
+      "rooms": [
+        {
+          "id": "r1",
+          "room_name": "Standard King",
+          "rates": [
+            {
+              "id": "rate1",
+              "refundable": true,
+              "occupancy_pricing": {
+                "2": {
+                  "totals": {
+                    "inclusive": {
+                      "billable_currency": {
+                        "value": "450.12",
+                        "currency": "USD"
+                      },
+                      "request_currency": {
+                        "value": "450.12",
+                        "currency": "USD"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "id": "rate2",
+              "refundable": false,
+              "occupancy_pricing": {
+                "2": {
+                  "totals": {
+                    "inclusive": {
+                      "request_currency": {
+                        "value": "399.00",
+                        "currency": "USD"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "property_id": "67890",
+      "rooms": []
+    }
+  ]
+}

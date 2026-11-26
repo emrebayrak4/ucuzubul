@@ -1,0 +1,20 @@
+{
+  "name": "pricora",
+  "private": true,
+  "packageManager": "pnpm@12.23.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:migrate": "pnpm -C packages/database migrate",
+    "db:seed": "pnpm -C packages/database seed",
+    "db:generate": "pnpm -C packages/database generate"
+  },
+  "devDependencies": {
+    "turbo": "2.11.13",
+    "typescript": "5.9.3"
+  }
+}

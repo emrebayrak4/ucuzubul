@@ -1,0 +1,7 @@
+id,title,description,link,image_link,price,sale_price,availability,condition,brand,gtin,mpn,shipping,product_type
+SKU-1,"Acme X100 Headphones, Black","Wireless, ""noise cancelling""",https://shop.example.com/p/sku-1,https://shop.example.com/i/sku-1.jpg,199.99 USD,179.99 USD,in stock,new,Acme,012345678905,X100-BLK,US::Standard:0 USD,Electronics > Audio > Headphones
+SKU-2,Acme X100 Headphones Refurbished,,https://shop.example.com/p/sku-2,,149.00 USD,,out of stock,refurbished,Acme,,X100-BLK,US::Standard:5.99 USD,Electronics > Audio
+SKU-3,Bad Gtin Item,,https://shop.example.com/p/sku-3,,abc,,in stock,new,Acme,012345678901,,,
+,Missing Id,,,,10.00 USD,,,,,,,,
+SKU-4,Acme Speaker 2-Pack,"multi
+line",https://shop.example.com/p/sku-4,,89.50,,preorder,new,Acme,073112345673,SPK-2,,Electronics > Audio > Speakers

@@ -1,0 +1,71 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "data": [
+      {
+        "productId": "0001111041700",
+        "upc": "0001111041700",
+        "brand": "Kroger",
+        "description": "Kroger 2% Reduced Fat Milk",
+        "categories": [
+          "Dairy"
+        ],
+        "productPageURI": "/p/kroger-2-reduced-fat-milk/0001111041700?cid=test",
+        "images": [
+          {
+            "perspective": "front",
+            "featured": true,
+            "sizes": [
+              {
+                "size": "large",
+                "url": "https://www.kroger.com/product/images/large/front/0001111041700"
+              },
+              {
+                "size": "medium",
+                "url": "https://www.kroger.com/product/images/medium/front/0001111041700"
+              }
+            ]
+          }
+        ],
+        "items": [
+          {
+            "itemId": "0001111041700",
+            "size": "1 gal",
+            "price": {
+              "regular": 3.49,
+              "promo": 2.99
+            },
+            "inventory": {
+              "stockLevel": "LOW"
+            },
+            "fulfillment": {
+              "curbside": true,
+              "delivery": true,
+              "inStore": true,
+              "shipToHome": false
+            }
+          }
+        ]
+      },
+      {
+        "productId": "0001111000000",
+        "upc": "0001111000000",
+        "brand": "Kroger",
+        "description": "Kroger Item Without Store Price",
+        "items": [
+          {
+            "itemId": "0001111000000",
+            "size": "12 oz"
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "pagination": {
+        "start": 0,
+        "limit": 2,
+        "total": 2
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "@pricora/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3100",
+    "build": "next build",
+    "start": "next start --port 3100",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@pricora/api-client": "workspace:*",
+    "@pricora/config": "workspace:*",
+    "@pricora/contracts": "workspace:*",
+    "@pricora/design-tokens": "workspace:*",
+    "@pricora/ui": "workspace:*",
+    "@pricora/utils": "workspace:*",
+    "@tanstack/react-query": "5.108.2",
+    "echarts": "6.1.0",
+    "geist": "1.9.2",
+    "lucide-react": "1.79.0",
+    "next": "16.4.6",
+    "next-themes": "0.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@next/eslint-plugin-next": "16.4.6",
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "24.19.4",
+    "@types/react": "19.3.1",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.15.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.74.0"
+  }
+}

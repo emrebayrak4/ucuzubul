@@ -1,0 +1,31 @@
+{
+  "name": "@pricora/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pricora/algorithms": "workspace:*",
+    "@pricora/api": "workspace:*",
+    "@pricora/config": "workspace:*",
+    "@pricora/database": "workspace:*",
+    "@pricora/retailer-adapters": "workspace:*",
+    "bullmq": "6.7.10",
+    "ioredis": "6.1.0",
+    "meilisearch": "0.63.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.4",
+    "tsup": "8.5.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.1.2"
+  }
+}

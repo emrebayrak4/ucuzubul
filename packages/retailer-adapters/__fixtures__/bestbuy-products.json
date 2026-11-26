@@ -1,0 +1,54 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "from": 1,
+    "to": 2,
+    "currentPage": 1,
+    "total": 2,
+    "totalPages": 1,
+    "products": [
+      {
+        "sku": 6500001,
+        "name": "Acme - X100 Wireless Noise Cancelling Headphones - Black",
+        "salePrice": 179.99,
+        "regularPrice": 199.99,
+        "onSale": true,
+        "onlineAvailability": true,
+        "upc": "012345678905",
+        "manufacturer": "Acme",
+        "modelNumber": "X100-BLK",
+        "url": "https://www.bestbuy.com/site/acme-x100/6500001.p?skuId=6500001",
+        "image": "https://pisces.bbystatic.com/test.jpg",
+        "affiliateUrl": null,
+        "condition": "New",
+        "freeShipping": true,
+        "shippingCost": 0,
+        "categoryPath": [
+          {
+            "id": "abcat0000000",
+            "name": "Best Buy"
+          },
+          {
+            "id": "abcat0204000",
+            "name": "Headphones"
+          }
+        ],
+        "color": "Black"
+      },
+      {
+        "sku": 6500002,
+        "name": "Acme - X100 Headphones - Refurbished",
+        "salePrice": 129.99,
+        "regularPrice": 129.99,
+        "onlineAvailability": false,
+        "upc": null,
+        "manufacturer": "Acme",
+        "modelNumber": "X100-BLK",
+        "url": "https://www.bestbuy.com/site/6500002.p?skuId=6500002",
+        "condition": "Refurbished",
+        "freeShipping": false,
+        "shippingCost": 5.99
+      }
+    ]
+  }
+}

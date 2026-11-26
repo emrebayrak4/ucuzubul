@@ -1,0 +1,40 @@
+{
+  "name": "@pricora/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@pricora/api-client": "workspace:*",
+    "@pricora/config": "workspace:*",
+    "@pricora/contracts": "workspace:*",
+    "@pricora/design-tokens": "workspace:*",
+    "@pricora/ui": "workspace:*",
+    "@pricora/utils": "workspace:*",
+    "@tanstack/react-query": "5.108.2",
+    "geist": "1.9.2",
+    "lucide-react": "1.79.0",
+    "next": "16.4.6",
+    "next-themes": "0.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "swagger-ui-dist": "5.35.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "24.19.4",
+    "@types/react": "19.3.1",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.6",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3"
+  }
+}

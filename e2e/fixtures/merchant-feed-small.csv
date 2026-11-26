@@ -1,0 +1,4 @@
+sku,title,brand,gtin,mpn,condition,price,list_price,shipping,stock,url,image_url,category
+E2E-SKU-001,E2E Test USB-C Cable 2m,DemoBrand,,E2E-USBC-2M,new,12.99,15.99,0,in_stock,https://demo-merchant.example/p/e2e-usbc-2m,,Accessories
+E2E-SKU-002,E2E Test Wireless Mouse,DemoBrand,,E2E-MOUSE-1,new,24.50,,4.99,in_stock,https://demo-merchant.example/p/e2e-mouse,,Accessories
+E2E-SKU-003,E2E Test Off-Domain Row,DemoBrand,,E2E-BAD-1,new,9.99,,0,in_stock,https://evil.example.net/p/bad,,Accessories

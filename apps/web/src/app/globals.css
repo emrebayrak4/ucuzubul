@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@import "@pricora/design-tokens/tailwind.css";
+@source "../../../../packages/ui/dist";
+
+@layer base {
+  :root {
+    --pc-header-h: 56px;
+  }
+  @media (width >= 64rem) {
+    :root {
+      --pc-header-h: 104px;
+    }
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* ------------------------------------------------------------------ View transitions */
+/* Header and footer are spatial anchors: they never animate between routes. */
+::view-transition-group(site-header),
+::view-transition-group(site-footer) {
+  animation: none;
+}
+
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+}
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+@keyframes vt-rise {
+  from { translate: 0 8px; }
+}
+@keyframes vt-slide {
+  from { translate: var(--vt-offset) 0; }
+}
+
+/* Default route change: fast exit, gentle rise-in (≈ 200ms total, ease-out). */
+::view-transition-old(.vt-page) {
+  animation: 120ms var(--pc-ease-in, ease-in) both vt-fade-out;
+}
+::view-transition-new(.vt-page) {
+  animation:
+    200ms var(--pc-ease-out, ease-out) 60ms both vt-fade-in,
+    240ms var(--pc-ease-out, ease-out) both vt-rise;
+}
+
+/* Shopping → travel slides left, travel → shopping slides right. */
+::view-transition-old(.vt-slide-forward) {
+  --vt-offset: -48px;
+  animation: 140ms ease-in both vt-fade-out, 240ms ease-in-out both vt-slide reverse;
+}
+::view-transition-new(.vt-slide-forward) {
+  --vt-offset: 48px;
+  animation: 200ms ease-out 80ms both vt-fade-in, 240ms ease-out both vt-slide;
+}
+::view-transition-old(.vt-slide-back) {
+  --vt-offset: 48px;
+  animation: 140ms ease-in both vt-fade-out, 240ms ease-in-out both vt-slide reverse;
+}
+::view-transition-new(.vt-slide-back) {
+  --vt-offset: -48px;
+  animation: 200ms ease-out 80ms both vt-fade-in, 240ms ease-out both vt-slide;
+}
+
+/* Product image morph (tile → product hero). */
+::view-transition-group(.vt-morph) {
+  animation-duration: 260ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Navigation progress bar */
+@keyframes nav-progress {
+  from { transform: scaleX(0.05); }
+  to { transform: scaleX(0.85); }
+}
+.nav-progress {
+  transform-origin: left;
+  animation: nav-progress 2.4s cubic-bezier(0.1, 0.6, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  .nav-progress {
+    display: none;
+  }
+}

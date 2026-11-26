@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@import "@pricora/design-tokens/tailwind.css";
+@source "../../../../packages/ui/dist";
+
+html,
+body {
+  height: 100%;
+}
+
+/* ---- Motion: route crossfade (content area only) + nav progress bar ---- */
+/* The whole-page root snapshot must not animate, so sidebar/header stay put. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(.pc-page) {
+  animation-duration: 150ms;
+}
+::view-transition-old(.pc-page) {
+  animation: 150ms ease-out both pc-vt-fade reverse;
+}
+::view-transition-new(.pc-page) {
+  animation: 150ms ease-out both pc-vt-fade;
+}
+@keyframes pc-vt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.pc-nav-progress {
+  width: 0;
+  animation: pc-nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+@keyframes pc-nav-progress {
+  0% {
+    width: 0;
+  }
+  10% {
+    width: 35%;
+  }
+  100% {
+    width: 90%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  .pc-nav-progress {
+    animation: none;
+    width: 60%;
+  }
+}
+

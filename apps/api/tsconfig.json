@@ -1,0 +1,17 @@
+{
+  "extends": "../../packages/config/tsconfig/library.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false,
+    "types": [
+      "node"
+    ],
+    "isolatedModules": true
+  },
+  "include": [
+    "src",
+    "test",
+    "tsup.config.ts",
+    "vitest.config.ts"
+  ]
+}

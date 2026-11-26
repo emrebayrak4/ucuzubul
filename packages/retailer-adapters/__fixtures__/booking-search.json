@@ -1,0 +1,24 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "request_id": "test-req",
+    "data": [
+      {
+        "id": 10001,
+        "currency": "USD",
+        "price": {
+          "book": 512.4,
+          "total": 548.9
+        },
+        "url": "https://www.booking.com/hotel/us/test-hotel.html?aid=0000000",
+        "deep_link_url": "booking://hotel/10001?affiliate_id=0000000"
+      },
+      {
+        "id": 10002,
+        "currency": "USD",
+        "price": {}
+      }
+    ],
+    "next_page": null
+  }
+}
