@@ -8,8 +8,9 @@ import { load, serverApi } from "@/lib/api-server";
 import { toQueryString } from "@/lib/nav";
 import { FareAlertCta } from "@/components/travel/fare-alert-cta";
 import { PLANNED_PROVIDERS, ProviderStatusList } from "@/components/travel/provider-status";
-import { TravelQuickSearch } from "@/components/travel/search-forms";
-import { TravelBand } from "@/components/travel/travel-band";
+import { FlightSearchForm } from "@/components/travel/search-forms";
+import { TravelHero } from "@/components/travel/travel-band";
+import { DestinationShortcuts, FlightShortcutCards } from "@/components/travel/destinations";
 
 export const metadata: Metadata = {
   title: "Travel — compare flights and hotels",
@@ -63,9 +64,9 @@ export default async function TravelHomePage() {
 
   return (
     <>
-      <TravelBand title="Where to next?" sub="Compare flights and hotels from multiple providers — real fares and rates only.">
-        <TravelQuickSearch compact={false} />
-      </TravelBand>
+      <TravelHero vertical="flights" active="explore" title="Where to next?" sub="Compare flights and hotels from multiple providers — real fares and rates only.">
+        <FlightSearchForm />
+      </TravelHero>
 
       <div className="container-content flex flex-col gap-10 py-8">
         {providers.length ? (
@@ -73,13 +74,16 @@ export default async function TravelHomePage() {
             <ProviderStatusList providers={providers} />
           ) : (
             <section className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-4 py-3 text-sm" data-testid="provider-status">
-              <span className="font-semibold text-travel">Live fares: connecting soon</span>
+              <span className="font-semibold text-flights-soft-fg">Live fares: connecting soon</span>
               <span className="text-text-muted">
                 We&apos;re setting up {providers.map((p) => p.name.replace(/ (.*)$/, "")).join(", ")}. Until then, flight searches show no fares (we never invent them) and hotel listings are labeled demo data.
               </span>
             </section>
           )
         ) : null}
+
+        <FlightShortcutCards />
+        <DestinationShortcuts vertical="flights" />
 
         {routes.length ? (
           <section aria-labelledby="routes-title">
@@ -97,7 +101,7 @@ export default async function TravelHomePage() {
                       href={"/travel/flights" + toQueryString({ from: a, to: b })}
                       className="group flex items-center gap-3 rounded-lg border border-border bg-surface p-4 transition-shadow hover:shadow-md"
                     >
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-travel-soft text-travel-soft-fg">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-flights-soft text-flights-soft-fg">
                         <Plane aria-hidden className="size-5" />
                       </span>
                       <span className="min-w-0 flex-1">
@@ -130,7 +134,7 @@ export default async function TravelHomePage() {
                     href={"/travel/hotels/search" + toQueryString({ city: d.city, checkin, checkout, guests: 2, rooms: 1 })}
                     className="flex h-full flex-col gap-2 rounded-lg border border-border bg-surface p-4 transition-shadow hover:shadow-md"
                   >
-                    <span className="flex size-10 items-center justify-center rounded-full bg-travel-soft text-travel-soft-fg">
+                    <span className="flex size-10 items-center justify-center rounded-full bg-flights-soft text-flights-soft-fg">
                       <BedDouble aria-hidden className="size-5" />
                     </span>
                     <span className="font-semibold">{d.city}</span>

@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session";
 export function FareAlertCta() {
   const { user } = useSession();
   return (
-    <section id="fare-alerts" className="flex flex-col items-start justify-between gap-4 rounded-lg bg-travel p-5 text-travel-fg sm:flex-row sm:items-center" data-testid="fare-alert-cta">
+    <section id="fare-alerts" className="flex flex-col items-start justify-between gap-4 rounded-lg bg-flights-action p-5 text-flights-action-fg sm:flex-row sm:items-center" data-testid="fare-alert-cta">
       <div className="flex items-start gap-3">
         <BellRing aria-hidden className="mt-0.5 size-6 shrink-0" />
         <div>
@@ -20,9 +20,9 @@ export function FareAlertCta() {
         </div>
       </div>
       {user ? (
-        <span className="rounded-full bg-surface px-4 py-2 text-sm font-semibold text-travel">Coming soon</span>
+        <span className="rounded-full bg-surface px-4 py-2 text-sm font-semibold text-flights-soft-fg">Coming soon</span>
       ) : (
-        <Link href={loginHref("/travel#fare-alerts")} className="rounded-full bg-surface px-4 py-2 text-sm font-semibold text-travel hover:bg-surface-2">
+        <Link href={loginHref("/travel#fare-alerts")} className="rounded-full bg-surface px-4 py-2 text-sm font-semibold text-flights-soft-fg hover:bg-surface-2">
           Log in to set alerts
         </Link>
       )}

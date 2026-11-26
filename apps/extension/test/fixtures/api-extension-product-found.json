@@ -1,0 +1,139 @@
+{
+ "status": "found",
+ "product": {
+  "id": "cmwxio8n6005h2o4tv9y752sp",
+  "slug": "sonos-arc-ultra-soundbar-black",
+  "title": "Sonos Arc Ultra Soundbar, Black",
+  "brand": {
+   "slug": "sonos",
+   "name": "Sonos",
+   "logoUrl": "http://localhost:4400/static/logos/brands/sonos-f1a0d0c97685.png"
+  },
+  "category": {
+   "slug": "tv-home-theater",
+   "name": "TVs & Home Theater"
+  },
+  "condition": "new",
+  "image": null,
+  "lowestPriceCents": 90599,
+  "lowestTotalCents": 90599,
+  "currency": "USD",
+  "storeCount": 3,
+  "inStock": true,
+  "dropRatio": 0,
+  "dealScore": 68,
+  "hasDemoData": true,
+  "sponsored": false,
+  "updatedAt": "2026-11-26T11:38:00.000Z"
+ },
+ "currentOffer": {
+  "id": "cmwxio8ne005o2o4t0b12xg0y",
+  "retailer": {
+   "id": "cmwxio8at001k2o4tealtuz8w",
+   "slug": "amazon",
+   "name": "Amazon",
+   "logoUrl": "http://localhost:4400/static/logos/retailers/amazon-5866636f1876.ico",
+   "brandColor": "#FF9900"
+  },
+  "title": "Sonos Arc Ultra Soundbar, Black",
+  "condition": "new",
+  "priceCents": 99999,
+  "listPriceCents": null,
+  "currency": "USD",
+  "shipping": {
+   "costCents": null,
+   "kind": "unknown",
+   "estimatedDaysMin": 4,
+   "estimatedDaysMax": 8,
+   "pickupAvailable": false
+  },
+  "tax": {
+   "amountCents": null,
+   "rateBasisPoints": null,
+   "status": "unknown_set_zip"
+  },
+  "estimatedTotalCents": 99999,
+  "stock": "in_stock",
+  "couponCode": null,
+  "couponDescription": null,
+  "goUrl": "/v1/go/cmwxio8ne005o2o4t0b12xg0y",
+  "isAffiliate": false,
+  "source": "demo",
+  "sponsored": false,
+  "lastCheckedAt": "2026-11-26T10:30:00.000Z"
+ },
+ "cheaperElsewhere": [
+  {
+   "id": "cmwxio8nm005q2o4t9lxj1lp7",
+   "retailer": {
+    "id": "cmwxio8bm001q2o4ttcxsytmq",
+    "slug": "target",
+    "name": "Target",
+    "logoUrl": "http://localhost:4400/static/logos/retailers/target-104ea9ad1f1f.png",
+    "brandColor": "#CC0000"
+   },
+   "title": "Sonos Arc Ultra Soundbar, Black",
+   "condition": "new",
+   "priceCents": 90599,
+   "listPriceCents": 99900,
+   "currency": "USD",
+   "shipping": {
+    "costCents": 0,
+    "kind": "free",
+    "estimatedDaysMin": 2,
+    "estimatedDaysMax": 6,
+    "pickupAvailable": false
+   },
+   "tax": {
+    "amountCents": null,
+    "rateBasisPoints": null,
+    "status": "unknown_set_zip"
+   },
+   "estimatedTotalCents": 90599,
+   "stock": "in_stock",
+   "couponCode": null,
+   "couponDescription": null,
+   "goUrl": "/v1/go/cmwxio8nm005q2o4t9lxj1lp7",
+   "isAffiliate": false,
+   "source": "demo",
+   "sponsored": false,
+   "lastCheckedAt": "2026-11-26T11:38:00.000Z"
+  },
+  {
+   "id": "cmwxio8ni005p2o4tpd3vorct",
+   "retailer": {
+    "id": "cmwxio8be001o2o4tg3oc1pvx",
+    "slug": "best-buy",
+    "name": "Best Buy",
+    "logoUrl": null,
+    "brandColor": "#0046BE"
+   },
+   "title": "Sonos Arc Ultra Soundbar, Black",
+   "condition": "new",
+   "priceCents": 95599,
+   "listPriceCents": 99900,
+   "currency": "USD",
+   "shipping": {
+    "costCents": 0,
+    "kind": "free",
+    "estimatedDaysMin": 2,
+    "estimatedDaysMax": 3,
+    "pickupAvailable": true
+   },
+   "tax": {
+    "amountCents": null,
+    "rateBasisPoints": null,
+    "status": "unknown_set_zip"
+   },
+   "estimatedTotalCents": 95599,
+   "stock": "low_stock",
+   "couponCode": null,
+   "couponDescription": null,
+   "goUrl": "/v1/go/cmwxio8ni005p2o4tpd3vorct",
+   "isAffiliate": false,
+   "source": "demo",
+   "sponsored": false,
+   "lastCheckedAt": "2026-11-26T09:05:00.000Z"
+  }
+ ]
+}

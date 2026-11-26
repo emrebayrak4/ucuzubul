@@ -22,7 +22,10 @@ export type IconName =
   | "keys"
   | "webhooks"
   | "integrations"
-  | "docs";
+  | "docs"
+  | "coupons"
+  | "guides"
+  | "checkout";
 
 export interface NavItem {
   href: string;
@@ -48,6 +51,8 @@ export const ADMIN_NAV: NavGroup[] = [
       { href: "/admin/brands", label: "Brands", icon: "brands" },
       { href: "/admin/retailers", label: "Retailers", icon: "retailers" },
       { href: "/admin/offers", label: "Offers", icon: "offers" },
+      { href: "/admin/coupons", label: "Coupons", icon: "coupons" },
+      { href: "/admin/guides", label: "Travel guides", icon: "guides" },
     ],
   },
   {
@@ -69,6 +74,7 @@ export const ADMIN_NAV: NavGroup[] = [
     label: "Settings",
     items: [
       { href: "/admin/integrations", label: "Integrations", icon: "integrations", roles: ["ADMIN"] },
+      { href: "/admin/checkout-configs", label: "Checkout configs", icon: "checkout", roles: ["ADMIN"] },
       { href: "/admin/api-docs", label: "API docs", icon: "docs" },
     ],
   },
@@ -90,6 +96,7 @@ export const MERCHANT_NAV: NavGroup[] = [
       { href: "/merchant", label: "Profile", icon: "profile" },
       { href: "/merchant/feeds", label: "Feed upload", icon: "feeds" },
       { href: "/merchant/offers", label: "Offers", icon: "offers" },
+      { href: "/merchant/coupons", label: "Coupons", icon: "coupons" },
       { href: "/merchant/analytics", label: "Click analytics", icon: "analytics" },
       { href: "/merchant/api-keys", label: "API keys", icon: "keys" },
       { href: "/merchant/webhooks", label: "Webhooks", icon: "webhooks", pending: true },

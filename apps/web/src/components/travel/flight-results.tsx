@@ -101,7 +101,7 @@ function FlightCard({ offer, adults, tags }: { offer: FlightOffer; adults: numbe
             </span>
           ) : (
             <Button asChild size="sm" className="mt-1">
-              <a href={href} target="_blank" rel="sponsored nofollow noopener" data-testid="flight-view-deal">
+              <a href={href} target="_blank" rel="sponsored nofollow noopener" data-testid="flight-view-deal" className="bg-flights-action text-flights-action-fg hover:bg-flights-action/90">
                 View deal <ExternalLink aria-hidden />
               </a>
             </Button>
@@ -112,7 +112,7 @@ function FlightCard({ offer, adults, tags }: { offer: FlightOffer; adults: numbe
   );
 }
 
-export function FlightResults({ data }: { data: FlightSearchResponse }) {
+export function FlightResults({ data, minCheckedBags = 0 }: { data: FlightSearchResponse; minCheckedBags?: number }) {
   const [sort, setSort] = React.useState<Sort>("best");
   const [stops, setStops] = React.useState<Set<number>>(new Set());
   const [airlines, setAirlines] = React.useState<Set<string>>(new Set());
@@ -135,6 +135,8 @@ export function FlightResults({ data }: { data: FlightSearchResponse }) {
     : Array.from(new Map(offers.flatMap((o) => o.slices.flatMap((s) => s.segments.map((g) => [g.marketingCarrier.iata, g.marketingCarrier])))).values());
 
   const filtered = offers
+    // Bags filter: offers with unknown baggage are kept (the card says so) rather than hidden.
+    .filter((o) => !minCheckedBags || o.baggage?.checked === null || o.baggage === null || (o.baggage?.checked ?? 0) >= minCheckedBags)
     .filter((o) => stops.size === 0 || stops.has(Math.min(maxStops(o), 2)))
     .filter((o) => airlines.size === 0 || o.slices.some((s) => s.segments.some((g) => airlines.has(g.marketingCarrier.iata))))
     .sort((a, b) =>

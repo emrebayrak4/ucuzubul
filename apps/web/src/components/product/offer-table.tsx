@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ExternalLink, Ticket, Truck } from "lucide-react";
-import type { Offer } from "@pricora/contracts";
+import type { Coupon, Offer } from "@pricora/contracts";
 import {
   Badge,
   DemoDataBadge,
@@ -106,7 +106,8 @@ function VisitButton({ offer, placement }: { offer: Offer; placement: string }) 
 /**
  * Offer comparison table. Organic order = lowest estimated total (sponsored rows never take the top slot).
  */
-export function OfferTable({ offers, lowestOfferId }: { offers: Offer[]; lowestOfferId: string | null }) {
+export function OfferTable({ offers, lowestOfferId, coupons = [] }: { offers: Offer[]; lowestOfferId: string | null; coupons?: Coupon[] }) {
+  const couponFor = (o: Offer) => coupons.find((c) => c.retailer.id === o.retailer.id || c.retailer.slug === o.retailer.slug);
   const sorted = [...offers].sort((a, b) => {
     if (a.sponsored !== b.sponsored) return a.sponsored ? 1 : -1;
     return a.estimatedTotalCents - b.estimatedTotalCents;
@@ -143,6 +144,15 @@ export function OfferTable({ offers, lowestOfferId }: { offers: Offer[]; lowestO
                     <Badge variant="primary" size="sm" className="mt-1">
                       Lowest total
                     </Badge>
+                  ) : null}
+                  {couponFor(o) ? (
+                    <Link
+                      href={`/coupons?retailer=${o.retailer.slug}#coupon-${couponFor(o)!.id}`}
+                      className="mt-1 inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-2xs font-bold text-accent-fg hover:underline"
+                      data-testid="coupon-chip"
+                    >
+                      <Ticket aria-hidden className="size-3" /> Coupon available
+                    </Link>
                   ) : null}
                   {o.couponCode || o.couponDescription ? (
                     <p className="mt-1 flex items-center gap-1 text-2xs text-text-muted">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Heart, LayoutDashboard, ListChecks, Settings, ShieldCheck } from "lucide-react";
+import { Bell, Heart, LayoutDashboard, ListChecks, Settings, ShieldCheck, Ticket } from "lucide-react";
 import { cn } from "@pricora/ui";
 
 const links = [
@@ -10,6 +10,7 @@ const links = [
   { href: "/account/saved", label: "Saved", icon: Heart },
   { href: "/account/alerts", label: "Alerts", icon: Bell },
   { href: "/account/lists", label: "Lists", icon: ListChecks },
+  { href: "/account/coupons", label: "Coupons", icon: Ticket },
   { href: "/account/settings", label: "Settings", icon: Settings },
   { href: "/account/privacy", label: "Privacy", icon: ShieldCheck },
 ];

@@ -13,7 +13,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: `${brand.name} — ${brand.tagline}`, template: `%s · ${brand.name}` },
-  description: brand.description,
+  description: "Compare prices across US stores with shipping and estimated tax, real price history, honest Deal Scores, coupons and price alerts.",
   applicationName: brand.name,
   openGraph: { siteName: brand.name, type: "website", locale: "en_US" },
   twitter: { card: "summary_large_image" },

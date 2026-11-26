@@ -5,7 +5,10 @@ test.describe("home", () => {
     const res = await page.goto("/");
     expect(res?.status()).toBe(200);
     await expect(page.getByTestId("demo-notice").first()).toBeVisible();
-    for (const rail of ["rail-trending", "rail-best-deals", "rail-price-drops"]) {
+    // "Today's best deals" is hidden when it would repeat "Near the lowest price" — accept either.
+    const deals = page.getByTestId("rail-lowest").or(page.getByTestId("rail-best-deals")).first();
+    await expect(deals).toBeVisible();
+    for (const rail of ["rail-trending", "rail-price-drops"]) {
       const r = page.getByTestId(rail);
       await expect(r, rail).toBeVisible();
       await expect(r.locator("a[href^='/products/']").first(), `${rail} has product links`).toBeVisible();
@@ -27,29 +30,20 @@ test.describe("misc pages", () => {
     await expect(page.locator("meta[name=robots]").first()).toHaveAttribute("content", /noindex/);
   });
 
-  test("unknown product/category/brand/store slugs return HTTP 404 [BUG-W01 soft 404]", async ({ request }) => {
-    test.fail(true, "BUG-W01: dynamic routes stream a not-found page with HTTP 200 (soft 404). Remove test.fail when fixed.");
+  test("unknown product/category/brand/store slugs return HTTP 404 (BUG-W01 fixed)", async ({ request }) => {
     for (const p of ["/products/no-such-product-e2e-zzz", "/categories/nope-e2e", "/brands/nope-e2e", "/stores/nope-e2e"]) {
       const res = await request.get(p, { maxRedirects: 0 });
       expect(res.status(), p).toBe(404);
     }
   });
 
-  test("dark mode toggle switches theme and persists across reload", async ({ page }) => {
+  test("site stays light by default even when the OS prefers dark", async ({ browser }) => {
+    const ctx = await browser.newContext({ colorScheme: "dark" });
+    const page = await ctx.newPage();
     await page.goto("/");
-    await page.waitForLoadState("networkidle").catch(() => undefined);
-    const group = page.getByRole("radiogroup", { name: "Color theme" });
-    await group.scrollIntoViewIfNeeded();
-    await group.getByRole("radio", { name: "Dark" }).click();
-    const html = page.locator("html");
-    await expect(html).toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(group.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
-    const bgDark = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    await page.reload();
-    await expect(html).toHaveClass(/(^|\s)dark(\s|$)/);
-    await page.getByRole("radiogroup", { name: "Color theme" }).getByRole("radio", { name: "Light" }).click();
-    await expect(html).not.toHaveClass(/(^|\s)dark(\s|$)/);
-    const bgLight = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    expect(bgLight, "body background changes between themes").not.toBe(bgDark);
+    await expect(page.locator("html")).not.toHaveClass(/(^|\s)dark(\s|$)/);
+    const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    expect(bg).toBe("rgb(255, 255, 255)");
+    await ctx.close();
   });
 });

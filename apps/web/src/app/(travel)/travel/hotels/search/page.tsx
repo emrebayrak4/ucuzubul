@@ -8,7 +8,10 @@ import { DemoNotice, Notice } from "@/components/notices";
 import { HotelCard } from "@/components/travel/hotel-card";
 import { PendingProvidersState, ProviderStatusList } from "@/components/travel/provider-status";
 import { HotelSearchForm } from "@/components/travel/search-forms";
-import { TravelBand } from "@/components/travel/travel-band";
+import { guideForCity } from "@/lib/guides";
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
+import { TravelHero } from "@/components/travel/travel-band";
 import { LinkTabs, UrlSelect } from "@/components/url-controls";
 
 type Props = { searchParams: Promise<SearchParams> };
@@ -29,6 +32,7 @@ export default async function HotelSearchPage({ searchParams }: Props) {
   const sp = await searchParams;
   const raw = {
     city: first(sp.city) ?? "",
+    placeId: first(sp.placeId) || undefined,
     checkin: first(sp.checkin) ?? "",
     checkout: first(sp.checkout) ?? "",
     guests: first(sp.guests),
@@ -39,11 +43,15 @@ export default async function HotelSearchPage({ searchParams }: Props) {
     page: first(sp.page),
   };
   const parsed = HotelSearchQuery.safeParse(raw);
-  const base = { city: raw.city, checkin: raw.checkin, checkout: raw.checkout, guests: raw.guests, rooms: raw.rooms };
+  const base = { city: raw.city, placeId: raw.placeId, checkin: raw.checkin, checkout: raw.checkout, guests: raw.guests, rooms: raw.rooms };
   const href = (o: Record<string, string | number | undefined>) =>
     "/travel/hotels/search" + toQueryString({ ...base, minStars: raw.minStars, maxPrice: raw.maxPrice, sort: raw.sort, ...o });
-  const detailQuery = toQueryString({ checkin: raw.checkin, checkout: raw.checkout, guests: raw.guests, rooms: raw.rooms });
+  const work = first(sp.work) === "1";
+  const adults = Number(first(sp.adults)) || undefined;
+  const childAges = (first(sp.ages) ?? "").split(",").filter((x) => /^\d{1,2}$/.test(x)).map(Number).slice(0, 8);
+  const detailQuery = toQueryString({ checkin: raw.checkin, checkout: raw.checkout, guests: raw.guests, rooms: raw.rooms, work: work ? "1" : undefined });
 
+  let guideSlug: string | null = null;
   let body: React.ReactNode;
   if (!parsed.success) {
     body = <Notice tone="warning">{parsed.error.issues[0]?.message ?? "Please check your search."} Adjust the search above and try again.</Notice>;
@@ -53,6 +61,7 @@ export default async function HotelSearchPage({ searchParams }: Props) {
     if (!res.ok) body = <ApiErrorPanel error={res.error} />;
     else {
       const d = res.data;
+      guideSlug = d.guideSlug ?? null;
       const allPending = d.providers.length > 0 && d.providers.every((p) => p.status !== "live");
       body = (
         <div className="flex flex-col gap-4">
@@ -69,7 +78,7 @@ export default async function HotelSearchPage({ searchParams }: Props) {
             allPending ? (
               <PendingProvidersState providers={d.providers} kind="hotels" />
             ) : (
-              <Notice>No hotels found for this search. Try different dates or remove filters.</Notice>
+              <Notice>No rates yet for {raw.city} — providers are connecting soon. Try another destination or different dates.</Notice>
             )
           ) : (
             <>
@@ -91,9 +100,12 @@ export default async function HotelSearchPage({ searchParams }: Props) {
     }
   }
 
+  // Prefer the API's guideSlug; fall back to a name lookup (e.g. free-text city searches).
+  const guide = guideSlug ? { slug: guideSlug, city: raw.city } : raw.city ? await guideForCity(raw.city) : null;
+
   return (
     <>
-      <TravelBand title={raw.city ? `Hotels in ${raw.city}` : "Hotel search"}>
+      <TravelHero vertical="hotels" compact title={raw.city ? `Stays in ${raw.city}` : "Hotel search"}>
         <HotelSearchForm
           key={JSON.stringify(base)}
           initial={{
@@ -102,10 +114,20 @@ export default async function HotelSearchPage({ searchParams }: Props) {
             checkout: raw.checkout,
             guests: parsed.success ? parsed.data.guests : 2,
             rooms: parsed.success ? parsed.data.rooms : 1,
+            adults,
+            childAges,
+            work,
           }}
         />
-      </TravelBand>
-      <div className="container-content py-6">{body}</div>
+      </TravelHero>
+      <div className="container-content py-6">
+        {guide ? (
+          <Link href={`/travel/guides/${guide.slug}`} className="mb-4 inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-bold text-hotels-soft-fg hover:underline" data-testid="city-guide-link">
+            <BookOpen aria-hidden className="size-4" /> Read the {guide.city} guide
+          </Link>
+        ) : null}
+        {body}
+      </div>
     </>
   );
 }

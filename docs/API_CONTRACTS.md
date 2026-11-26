@@ -55,6 +55,20 @@ Generated from `endpoints` in `packages/contracts/src/endpoints.ts` (key = api-c
 | `catalog.home` | GET | `/v1/home` | optional | — | — | — | `HomeResponse` |
 | `catalog.deals` | GET | `/v1/deals` | public | — | `DealsQuery` | — | `DealsResponse` |
 | `catalog.priceDrops` | GET | `/v1/price-drops` | public | — | `PriceDropsQuery` | — | `PriceDropsResponse` |
+| `coupons.list` | GET | `/v1/coupons` | public | — | `CouponListQuery` | — | `CouponListResponse` |
+| `coupons.get` | GET | `/v1/coupons/:id` | public | `IdParam` | — | — | `Coupon` |
+| `coupons.retailer` | GET | `/v1/retailers/:slug/coupons` | public | `SlugParam` | `RetailerCouponQuery` | — | `CouponListResponse` |
+| `coupons.retailerStats` | GET | `/v1/retailers/:slug/coupon-stats` | public | `SlugParam` | — | — | `RetailerCouponStats` |
+| `coupons.submit` | POST | `/v1/coupons` | user | — | — | `SubmitCouponRequest` | `Coupon` |
+| `coupons.result` | POST | `/v1/coupons/:id/result` | optional | `IdParam` | — | `CouponResultRequest` | `CouponResultResponse` |
+| `coupons.vote` | POST | `/v1/coupons/:id/vote` | user | `IdParam` | — | `CouponVoteRequest` | `CouponResultResponse` |
+| `coupons.go` | GET | `/v1/coupons/:id/go` | optional | `IdParam` | — | — | 302 redirect |
+| `me.couponFollows.list` | GET | `/v1/me/coupon-follows` | user | — | — | — | `CouponFollowListResponse` |
+| `me.couponFollows.create` | POST | `/v1/me/coupon-follows` | user | — | — | `CreateCouponFollowRequest` | `CouponFollow` |
+| `me.couponFollows.delete` | DELETE | `/v1/me/coupon-follows/:retailerSlug` | user | `RetailerSlugParam` | — | — | `OkResponse` |
+| `extension.config` | GET | `/v1/extension/config` | public | — | — | — | `ExtensionConfigResponse` |
+| `extension.coupons` | GET | `/v1/extension/coupons` | public | — | `ExtensionCouponsQuery` | — | `ExtensionCouponsResponse` |
+| `extension.product` | GET | `/v1/extension/product` | public | — | `ExtensionProductQuery` | — | `ExtensionProductResponse` |
 | `search.search` | GET | `/v1/search` | public | — | `SearchQuery` | — | `SearchResponse` |
 | `search.suggest` | GET | `/v1/search/suggest` | public | — | `SuggestQuery` | — | `SuggestResponse` |
 | `search.trending` | GET | `/v1/search/trending` | public | — | — | — | `TrendingResponse` |
@@ -82,6 +96,9 @@ Generated from `endpoints` in `packages/contracts/src/endpoints.ts` (key = api-c
 | `me.delete` | DELETE | `/v1/me` | user | — | — | `DeleteAccountRequest` | `OkResponse` |
 | `basket.optimize` | POST | `/v1/basket/optimize` | optional | — | — | `BasketOptimizeRequest` | `BasketOptimizeResponse` |
 | `go.offer` | GET | `/v1/go/:offerId` | optional | `GoParams` | `GoQuery` | — | 302 redirect |
+| `travel.places` | GET | `/v1/travel/places` | public | — | `PlacesQuery` | — | `PlacesResponse` |
+| `travel.guides` | GET | `/v1/travel/guides` | public | — | `GuideListQuery` | — | `GuideListResponse` |
+| `travel.guide` | GET | `/v1/travel/guides/:slug` | public | `SlugParam` | — | — | `GuideDetail` |
 | `travel.airports` | GET | `/v1/travel/airports` | public | — | `AirportSearchQuery` | — | `AirportSearchResponse` |
 | `travel.flights` | GET | `/v1/travel/flights/search` | public | — | `FlightSearchQuery` | — | `FlightSearchResponse` |
 | `travel.hotels` | GET | `/v1/travel/hotels/search` | public | — | `HotelSearchQuery` | — | `HotelSearchResponse` |
@@ -124,6 +141,17 @@ Generated from `endpoints` in `packages/contracts/src/endpoints.ts` (key = api-c
 | `admin.integrations.test` | POST | `/v1/admin/integrations/:id/test` | admin | `IntegrationIdParam` | — | — | `AdminIntegrationTestResponse` |
 | `admin.integrations.clear` | DELETE | `/v1/admin/integrations/:id` | admin | `IntegrationIdParam` | — | — | `OkResponse` |
 | `admin.openapi` | GET | `/v1/admin/openapi.json` | staff | — | — | — | OpenAPI 3.1 document |
+| `admin.coupons.list` | GET | `/v1/admin/coupons` | staff | — | `AdminCouponListQuery` | — | `AdminCouponListResponse` |
+| `admin.coupons.create` | POST | `/v1/admin/coupons` | staff | — | — | `AdminCreateCouponRequest` | `AdminCoupon` |
+| `admin.coupons.update` | PATCH | `/v1/admin/coupons/:id` | staff | `IdParam` | — | `AdminUpdateCouponRequest` | `AdminCoupon` |
+| `admin.coupons.delete` | DELETE | `/v1/admin/coupons/:id` | staff | `IdParam` | — | — | `OkResponse` |
+| `admin.checkoutConfigs.list` | GET | `/v1/admin/checkout-configs` | staff | — | — | — | `AdminCheckoutConfigListResponse` |
+| `admin.checkoutConfigs.upsert` | PUT | `/v1/admin/checkout-configs/:id` | staff | `IdParam` | — | `AdminUpsertCheckoutConfigRequest` | `AdminCheckoutConfig` |
+| `admin.guides.list` | GET | `/v1/admin/guides` | staff | — | `AdminGuideListQuery` | — | `AdminGuideListResponse` |
+| `admin.guides.get` | GET | `/v1/admin/guides/:id` | staff | `IdParam` | — | — | `AdminGuide` |
+| `admin.guides.create` | POST | `/v1/admin/guides` | staff | — | — | `AdminUpsertGuideRequest` | `AdminGuide` |
+| `admin.guides.update` | PATCH | `/v1/admin/guides/:id` | staff | `IdParam` | — | `AdminUpdateGuideRequest` | `AdminGuide` |
+| `admin.guides.delete` | DELETE | `/v1/admin/guides/:id` | staff | `IdParam` | — | — | `OkResponse` |
 | `merchant.profile.get` | GET | `/v1/merchant/profile` | merchant | — | — | — | `MerchantProfile` |
 | `merchant.profile.update` | PATCH | `/v1/merchant/profile` | merchant | — | — | `UpdateMerchantProfileRequest` | `MerchantProfile` |
 | `merchant.feeds.list` | GET | `/v1/merchant/feeds` | merchant | — | `MeListQuery` | — | `MerchantFeedListResponse` |
@@ -131,6 +159,8 @@ Generated from `endpoints` in `packages/contracts/src/endpoints.ts` (key = api-c
 | `merchant.offers.list` | GET | `/v1/merchant/offers` | merchant | — | `MerchantOfferListQuery` | — | `MerchantOfferListResponse` |
 | `merchant.offers.update` | PATCH | `/v1/merchant/offers/:id` | merchant | `IdParam` | — | `UpdateMerchantOfferRequest` | `MerchantOffer` |
 | `merchant.analytics` | GET | `/v1/merchant/analytics` | merchant | — | `{range}` (7d / 30d / 90d) | — | `MerchantAnalyticsResponse` |
+| `merchant.coupons.list` | GET | `/v1/merchant/coupons` | merchant | — | `MeListQuery` | — | `AdminCouponListResponse` |
+| `merchant.coupons.create` | POST | `/v1/merchant/coupons` | merchant | — | — | `MerchantCreateCouponRequest` | `AdminCoupon` |
 | `merchant.apiKeys.list` | GET | `/v1/merchant/api-keys` | merchant | — | — | — | `ApiKeyListResponse` |
 | `merchant.apiKeys.create` | POST | `/v1/merchant/api-keys` | merchant | — | — | `CreateApiKeyRequest` | `CreateApiKeyResponse` |
 | `merchant.apiKeys.revoke` | DELETE | `/v1/merchant/api-keys/:id` | merchant | `IdParam` | — | — | `OkResponse` |

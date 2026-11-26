@@ -104,6 +104,9 @@ export const FlightSearchResponse = z.object({
   query: z.object({
     from: IataAirport,
     to: IataAirport,
+    /** Airports the from/to codes expand to (metro/city codes like NYC → JFK, LGA, EWR). */
+    fromAirports: z.array(IataAirport),
+    toAirports: z.array(IataAirport),
     depart: IsoDate,
     return: IsoDate.nullable(),
     adults: z.number().int(),
@@ -117,7 +120,14 @@ export type FlightSearchResponse = z.infer<typeof FlightSearchResponse>;
 /* Hotels */
 export const HotelSearchQuery = z
   .object({
-    city: z.string().trim().min(2).max(80),
+    /** Free-text city name (legacy). Prefer placeId from /v1/travel/places. */
+    city: z.string().trim().min(2).max(80).optional(),
+    /** Place id from /v1/travel/places, e.g. "city_745044", "airport_JFK", "country_TR". */
+    placeId: z.string().regex(/^(city|airport|country)_[A-Za-z0-9]+$/).optional(),
+    cityId: z.coerce.number().int().positive().optional(),
+    lat: z.coerce.number().min(-90).max(90).optional(),
+    lng: z.coerce.number().min(-180).max(180).optional(),
+    radiusKm: z.coerce.number().min(1).max(100).default(25),
     checkin: IsoDate,
     checkout: IsoDate,
     guests: z.coerce.number().int().min(1).max(16).default(2),
@@ -128,7 +138,11 @@ export const HotelSearchQuery = z
     sort: z.enum(["recommended", "price_asc", "price_desc", "stars_desc"]).default("recommended"),
     page: z.coerce.number().int().min(1).default(1),
   })
-  .refine((v) => v.checkout > v.checkin, { message: "Checkout must be after check-in", path: ["checkout"] });
+  .refine((v) => v.checkout > v.checkin, { message: "Checkout must be after check-in", path: ["checkout"] })
+  .refine((v) => Boolean(v.city || v.placeId || v.cityId || (v.lat !== undefined && v.lng !== undefined)), {
+    message: "Provide placeId, cityId, lat+lng or city",
+    path: ["placeId"],
+  });
 export type HotelSearchQuery = z.infer<typeof HotelSearchQuery>;
 export type HotelSearchQueryInput = z.input<typeof HotelSearchQuery>;
 
@@ -174,6 +188,8 @@ export const HotelSearchResponse = z.object({
   total: z.number().int().nonnegative(),
   page: z.number().int().min(1),
   nights: z.number().int().positive(),
+  /** Published city travel guide for the searched city, if any (GET /v1/travel/guides/:slug). */
+  guideSlug: z.string().nullable(),
   searchedAt: IsoDateTime,
 });
 export type HotelSearchResponse = z.infer<typeof HotelSearchResponse>;
@@ -211,3 +227,41 @@ export const TravelAlertRequest = z.object({
   targetPriceCents: Cents.positive().optional(),
 });
 export type TravelAlertRequest = z.infer<typeof TravelAlertRequest>;
+
+/* Places autocomplete (airports, cities, countries) */
+export const PlaceType = z.enum(["airport", "city", "country"]);
+export type PlaceType = z.infer<typeof PlaceType>;
+
+export const PlacesQuery = z.object({
+  q: z.string().trim().min(1).max(60),
+  types: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.split(",").map((t) => t.trim()).filter(Boolean) : ["airport", "city", "country"]))
+    .pipe(z.array(PlaceType).min(1)),
+  limit: z.coerce.number().int().min(1).max(20).default(10),
+});
+export type PlacesQuery = z.infer<typeof PlacesQuery>;
+
+export const Place = z.object({
+  /** "airport_JFK" | "city_745044" | "country_TR" */
+  id: z.string(),
+  type: PlaceType,
+  /** Display name; multi-airport cities read "Istanbul (Any airport)", countries "Turkey — anywhere". */
+  name: z.string(),
+  /** Context line, e.g. "New York, United States" or "Istanbul, Turkey". */
+  subtitle: z.string(),
+  iata: z.string().nullable(),
+  /** IATA city/metro code (NYC, LON, IST…) when applicable. */
+  cityCode: z.string().nullable(),
+  /** Airports this place expands to for flight search (empty for countries). */
+  airports: z.array(z.string()),
+  countryIso2: z.string().length(2),
+  countryName: z.string(),
+  lat: z.number().nullable(),
+  lng: z.number().nullable(),
+});
+export type Place = z.infer<typeof Place>;
+
+export const PlacesResponse = z.object({ items: z.array(Place), degraded: z.boolean() });
+export type PlacesResponse = z.infer<typeof PlacesResponse>;

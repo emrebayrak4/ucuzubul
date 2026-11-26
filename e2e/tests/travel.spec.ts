@@ -26,8 +26,7 @@ test.describe("travel", () => {
     await expect(rows.filter({ hasText: "Demo data" })).toHaveCount(r);
   });
 
-  test("demo hotel rates offer no booking link [BUG-W02]", async ({ page, request }) => {
-    test.fail(true, "BUG-W02: hotel detail renders a View deal link for demo rates; the API answers 409 JSON in a new tab.");
+  test("demo hotel rates offer no booking link (BUG-W02 fixed)", async ({ page, request }) => {
     await page.goto(`/hotels/search?city=New%20York&checkin=${inDays(30)}&checkout=${inDays(32)}&guests=2&rooms=1`);
     await page.getByTestId("hotel-card").first().getByRole("heading").getByRole("link").click();
     await page.waitForURL(/\/hotels\/[^/?]+/);

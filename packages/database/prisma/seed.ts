@@ -1,5 +1,5 @@
 /**
- * Pricora dev seed. Deterministic (seeded RNG) except timestamps, which are relative to "now" so data looks fresh.
+ * WhichLess (formerly Pricora) dev seed. Deterministic (seeded RNG) except timestamps, which are relative to "now" so data looks fresh.
  *
  * WARNING: resets catalog, travel and community tables (TRUNCATE ... CASCADE). Users are upserted.
  * Dev/staging only — refuses to run when NODE_ENV=production.
@@ -14,6 +14,7 @@ import { BRAND_SITES } from "../src/brand-sites";
 import { createPrismaClient, type Prisma } from "../src/index";
 import { AIRLINES, AIRPORTS, CATEGORIES, HOTELS, RETAILERS, type SeedRetailer } from "./seed/reference";
 import { PRODUCTS } from "./seed/products";
+import { seedCoupons } from "./seed/coupons";
 import { demoUpc, offerSeries, pick, productIndex, randInt } from "./seed/history";
 
 for (const candidate of [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "../../.env")]) {
@@ -43,7 +44,7 @@ async function reset(): Promise<void> {
     "data_ingestion_jobs", "integration_errors", "retailer_integrations", "affiliate_programs", "sponsored_campaigns",
     "product_images", "product_attributes", "product_identifiers", "product_variants", "favorites", "price_alerts",
     "notifications", "shopping_list_items", "recently_viewed", "products", "brands", "categories", "retailers",
-    "hotel_rates", "hotels", "flight_offers", "flight_searches", "airports", "airlines",
+    "coupon_events", "coupon_votes", "coupon_follows", "coupons", "retailer_checkout_configs", "hotel_rates", "hotels", "flight_offers", "flight_searches", "airports", "airlines",
   ];
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`);
 }
@@ -80,7 +81,7 @@ async function seedRetailers(): Promise<Map<string, { id: string; def: SeedRetai
         membershipName: r.membershipName,
         membershipKey: r.membershipKey,
         allowedRedirectHosts: [r.domain, `www.${r.domain}`],
-        affiliateDisclosure: `${r.name} links may be affiliate links. Pricora may earn a commission at no extra cost to you.`,
+        affiliateDisclosure: `${r.name} links may be affiliate links. WhichLess may earn a commission at no extra cost to you.`,
       },
     });
     if (r.officialApi) {
@@ -316,7 +317,7 @@ async function seedUsers(): Promise<string[]> {
   const password = process.env["SEED_ADMIN_PASSWORD"]?.trim() || DEV_DEFAULT_PASSWORD;
   const passwordHash = await hash(password); // argon2id (library default)
   const users = [
-    { email: "admin@pricora.local", name: "Pricora Admin", role: "ADMIN" as const },
+    { email: "admin@pricora.local", name: "WhichLess Admin", role: "ADMIN" as const },
     { email: "editor@pricora.local", name: "Demo Editor", role: "EDITOR" as const },
     { email: "analyst@pricora.local", name: "Demo Analyst", role: "ANALYST" as const },
     { email: "merchant@pricora.local", name: "Demo Merchant", role: "MERCHANT" as const },
@@ -388,7 +389,7 @@ async function seedFlags(): Promise<void> {
 
 async function main(): Promise<void> {
   const t0 = Date.now();
-  console.log("Seeding Pricora demo data…");
+  console.log("Seeding WhichLess demo data…");
   await reset();
   const categoryIds = await seedCategories();
   const retailers = await seedRetailers();
@@ -396,6 +397,7 @@ async function main(): Promise<void> {
   const catalog = await seedCatalog(categoryIds, brandIds, retailers);
   const travel = await seedTravel();
   const users = await seedUsers();
+  const couponSeed = await seedCoupons(prisma);
   await seedFlags();
 
   console.log(
@@ -408,6 +410,7 @@ async function main(): Promise<void> {
       `  history:    ${catalog.history} price observations`,
       `  airports:   ${travel.airports}, airlines: ${travel.airlines}`,
       `  hotels:     ${travel.hotels} (demo), rates: ${travel.rates}`,
+      `  coupons:    ${couponSeed.coupons} (demo, codes prefixed DEMO), checkout configs: ${couponSeed.checkoutConfigs} (disabled, empty)`,
       `  users:      ${users.join(", ")}`,
       `Done in ${((Date.now() - t0) / 1000).toFixed(1)}s`,
     ].join("\n"),

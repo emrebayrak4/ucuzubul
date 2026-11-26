@@ -12,7 +12,7 @@ export async function GET() {
   } catch {
     // API down: still emit the index; product chunk 1 will be retried by crawlers later.
   }
-  const files = ["static.xml", "categories.xml", "stores.xml", "brands.xml", ...Array.from({ length: productChunks }, (_, i) => `products-${i + 1}.xml`)];
+  const files = ["static.xml", "categories.xml", "stores.xml", "brands.xml", "guides.xml", ...Array.from({ length: productChunks }, (_, i) => `products-${i + 1}.xml`)];
   const now = new Date().toISOString();
   const xml = `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${files
     .map((f) => `<sitemap><loc>${xmlEscape(`${SITE_URL}/sitemaps/${f}`)}</loc><lastmod>${now}</lastmod></sitemap>`)

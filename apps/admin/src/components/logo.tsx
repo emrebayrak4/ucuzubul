@@ -1,12 +1,13 @@
+import Image from "next/image";
 import { brand } from "@pricora/config/brand";
 
-export function Logo({ suffix }: { suffix?: string }) {
+/** Brand wordmark (light / dark variants from packages/config/assets, resized into public/brand). */
+export function Logo({ suffix, size = "md" }: { suffix?: string; size?: "md" | "lg" }) {
+  const h = size === "lg" ? "h-8" : "h-6";
   return (
     <span className="inline-flex items-center gap-2">
-      <span aria-hidden className="bg-primary text-primary-fg grid size-7 place-items-center rounded-md text-sm font-semibold">
-        {brand.name.charAt(0)}
-      </span>
-      <span className="text-md font-semibold tracking-tight">{brand.name}</span>
+      <Image src="/brand/whichless-logo.png" alt={brand.name} width={640} height={192} priority className={`${h} w-auto dark:hidden`} />
+      <Image src="/brand/whichless-logo-white.png" alt={brand.name} width={640} height={192} priority className={`${h} hidden w-auto dark:block`} />
       {suffix ? <span className="text-xs font-medium text-text-muted">{suffix}</span> : null}
     </span>
   );

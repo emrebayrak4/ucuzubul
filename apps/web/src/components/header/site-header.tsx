@@ -36,7 +36,7 @@ export async function SiteHeader() {
       <div className="bg-primary text-primary-fg">
       <div className="container-content flex h-16 items-center gap-3 lg:h-[72px] lg:gap-6">
         <MobileNav categories={categories} />
-        <Logo inverted />
+        <Logo inverted height={46} imgClassName="h-[34px] lg:h-[46px]" />
         <div className="hidden max-w-[760px] flex-1 lg:block">
           <SearchBox size="lg" />
         </div>

@@ -1,5 +1,5 @@
 import { createApiClient, ApiError } from "@pricora/api-client";
-import { API_URL } from "./config";
+import { API_URL, brand } from "./config";
 import { getSessionTokenSync } from "./session";
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -25,7 +25,7 @@ export { ApiError };
 
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.isNetworkError) return "Can't reach Pricora. Check your connection and try again.";
+    if (error.isNetworkError) return `Can't reach ${brand.name}. Check your connection and try again.`;
     if (error.status === 429) return "Too many requests. Please wait a moment and try again.";
     return error.message || "Something went wrong.";
   }

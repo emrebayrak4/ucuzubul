@@ -15,11 +15,13 @@ import { ProductCardTile } from "@/components/product-card";
 import { ProductCardRail, Rail, UnderPriceRail } from "@/components/rail";
 import { PersonalBand } from "@/components/recently-viewed";
 
+const SHOP_DESCRIPTION = "Compare prices across US stores with shipping and estimated tax, real price history, honest Deal Scores, coupons and price alerts.";
+
 export const metadata: Metadata = {
-  title: { absolute: `${brand.name} — Compare prices across US stores, track drops, find flights & hotels` },
-  description: brand.description,
+  title: { absolute: `${brand.name} — Compare prices across US stores, track price drops, find coupons` },
+  description: SHOP_DESCRIPTION,
   alternates: { canonical: "/" },
-  openGraph: { title: brand.name, description: brand.description, url: "/" },
+  openGraph: { title: brand.name, description: SHOP_DESCRIPTION, url: "/" },
 };
 
 /** Soft circle colours for the category icon row (token-based, AA for the dark icon/text). */
@@ -28,7 +30,7 @@ const circleTones = [
   "bg-warning-soft",
   "bg-info-soft",
   "bg-success-soft",
-  "bg-travel-soft",
+  "bg-error-soft",
   "bg-deal-good",
   "bg-deal-average",
   "bg-sponsored",
@@ -38,7 +40,7 @@ const promoTiles = [
   { href: "/deals", title: "Today's best deals", sub: "Ranked by real price history, not hype", cta: "Shop deals", cls: "bg-primary text-primary-fg", ctaCls: "bg-accent text-accent-fg" },
   { href: "/price-drops", title: "Biggest price drops", sub: "Prices that actually fell this week", cta: "See drops", cls: "bg-accent text-accent-fg", ctaCls: "bg-primary text-primary-fg" },
   { href: "/search?maxPrice=2500&sort=best_deal", title: "Under $25", sub: "Small prices, compared across stores", cta: "Browse", cls: "bg-warning-soft text-text", ctaCls: "bg-warning text-warning-fg" },
-  { href: "/travel", title: "Flights & Hotels", sub: "Compare fares and rates in one search", cta: "Go to travel", cls: "bg-travel-soft text-travel-soft-fg", ctaCls: "bg-travel text-travel-fg" },
+  { href: "/coupons", title: "Coupons", sub: "Promo codes with real success reports", cta: "Get codes", cls: "bg-success-soft text-text", ctaCls: "bg-success text-success-fg" },
   { href: "/basket", title: "Smart Basket", sub: "Cheapest way to buy several items", cta: "Try it", cls: "bg-primary-soft text-primary-soft-fg", ctaCls: "bg-primary text-primary-fg" },
 ];
 

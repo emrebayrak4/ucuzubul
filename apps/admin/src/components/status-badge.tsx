@@ -20,6 +20,9 @@ const MAP: Record<string, Variant> = {
   // pending
   pending: "warning",
   pending_review: "warning",
+  pending_approval: "warning",
+  reported: "error",
+  expired: "neutral",
   pending_configuration: "neutral",
   queued: "info",
   processing: "info",

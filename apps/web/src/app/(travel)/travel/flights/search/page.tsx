@@ -7,7 +7,7 @@ import { DemoNotice, Notice } from "@/components/notices";
 import { FlightResults } from "@/components/travel/flight-results";
 import { PendingProvidersState, ProviderStatusList } from "@/components/travel/provider-status";
 import { FlightSearchForm } from "@/components/travel/search-forms";
-import { TravelBand } from "@/components/travel/travel-band";
+import { TravelHero } from "@/components/travel/travel-band";
 
 type Props = { searchParams: Promise<SearchParams> };
 
@@ -31,7 +31,11 @@ export default async function FlightSearchPage({ searchParams }: Props) {
     return: first(sp.return) || undefined,
     adults: first(sp.adults),
     cabin: first(sp.cabin) || undefined,
+    children: first(sp.children) || undefined,
+    infants: first(sp.infants) || undefined,
+    maxStops: first(sp.direct) === "1" ? 0 : undefined,
   };
+  const bags = Math.min(2, Math.max(0, Number(first(sp.bags) ?? 0) || 0));
   const parsed = FlightSearchQuery.safeParse(raw);
   const initial = {
     from: raw.from.toUpperCase(),
@@ -41,6 +45,10 @@ export default async function FlightSearchPage({ searchParams }: Props) {
     adults: parsed.success ? parsed.data.adults : 1,
     cabin: parsed.success ? parsed.data.cabin : ("economy" as const),
     trip: raw.return ? ("round" as const) : ("oneway" as const),
+    children: parsed.success ? parsed.data.children : 0,
+    infants: parsed.success ? parsed.data.infants : 0,
+    direct: first(sp.direct) === "1",
+    bags,
   };
 
   let body: React.ReactNode;
@@ -64,7 +72,7 @@ export default async function FlightSearchPage({ searchParams }: Props) {
               <Notice>No flights found for these dates. Try nearby dates or airports.</Notice>
             )
           ) : (
-            <FlightResults data={d} />
+            <FlightResults data={d} minCheckedBags={bags} />
           )}
         </div>
       );
@@ -73,7 +81,9 @@ export default async function FlightSearchPage({ searchParams }: Props) {
 
   return (
     <>
-      <TravelBand
+      <TravelHero
+        vertical="flights"
+        compact
         title={
           initial.from && initial.to ? (
             <>
@@ -85,7 +95,7 @@ export default async function FlightSearchPage({ searchParams }: Props) {
         }
       >
         <FlightSearchForm key={JSON.stringify(initial)} initial={initial} />
-      </TravelBand>
+      </TravelHero>
       <div className="container-content py-6">{body}</div>
     </>
   );

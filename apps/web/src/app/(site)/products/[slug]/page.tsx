@@ -284,7 +284,7 @@ export default async function ProductPage({ params }: Props) {
           </p>
         </div>
         {d.offers.length ? (
-          <OfferTable offers={d.offers} lowestOfferId={d.lowestOfferId} />
+          <OfferTable offers={d.offers} lowestOfferId={d.lowestOfferId} coupons={d.coupons ?? []} />
         ) : (
           <EmptyState icon={<PackageX aria-hidden />} title="No offers right now" description="Set a price alert and we'll tell you when a store lists it." action={<AlertDialogButton product={actionProduct} variant="secondary" />} />
         )}

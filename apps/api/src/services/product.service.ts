@@ -3,6 +3,7 @@ import type { ProductDetailResponse } from "@pricora/contracts";
 import type { User } from "@pricora/database";
 import { notFound } from "../common/errors";
 import { PRISMA, type PrismaClient } from "../common/infra";
+import { couponInclude, liveWhere, toCoupon } from "../core/coupons";
 import { EMPTY_FAKE_DISCOUNT, emptyStats } from "../core/metrics";
 import { CatalogService, offerInclude } from "./catalog.service";
 
@@ -64,6 +65,18 @@ export class ProductService {
       allMetrics,
     );
 
+    const ancestorIds = crumbs.length ? (await this.prisma.category.findMany({ where: { slug: { in: crumbSlugs } }, select: { id: true } })).map((c) => c.id) : [];
+    const couponRows = await this.prisma.coupon.findMany({
+      where: {
+        ...liveWhere(),
+        retailerId: { in: [...new Set(p.offers.map((o) => o.retailerId))] },
+        AND: [{ OR: [{ productId: null, categoryId: null }, { productId: p.id }, { productId: null, categoryId: { in: ancestorIds } }] }],
+      },
+      orderBy: [{ status: "asc" }, { successRateBp: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      take: 20,
+      include: couponInclude,
+    });
+
     if (user) {
       await this.prisma.recentlyViewed
         .upsert({
@@ -109,6 +122,7 @@ export class ProductService {
       dealScore: metrics?.dealScore ?? null,
       fakeDiscount: metrics?.fakeDiscount ?? EMPTY_FAKE_DISCOUNT,
       hasDemoData: offers.some((o) => o.source === "demo") || p.isDemo,
+      coupons: couponRows.map(toCoupon),
       related,
       lastUpdatedAt: (metrics?.lastCheckedAt ?? p.updatedAt).toISOString(),
     };

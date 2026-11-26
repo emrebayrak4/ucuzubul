@@ -1,18 +1,18 @@
 /**
  * Single source of truth for brand identity.
- * "Pricora" is a placeholder name — change it ONLY here.
+ * Brand name "WhichLess" — change it ONLY here. Logo files: packages/config/assets/.
  */
 export const brand = {
-  name: "Pricora",
+  name: "WhichLess",
   legalEntity: "Afterwish Inc.",
   tagline: "Compare prices. Track drops. Buy smarter.",
   description:
-    "Pricora compares prices across US retailers, tracks price history, and finds flights and hotels — with transparent sources and no fake discounts.",
-  domain: "pricora.com",
-  url: "https://pricora.com",
+    "WhichLess compares prices across US retailers, tracks price history and coupons, and compares flights and hotels in its travel section — with transparent sources and no fake discounts.",
+  domain: "whichless.com",
+  url: "https://whichless.com",
   /** Placeholder — replace before launch. */
-  supportEmail: "support@pricora.example",
-  privacyEmail: "privacy@pricora.example",
+  supportEmail: "support@whichless.example",
+  privacyEmail: "privacy@whichless.example",
   /** Reference only — the canonical palette lives in @pricora/design-tokens. */
   colors: {
     primary: "#1A56DB",

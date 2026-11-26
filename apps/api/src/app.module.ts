@@ -17,6 +17,8 @@ import { GoController } from "./controllers/go.controller";
 import { HealthController } from "./controllers/health.controller";
 import { IntegrationsController } from "./controllers/integrations.controller";
 import { LogosController } from "./controllers/logos.controller";
+import { CouponsController } from "./controllers/coupons.controller";
+import { GuidesController } from "./controllers/guides.controller";
 import { MeController } from "./controllers/me.controller";
 import { MerchantController } from "./controllers/merchant.controller";
 import { MiscController } from "./controllers/misc.controller";
@@ -52,6 +54,8 @@ void throttleRedis.connect().catch(() => undefined);
     MerchantController,
     IntegrationsController,
     LogosController,
+    CouponsController,
+    GuidesController,
   ],
   providers: [
     ...infraProviders,

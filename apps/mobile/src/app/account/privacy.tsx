@@ -7,6 +7,7 @@ import { AppText, Button, Card, ErrorState, Field, Notice, Screen } from "@/comp
 import { track } from "@/lib/analytics";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { brand } from "@/lib/config";
 import { clearRecentlyViewed } from "@/lib/recent";
 import { tokens } from "@/lib/theme";
 
@@ -28,10 +29,10 @@ export default function PrivacyScreen() {
       const data = await api.me.exportData();
       track("data_exported", {});
       const json = JSON.stringify(data, null, 2);
-      const file = new File(Paths.cache, `pricora-export-${data.exportedAt.slice(0, 10)}.json`);
+      const file = new File(Paths.cache, `whichless-export-${data.exportedAt.slice(0, 10)}.json`);
       file.write(json);
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, { mimeType: "application/json", dialogTitle: "Your Pricora data" });
+        await Sharing.shareAsync(file.uri, { mimeType: "application/json", dialogTitle: `Your ${brand.name} data` });
       } else {
         await Share.share({ message: json });
       }

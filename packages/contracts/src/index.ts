@@ -1,5 +1,6 @@
 export * from "./common";
 export * from "./coupons";
+export * from "./guides";
 export * from "./extension";
 export * from "./auth";
 export * from "./catalog";

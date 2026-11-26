@@ -1,16 +1,38 @@
 import Link from "next/link";
 import { brand } from "@pricora/config/brand";
 
-/** Wordmark + simple tag mark (original, token colors). */
-export function Logo({ className, inverted = false }: { className?: string; inverted?: boolean }) {
+const files = {
+  default: "/brand/logo.png",
+  "on-blue": "/brand/logo-on-blue.png",
+  white: "/brand/logo-white.png",
+} as const;
+
+/**
+ * WhichLess wordmark (assets from packages/config/assets, resized into /public/brand).
+ * `on-blue` for the blue shopping bar, `white` for the navy/red travel bars.
+ */
+export function Logo({
+  className,
+  variant = "default",
+  inverted,
+  href = "/",
+  height = 32,
+  imgClassName,
+}: {
+  className?: string;
+  variant?: keyof typeof files;
+  /** White logo for coloured bars (never use on-blue on a blue background — the blue mark disappears). */
+  inverted?: boolean;
+  href?: string;
+  height?: number;
+  /** Responsive sizing classes (e.g. "h-[34px] lg:h-[46px] w-auto"); overrides the fixed height. */
+  imgClassName?: string;
+}) {
+  const v = inverted ? "white" : variant;
+  const width = Math.round((height * 321) / 96);
   return (
-    <Link href="/" className={"inline-flex shrink-0 items-center gap-2 rounded-sm " + (className ?? "")} aria-label={`${brand.name} home`}>
-      <svg viewBox="0 0 24 24" aria-hidden className="size-7">
-        <rect x="1" y="1" width="22" height="22" rx="5" className={inverted ? "fill-primary-fg" : "fill-primary"} />
-        <path d="M7 16.5V7.5h5.2a3.2 3.2 0 0 1 0 6.4H9.6" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={inverted ? "stroke-primary" : "stroke-primary-fg"} />
-        <circle cx="16.6" cy="16.4" r="1.7" className="fill-accent" />
-      </svg>
-      <span className={"text-xl font-extrabold tracking-tight " + (inverted ? "text-primary-fg" : "text-text")}>{brand.name}</span>
+    <Link href={href} className={"inline-flex shrink-0 items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current " + (className ?? "")} aria-label={`${brand.name} home`}>
+      <img src={files[v]} alt={brand.name} width={width} height={height} className={imgClassName ? "block w-auto " + imgClassName : "block h-auto"} style={imgClassName ? undefined : { height, width }} />
     </Link>
   );
 }

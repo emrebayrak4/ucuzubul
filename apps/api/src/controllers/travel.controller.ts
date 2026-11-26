@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Logger, Param, Query } from "@nestjs/common";
+import { Controller, Get, Inject, Logger, type OnApplicationBootstrap, Param, Query } from "@nestjs/common";
 import type {
   Airline,
   AirportSearchResponse,
@@ -8,14 +8,18 @@ import type {
   HotelRate,
   HotelSearchResponse,
   HotelSummary,
+  PlacesResponse,
   ProviderStatus,
 } from "@pricora/contracts";
+import type { Meilisearch } from "meilisearch";
 import type { Hotel, HotelRate as HotelRateRow } from "@pricora/database";
 import { createFlightProviders, createHotelProviders, type FlightOffer as AdapterFlightOffer } from "@pricora/retailer-adapters";
 import { notFound } from "../common/errors";
-import { INTEGRATIONS, PRISMA, type PrismaClient } from "../common/infra";
+import { INTEGRATIONS, MEILI, PRISMA, type PrismaClient } from "../common/infra";
+import { expandIataCode, expectedPlaceCount, groupCityAirports, haversineKm, PLACES_INDEX, reindexPlaces, resolvePlacePoint, searchPlacesPg, toPlace, type PlaceDoc } from "../core/places";
 import type { IntegrationConfig } from "../core/integration-config";
 import { input } from "../common/validate";
+import { guideSlugForCity } from "./guides.controller";
 
 const DAY_MS = 86_400_000;
 const nightsBetween = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / DAY_MS));
@@ -30,13 +34,63 @@ function aggregateSource(sources: string[]): Source {
 }
 
 @Controller("travel")
-export class TravelController {
+export class TravelController implements OnApplicationBootstrap {
   private readonly log = new Logger("Travel");
+  private placesIndexing: Promise<void> | null = null;
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(INTEGRATIONS) private readonly integrations: IntegrationConfig,
+    @Inject(MEILI) private readonly meili: Meilisearch,
   ) {}
+
+  onApplicationBootstrap(): void {
+    if (process.env["NODE_ENV"] === "test") return;
+    void this.ensurePlacesIndex();
+  }
+
+  /** (Re)builds the Meilisearch places index when its size differs from the DB (e.g. after geo:import). */
+  ensurePlacesIndex(force = false): Promise<void> {
+    if (!this.placesIndexing) {
+      this.placesIndexing = (async () => {
+        try {
+          const expected = await expectedPlaceCount(this.prisma);
+          const index = this.meili.index(PLACES_INDEX);
+          const stats = await index.getStats().catch(() => null);
+          const settings = stats ? await index.getSettings().catch(() => null) : null;
+          const current = Boolean(settings?.searchableAttributes?.includes("cityName"));
+          if (!force && stats && stats.numberOfDocuments === expected && current) return;
+          const n = await reindexPlaces(this.prisma, this.meili);
+          this.log.log(`Indexed ${n} places into Meilisearch`);
+        } catch (err) {
+          this.log.warn(`Places indexing skipped: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          this.placesIndexing = null;
+        }
+      })();
+    }
+    return this.placesIndexing;
+  }
+
+  @Get("places")
+  async places(@Query() query: unknown): Promise<PlacesResponse> {
+    const q = input("travel.places", "query", query);
+    try {
+      const index = this.meili.index<PlaceDoc>(PLACES_INDEX);
+      const stats = await index.getStats();
+      if (stats.numberOfDocuments === 0) throw new Error("places index empty");
+      const filter = q.types.length < 3 ? [`type IN [${q.types.map((t) => `"${t}"`).join(", ")}]`] : undefined;
+      const res = await index.search(q.q, { limit: Math.min(60, q.limit * 3), ...(filter ? { filter } : {}) });
+      const upper = q.q.trim().toUpperCase();
+      // Exact IATA / city-code hits first (e.g. "ist", "JFK"), then each city followed by its airports.
+      const exact = [...res.hits].sort((a, b) => Number(b.iata === upper || b.cityCode === upper) - Number(a.iata === upper || a.cityCode === upper));
+      return { items: groupCityAirports(exact, q.limit).map(toPlace), degraded: false };
+    } catch (err) {
+      if (!(err instanceof Error && err.message === "places index empty")) this.log.warn(`places: Meilisearch unavailable, Postgres fallback (${err instanceof Error ? err.message : String(err)})`);
+      else void this.ensurePlacesIndex();
+      return { items: await searchPlacesPg(this.prisma, q.q, q.types, q.limit), degraded: true };
+    }
+  }
 
   @Get("airports")
   async airports(@Query() query: unknown): Promise<AirportSearchResponse> {
@@ -73,6 +127,8 @@ export class TravelController {
   @Get("flights/search")
   async flights(@Query() query: unknown): Promise<FlightSearchResponse> {
     const q = input("travel.flights", "query", query);
+    // City/metro codes (NYC, LON, IST…) expand to their airports.
+    const [fromAirports, toAirports] = await Promise.all([expandIataCode(this.prisma, q.from), expandIataCode(this.prisma, q.to)]);
     const airlines = await this.prisma.airline.findMany();
     const airlineByCode = new Map(airlines.map((a) => [a.iata, a]));
     const toAirline = (code: string | null | undefined, name?: string | null): Airline => {
@@ -116,7 +172,7 @@ export class TravelController {
     // Stored fare snapshots (only real provider rows or explicitly seeded demo rows; never generated here).
     const dayStart = new Date(`${q.depart}T00:00:00Z`);
     const stored = await this.prisma.flightOffer.findMany({
-      where: { fromIata: q.from, toIata: q.to, departAt: { gte: dayStart, lt: new Date(dayStart.getTime() + DAY_MS) }, cabin: q.cabin },
+      where: { fromIata: { in: fromAirports }, toIata: { in: toAirports }, departAt: { gte: dayStart, lt: new Date(dayStart.getTime() + DAY_MS) }, cabin: q.cabin },
       take: 100,
     });
     for (const s of stored) {
@@ -152,7 +208,7 @@ export class TravelController {
       offers: filtered,
       providers,
       source: aggregateSource(filtered.map((o) => o.source)),
-      query: { from: q.from, to: q.to, depart: q.depart, return: q.return ?? null, adults: q.adults, cabin: q.cabin },
+      query: { from: q.from, to: q.to, fromAirports, toAirports, depart: q.depart, return: q.return ?? null, adults: q.adults, cabin: q.cabin },
       airlines: [...usedCodes].map((c) => toAirline(c)),
       searchedAt: new Date().toISOString(),
     };
@@ -283,11 +339,36 @@ export class TravelController {
   @Get("hotels/search")
   async hotels(@Query() query: unknown): Promise<HotelSearchResponse> {
     const q = input("travel.hotels", "query", query);
-    const city = q.city.split(",")[0]?.trim() ?? q.city;
-    const hotels = await this.prisma.hotel.findMany({
-      where: { city: { contains: city, mode: "insensitive" }, ...(q.minStars ? { starRating: { gte: q.minStars } } : {}) },
-      include: { rates: true },
-    });
+    // Resolve the location; only hotels that actually exist in our data near it are returned (never fabricated).
+    let cityName = q.city?.split(",")[0]?.trim() ?? null;
+    let point: { lat: number; lng: number } | null = q.lat !== undefined && q.lng !== undefined ? { lat: q.lat, lng: q.lng } : null;
+    let countryIso2: string | null = null;
+    let resolvedCityId: number | null = q.cityId ?? null;
+    let guideCountry: string | null = null;
+    if (q.placeId) {
+      const p = await resolvePlacePoint(this.prisma, q.placeId);
+      if (q.placeId.startsWith("city_")) resolvedCityId = Number(q.placeId.slice(5));
+      if (q.placeId.startsWith("airport_")) resolvedCityId = (await this.prisma.airport.findUnique({ where: { iata: q.placeId.slice(8).toUpperCase() }, select: { cityId: true } }))?.cityId ?? null;
+      if (p) {
+        guideCountry = p.countryIso2;
+        cityName = p.kind === "country" ? null : p.name;
+        if (p.lat !== null && p.lng !== null) point = { lat: p.lat, lng: p.lng };
+        if (p.kind === "country") countryIso2 = p.countryIso2;
+      }
+    } else if (q.cityId) {
+      const c = await this.prisma.city.findUnique({ where: { geonameId: q.cityId } });
+      if (c) {
+        cityName = c.name;
+        point = { lat: c.lat, lng: c.lng };
+      }
+    }
+    const all = await this.prisma.hotel.findMany({ where: q.minStars ? { starRating: { gte: q.minStars } } : {}, include: { rates: true } });
+    const hotels = all.filter(
+      (h) =>
+        (countryIso2 !== null && h.country === countryIso2) ||
+        (cityName !== null && h.city.toLowerCase() === cityName.toLowerCase()) ||
+        (point !== null && h.lat !== null && h.lon !== null && haversineKm(point.lat, point.lng, h.lat, h.lon) <= q.radiusKm),
+    );
     const amenities = q.amenities ? q.amenities.split(",").map((a) => a.trim()).filter(Boolean) : [];
     let items = hotels
       .filter((h) => amenities.every((a) => h.amenities.includes(a)))
@@ -306,6 +387,7 @@ export class TravelController {
       items,
       providers: await this.hotelProviders(),
       source: aggregateSource(items.map((i) => i.source)),
+      guideSlug: countryIso2 ? null : await guideSlugForCity(this.prisma, resolvedCityId, cityName, guideCountry),
       total,
       page: q.page,
       nights: nightsBetween(q.checkin, q.checkout),

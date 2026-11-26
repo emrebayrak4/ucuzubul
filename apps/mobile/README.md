@@ -1,4 +1,6 @@
-# @pricora/mobile
+# @pricora/mobile — WhichLess app
+
+**Rebrand (WhichLess):** app name comes from `brand.name`; slug `whichless`; schemes `whichless://` (primary) and `pricora://` (legacy, temporary); **bundle ids changed to `com.afterwish.whichless`** (iOS + Android) — a new store identity, so EAS credentials and any store listings must be created for the new id. Icons, adaptive icon, splash and in-app logo use `assets/brand/*` (copied from `packages/config/assets`).
 
 Expo SDK 58 · Expo Router (typed routes, `src/app`) · TypeScript strict · TanStack Query (persisted) · Reanimated 4 · native bottom tabs.
 
@@ -38,10 +40,10 @@ See `.env.example`. Release builds must set `EXPO_PUBLIC_API_URL` (https).
 - **Demo data:** every offer, fare or rate with `source: "demo"` shows a `DemoBadge`, and screens show a demo notice when the aggregate is demo.
 
 ## Deep links
-Scheme `pricora://` (e.g. `pricora://products/<slug>`). App routes mirror web paths (`/products/[slug]`, `/flights`,
-`/hotels/[id]`, `/login`…), so universal links map 1:1. `associatedDomains` and Android `intentFilters` for `pricora.com` are
+Schemes `whichless://` (e.g. `whichless://products/<slug>`) and legacy `pricora://`. App routes mirror web paths (`/products/[slug]`, `/flights`,
+`/hotels/[id]`, `/login`…), so universal links map 1:1. `associatedDomains` and Android `intentFilters` for `whichless.com` (from `brand.domain`) are
 placeholders. They need `/.well-known/apple-app-site-association` and `assetlinks.json` on the web domain.
 
 ## Needs a device / EAS to verify
 Camera scanning, push token (needs `EXPO_PUBLIC_EAS_PROJECT_ID` + physical device), biometrics, SecureStore, native tabs
-appearance, haptics, cookie persistence across restarts, universal links. No app icon/splash image assets yet (defaults used).
+appearance, haptics, cookie persistence across restarts, universal links.

@@ -12,7 +12,7 @@ const verticals = [
 ] as const;
 
 function activeKey(path: string): (typeof verticals)[number]["key"] {
-  if (path.startsWith("/travel/hotels")) return "hotels";
+  if (path.startsWith("/travel/hotels") || path.startsWith("/travel/guides")) return "hotels";
   if (path.startsWith("/travel")) return "flights";
   return "shopping";
 }
@@ -40,9 +40,11 @@ export function VerticalSwitcher({ variant = "pills" }: { variant?: "pills" | "b
                   "inline-flex items-center justify-center gap-1.5 font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   variant === "pills" ? "h-7 rounded-full px-3 text-xs" : "h-9 w-full rounded-sm text-sm",
                   active
-                    ? travel
-                      ? "bg-travel text-travel-fg"
-                      : "bg-primary text-primary-fg"
+                    ? v.key === "hotels"
+                      ? "bg-hotels text-hotels-fg"
+                      : v.key === "flights"
+                        ? "bg-flights-action text-flights-action-fg"
+                        : "bg-primary text-primary-fg"
                     : variant === "pills"
                       ? "text-text-muted hover:bg-surface-2 hover:text-text"
                       : "text-text-muted hover:text-text",

@@ -63,7 +63,9 @@ export default async function HotelPage({ params, searchParams }: Props) {
     );
   }
   const { hotel: h, rates, providers } = res.data;
-  const sorted = [...rates].sort((a, b) => a.totalPriceCents - b.totalPriceCents);
+  const work = first((await searchParams).work) === "1";
+  // Work trips: refundable rates first, then cheapest.
+  const sorted = [...rates].sort((a, b) => (work ? Number(b.refundable === true) - Number(a.refundable === true) : 0) || a.totalPriceCents - b.totalPriceCents);
   const images = h.images.length ? h.images : h.imageUrl ? [h.imageUrl] : [];
   const backHref = "/travel/hotels/search" + toQueryString({ city: h.city, checkin: q.checkin, checkout: q.checkout, guests: q.guests, rooms: q.rooms });
 
@@ -174,7 +176,7 @@ export default async function HotelPage({ params, searchParams }: Props) {
                       href={(r.goUrl.startsWith("http") ? r.goUrl : PUBLIC_API_URL + r.goUrl) + "?placement=hotel_detail"}
                       target="_blank"
                       rel="sponsored nofollow noopener"
-                      className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-3 text-sm font-medium text-primary-fg hover:bg-primary-hover"
+                      className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md bg-hotels px-3 text-sm font-semibold text-hotels-fg hover:opacity-90"
                     >
                       View deal <ExternalLink aria-hidden className="size-3.5" />
                     </a>

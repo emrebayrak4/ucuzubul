@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    return [{ source: "/favicon.ico", destination: "/icon.svg" }];
+    return [{ source: "/favicon.ico", destination: "/icon.png" }];
   },
   async headers() {
     return [

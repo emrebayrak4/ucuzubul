@@ -9,3 +9,5 @@ export * from "./integration-config";
 export * from "./storage";
 export * from "./images";
 export * from "./logos";
+export * from "./coupons";
+export * from "./places";

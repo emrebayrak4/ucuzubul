@@ -34,7 +34,10 @@
     "migrate:deploy": "prisma migrate deploy",
     "migrate:reset": "prisma migrate reset --force",
     "seed": "tsx prisma/seed.ts",
-    "studio": "prisma studio"
+    "studio": "prisma studio",
+    "seed:coupons": "tsx prisma/seed-coupons.ts",
+    "geo:import": "tsx prisma/geo/import.ts",
+    "guides:sync": "tsx prisma/guides-sync.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
@@ -51,6 +54,7 @@
     "tsup": "8.5.1",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "vitest": "5.1.2"
+    "vitest": "5.1.2",
+    "@pricora/content": "workspace:*"
   }
 }

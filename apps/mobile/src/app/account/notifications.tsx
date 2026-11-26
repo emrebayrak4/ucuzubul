@@ -5,6 +5,7 @@ import type { UserPreferences } from "@pricora/contracts";
 import { Card, Divider, ErrorState, ListRow, Notice, Screen, Skeleton } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { brand } from "@/lib/config";
 import { registerForPush } from "@/lib/notifications";
 import { tokens, useTheme } from "@/lib/theme";
 
@@ -14,7 +15,7 @@ const ROWS: { key: NotifKey; title: string; subtitle: string }[] = [
   { key: "email", title: "Email", subtitle: "Price alerts by email" },
   { key: "priceDrops", title: "Price drops", subtitle: "Drops on favorites" },
   { key: "weeklyDigest", title: "Weekly digest", subtitle: "A summary of your saved items" },
-  { key: "marketing", title: "Product news", subtitle: "Occasional updates from Pricora" },
+  { key: "marketing", title: "Product news", subtitle: `Occasional updates from ${brand.name}` },
 ];
 
 export default function NotificationsScreen() {
@@ -39,7 +40,7 @@ export default function NotificationsScreen() {
     if (key === "push" && value) {
       const reg = await registerForPush();
       if (reg.status === "denied") {
-        Alert.alert("Notifications are off", "Enable notifications for Pricora in system Settings.");
+        Alert.alert("Notifications are off", `Enable notifications for ${brand.name} in system Settings.`);
         return;
       }
       setPushNote(

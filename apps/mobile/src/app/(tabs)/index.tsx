@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BrandLogo } from "@/components/BrandLogo";
 import { ProductRail, RailSkeleton } from "@/components/product";
 import {
   AppText,
@@ -40,9 +41,9 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={() => void home.refetch()} tintColor={c.primary} />}
       >
         <Row style={{ justifyContent: "space-between", paddingTop: sp[3] }}>
-          <AppText variant="h2" accessibilityRole="header">
-            {brand.name}
-          </AppText>
+          <View accessibilityRole="header">
+            <BrandLogo height={30} />
+          </View>
         </Row>
         <AppText color="text-muted" style={{ marginTop: sp[1] }}>
           {brand.tagline}
@@ -177,7 +178,7 @@ function TravelCard({ icon, title, subtitle, onPress }: { icon: IconName; title:
         gap: sp[1],
       }}
     >
-      <Ionicons name={icon} size={22} color={c.travel} />
+      <Ionicons name={icon} size={22} color={c.primary} />
       <AppText variant="h4">{title}</AppText>
       <AppText variant="caption" color="text-muted">
         {subtitle}

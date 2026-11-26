@@ -12,6 +12,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { tokens } from "@pricora/design-tokens";
 import { AppText, Button } from "@/components/ui";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { brand } from "@/lib/config";
 import { listenForNotificationTaps } from "@/lib/notifications";
 import { QueryProvider } from "@/lib/query";
 import { FONTS, ThemeProvider, useTheme } from "@/lib/theme";
@@ -113,7 +114,7 @@ function LockScreen() {
         gap: tokens.spacing[4],
       }}
     >
-      <AppText variant="h2">Pricora is locked</AppText>
+      <AppText variant="h2">{brand.name} is locked</AppText>
       <AppText color="text-muted" style={{ textAlign: "center" }}>
         Unlock with Face ID, Touch ID, or your device biometrics.
       </AppText>

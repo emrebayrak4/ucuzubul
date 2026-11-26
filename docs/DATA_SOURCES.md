@@ -301,3 +301,14 @@ WALMART_CONSUMER_ID WALMART_KEY_VERSION WALMART_PRIVATE_KEY WALMART_PUBLISHER_ID
 - Source order: (1) the site's **own published icon** fetched from its official domain only (`apple-touch-icon` → largest `<link rel=icon>` → `/favicon.ico`; robots.txt respected, 8 s timeouts, icons on third-party hosts skipped) — `logoSource = official_site`; (2) admin upload — `admin_upload`; (3) optional logo provider (logo.dev, only when `LOGO_DEV_TOKEN` is configured in admin → Integrations) — `logo_provider`.
 - When an affiliate program is approved, **replace these with the brand assets provided by the program** (they come with usage terms) via the admin logo upload.
 - Run `pnpm -C apps/api logos:fetch` (add `--force` to refresh). Re-seeding the database clears logos (retailer/brand rows are recreated) — run the script again afterwards.
+
+## Geo dataset: countries, cities, airports (added by A04)
+| Dataset | Source | License | Use |
+|---|---|---|---|
+| Airports (`airports.csv`), countries (`countries.csv`), regions (`regions.csv`) | OurAirports — https://ourairports.com/data/ (mirror: davidmegginson.github.io/ourairports-data) | **Public domain** | IATA-coded airports with scheduled service plus large/medium IATA airports (type, ICAO, coordinates, region) |
+| Cities ≥ 5,000 population (`cities5000.zip`), `countryInfo.txt`, `admin1CodesASCII.txt` | GeoNames — https://www.geonames.org/ | **CC BY 4.0** — attribution required: "Geographic data © GeoNames (geonames.org), CC BY 4.0" in the site footer/about page | Cities (names, ASCII names, limited Latin alternate names, admin1, coordinates, population, timezone), country ISO3/currency/capital/population |
+| Metro (multi-airport) city codes | Curated list in `packages/database/prisma/geo/metros.ts` (IATA metropolitan area codes) | — | NYC, LON, PAR, TYO, IST… → their airports |
+- Import: `pnpm -C packages/database geo:import [--refresh]` downloads into `<repo>/.data/geo-cache` (gitignored, refreshed weekly) and upserts idempotently; raw files are never committed.
+- Airports are linked to the nearest GeoNames city matching the OurAirports municipality (fallback: nearest city within 25 km).
+- Search: Meilisearch index `places` (rebuilt by the API when its size differs from the DB) with a Postgres pg_trgm + unaccent fallback.
+- **A02/A03:** add the GeoNames attribution line to the footer / about page.

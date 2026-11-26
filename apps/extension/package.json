@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Pricora browser extension (Chrome MV3 + Firefox MV3): price comparison banner, store coupons, checkout coupon tester.",
+  "description": "WhichLess browser extension (Chrome MV3 + Firefox MV3): price comparison banner, store coupons, checkout coupon tester.",
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:chrome": "node scripts/build.mjs --target=chrome",
@@ -34,6 +34,7 @@
     "eslint": "10.15.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "31.0.1",
+    "sharp": "0.35.5",
     "tailwindcss": "4.3.5",
     "typescript": "5.9.3",
     "typescript-eslint": "8.74.0",

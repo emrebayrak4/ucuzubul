@@ -8,6 +8,10 @@ import { existsSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import {
+  COUPONS_QUEUE,
+  expireCoupons,
+  pullCouponFeeds,
+  reverifyStaleCoupons,
   IntegrationConfig,
   parseKey,
   MERCHANT_FEEDS_QUEUE,
@@ -94,8 +98,11 @@ async function main(): Promise<void> {
   const priceEvents = new Queue(PRICE_EVENTS_QUEUE, { connection });
   const searchIndex = new Queue(SEARCH_INDEX_QUEUE, { connection });
   const priceRefresh = new Queue(PRICE_REFRESH_QUEUE, { connection });
+  const coupons = new Queue(COUPONS_QUEUE, { connection });
 
   await priceRefresh.upsertJobScheduler("price-refresh-30m", { every: 30 * 60_000 }, { name: "refresh-all" });
+  await coupons.upsertJobScheduler("coupons-maintain-daily", { every: 24 * 60 * 60_000 }, { name: "maintain" });
+  await coupons.upsertJobScheduler("coupons-ingest-6h", { every: 6 * 60 * 60_000 }, { name: "ingest" });
   await searchIndex.upsertJobScheduler("search-reindex-6h", { every: 6 * 60 * 60_000 }, { name: "reindex" });
 
   const workers = [
@@ -141,6 +148,23 @@ async function main(): Promise<void> {
       { connection, concurrency: 4 },
     ),
     new Worker(
+      COUPONS_QUEUE,
+      async (job: Job) => {
+        if (job.name === "maintain") {
+          const expired = await expireCoupons(prisma);
+          const reverify = await reverifyStaleCoupons(prisma);
+          log("coupons", `maintain: ${expired} expired, ${reverify} queued for re-verification`);
+          return { expired, reverify };
+        }
+        const run = await prisma.dataIngestionJob.create({ data: { kind: "coupon-feeds", status: "processing", startedAt: new Date() } });
+        const results = await pullCouponFeeds(prisma, await integrations.env());
+        await prisma.dataIngestionJob.update({ where: { id: run.id }, data: { status: "completed", finishedAt: new Date(), stats: results as unknown as object } });
+        log("coupons", "ingest: " + results.map((r) => r.id + "=" + r.status).join(", "));
+        return results;
+      },
+      { connection, concurrency: 1 },
+    ),
+    new Worker(
       MERCHANT_FEEDS_QUEUE,
       async (job: Job<MerchantFeedJob>) => {
         const { feedId, path: staged, format } = job.data;
@@ -184,11 +208,11 @@ async function main(): Promise<void> {
 
   // Job schedulers fire immediately on first registration; add an initial reindex so a fresh environment is usable.
   await searchIndex.add("reindex", {}, { removeOnComplete: 100, removeOnFail: 100 });
-  log("worker", `started (queues: ${PRICE_REFRESH_QUEUE}, ${PRICE_EVENTS_QUEUE}, ${SEARCH_INDEX_QUEUE}, ${MERCHANT_FEEDS_QUEUE})`);
+  log("worker", `started (queues: ${PRICE_REFRESH_QUEUE}, ${PRICE_EVENTS_QUEUE}, ${SEARCH_INDEX_QUEUE}, ${MERCHANT_FEEDS_QUEUE}, ${COUPONS_QUEUE})`);
 
   const shutdown = async () => {
     log("worker", "shutting down");
-    await Promise.allSettled([...workers.map((w) => w.close()), priceEvents.close(), searchIndex.close(), priceRefresh.close()]);
+    await Promise.allSettled([...workers.map((w) => w.close()), priceEvents.close(), searchIndex.close(), priceRefresh.close(), coupons.close()]);
     await integrations.close();
     await disconnectPrisma();
     process.exit(0);

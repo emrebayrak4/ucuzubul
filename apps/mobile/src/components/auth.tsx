@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { brand } from "@/lib/config";
+import { BrandLogo } from "./BrandLogo";
 import { tokens, useTheme } from "@/lib/theme";
 import { AppText, Button, Field, IconButton } from "./ui";
 
@@ -10,9 +10,7 @@ export function AuthForm({ title, children }: { title: string; children: ReactNo
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView contentContainerStyle={{ padding: tokens.layout.gutter.base, gap: tokens.spacing[4], paddingBottom: tokens.spacing[12] }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: tokens.spacing[1] }}>
-          <AppText variant="overline" color="primary">
-            {brand.name}
-          </AppText>
+          <BrandLogo height={32} />
           <AppText variant="h2" accessibilityRole="header">
             {title}
           </AppText>

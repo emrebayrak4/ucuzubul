@@ -19,12 +19,11 @@ import {
   User as UserIcon,
   Heart,
   ListChecks,
-  Plane,
-  BedDouble,
   Percent,
   TrendingDown,
   ShoppingBasket,
   Sun,
+  Ticket,
 } from "lucide-react";
 import type { CategoryNode } from "@pricora/contracts";
 import {
@@ -58,8 +57,7 @@ import { VerticalSwitcher } from "@/components/vertical-switcher";
 export const primaryNav = [
   { href: "/deals", label: "Deals", icon: Percent },
   { href: "/price-drops", label: "Price Drops", icon: TrendingDown },
-  { href: "/travel/flights", label: "Flights", icon: Plane },
-  { href: "/travel/hotels", label: "Hotels", icon: BedDouble },
+  { href: "/coupons", label: "Coupons", icon: Ticket },
   { href: "/compare", label: "Compare", icon: GitCompareArrows },
   { href: "/basket", label: "Smart Basket", icon: ShoppingBasket },
 ] as const;
@@ -324,6 +322,7 @@ export function NavLinks({ topCategories }: { topCategories: Array<{ slug: strin
                 active ? "border-primary text-primary" : "border-transparent text-text hover:text-primary",
               )}
             >
+              {l.href === "/coupons" ? <Ticket aria-hidden className="mr-1 size-4" /> : null}
               {l.label}
             </Link>
           </li>

@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from "react-native";
 import type { LoginRequest, PublicUser, RegisterRequest } from "@pricora/contracts";
 import { api, setUnauthorizedHandler } from "./api";
+import { brand } from "./config";
 import { clearUserQueries } from "./query";
 import {
   extractSessionToken,
@@ -85,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [biometricEnabled, user]);
 
   const unlock = useCallback(async () => {
-    const res = await LocalAuthentication.authenticateAsync({ promptMessage: "Unlock Pricora" });
+    const res = await LocalAuthentication.authenticateAsync({ promptMessage: `Unlock ${brand.name}` });
     if (res.success) setLocked(false);
     return res.success;
   }, []);

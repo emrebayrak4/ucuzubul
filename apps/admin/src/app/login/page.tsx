@@ -10,7 +10,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex justify-center">
-          <Logo suffix="Admin & Merchant" />
+          <Logo suffix="Admin & Merchant" size="lg" />
         </div>
         <div className="rounded-lg border border-border bg-surface p-6 shadow-xs">
           <h1 className="text-lg font-semibold">Log in</h1>

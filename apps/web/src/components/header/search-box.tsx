@@ -111,7 +111,9 @@ function SearchBoxInner({ size = "lg", autoFocusShortcut = true, testId = "searc
   const rows: Row[] = React.useMemo(() => {
     if (debounced.length >= 2) return (suggest.data?.items ?? []).slice(0, 10).map((s) => ({ kind: "suggestion", s }));
     const r: Row[] = recent.map((text) => ({ kind: "recent", text }));
-    for (const t of (trending.data?.queries ?? []).slice(0, 6)) r.push({ kind: "trending", text: t.text });
+    // Defensive: never surface junk / injection-looking strings as "trending".
+    const clean = (t: string) => /^[\p{L}\p{N}][\p{L}\p{N} $.,&+'-]{1,60}$/u.test(t.trim()) && !/--|=|%/.test(t);
+    for (const t of (trending.data?.queries ?? []).filter((q) => clean(q.text)).slice(0, 6)) r.push({ kind: "trending", text: t.text });
     return r;
   }, [debounced, suggest.data, recent, trending.data]);
 
@@ -185,11 +187,11 @@ function SearchBoxInner({ size = "lg", autoFocusShortcut = true, testId = "searc
             </Button>
           }
           data-testid={testId}
-          className="rounded-full border-2 border-surface bg-surface shadow-none focus-visible:ring-2 focus-visible:ring-primary-fg focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+          className="rounded-full border-2 border-surface bg-surface shadow-none outline-none focus-visible:border-primary-soft-fg focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </form>
       {showPanel ? (
-        <div className="absolute inset-x-0 top-full z-dropdown mt-1.5 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+        <div className="absolute inset-x-0 top-full z-dropdown mt-1.5 overflow-hidden rounded-lg border border-border bg-surface text-text shadow-md">
           {suggest.data?.degraded ? (
             <p className="border-b border-border bg-surface-2 px-3 py-1.5 text-2xs text-text-muted">
               Suggestions are limited right now (search index offline).

@@ -21,6 +21,11 @@ export default function TermsPage() {
         <li>Keep your credentials secure and provide accurate information.</li>
         <li>Don&apos;t misuse the service, scrape it in ways that bypass our controls, or interfere with its operation.</li>
       </ul>
+      <h2>Data sources and attribution</h2>
+      <p>
+        Travel place data (countries, cities, airports) is based on GeoNames (geonames.org), licensed under Creative Commons Attribution 4.0 (CC BY
+        4.0). Product, price and travel rate data comes from retailers, feeds and providers named next to each price.
+      </p>
       <h2>Changes</h2>
       <p>We may update these terms; material changes will be announced on the site.</p>
     </LegalPage>

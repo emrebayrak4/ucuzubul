@@ -2,7 +2,7 @@ import { PAGE_SIZE, SEARCH_PAGES_PER_CHUNK, flattenCategories, sitemapApi, urlse
 
 export const dynamic = "force-dynamic";
 
-const STATIC_PATHS = ["/", "/deals", "/price-drops", "/travel", "/travel/flights", "/travel/hotels"];
+const STATIC_PATHS = ["/", "/deals", "/price-drops", "/coupons", "/travel", "/travel/flights", "/travel/hotels"];
 
 export async function GET(_req: Request, { params }: { params: Promise<{ file: string }> }) {
   const { file } = await params;
@@ -25,6 +25,24 @@ export async function GET(_req: Request, { params }: { params: Promise<{ file: s
       // No brand index endpoint yet: brands come from the global search facet (top brands by product count).
       const res = await api.search.search({ pageSize: 1 });
       return xmlResponse(urlset(res.facets.brands.filter((b) => b.count > 0).map((b) => ({ path: `/brands/${b.value}`, changefreq: "weekly", priority: 0.5 }))));
+    }
+    if (file === "guides.xml") {
+      const items: Array<{ slug?: string; lastReviewedAt?: string; updatedAt?: string }> = [];
+      for (let page = 1; page <= 20; page++) {
+        const res = await api.travel.guides({ page, pageSize: 60 }).catch(() => null);
+        if (!res) break;
+        items.push(...res.items.map((g) => ({ slug: g.slug, updatedAt: g.updatedAt })));
+        if (page >= res.totalPages) break;
+      }
+      const json = { items };
+      return xmlResponse(
+        urlset([
+          { path: "/travel/guides", changefreq: "weekly", priority: 0.6 },
+          ...(json?.items ?? [])
+            .filter((g): g is { slug: string; lastReviewedAt?: string; updatedAt?: string } => Boolean(g.slug))
+            .map((g) => ({ path: `/travel/guides/${g.slug}`, lastmod: g.lastReviewedAt ?? g.updatedAt, changefreq: "monthly", priority: 0.6 })),
+        ]),
+      );
     }
     const m = /^products-(\d{1,4})\.xml$/.exec(file);
     if (m) {

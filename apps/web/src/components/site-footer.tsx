@@ -49,13 +49,15 @@ const columns: Array<{ title: string; links: Array<{ href: string; label: string
   },
 ];
 
-export function SiteFooter() {
+/** Shopping footer never mentions travel (travel is reached only via the Shopping | Flights | Hotels switcher). */
+export function SiteFooter({ area = "shopping" }: { area?: "shopping" | "travel" }) {
+  const cols = area === "travel" ? columns : columns.filter((c) => c.title !== "Travel");
   return (
     <footer className="mt-12 border-t border-border bg-surface-2" style={{ viewTransitionName: "site-footer" }}>
       <div className="container-content py-10">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-7">
+        <div className={"grid grid-cols-2 gap-8 md:grid-cols-3 " + (area === "travel" ? "lg:grid-cols-7" : "lg:grid-cols-6")}>
           <div className="col-span-2 flex flex-col gap-3">
-            <Logo />
+            <Logo height={40} />
             <p className="text-sm text-text-muted">{brand.tagline}</p>
             <div className="mt-2 flex items-start gap-2 rounded-md border border-border bg-surface p-3 text-sm">
               <Smartphone aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -65,7 +67,7 @@ export function SiteFooter() {
               </span>
             </div>
           </div>
-          {columns.map((col) => (
+          {cols.map((col) => (
             <nav key={col.title} aria-label={col.title}>
               <h2 className="text-sm font-semibold text-text">{col.title}</h2>
               <ul className="mt-3 space-y-2">
@@ -90,6 +92,19 @@ export function SiteFooter() {
               How we make money
             </Link>
           </p>
+          {area === "travel" ? (
+            <p className="mt-2 text-xs text-text-muted" data-testid="geonames-attribution">
+              Geographic data ©{" "}
+              <a href="https://www.geonames.org/" target="_blank" rel="noopener" className="underline underline-offset-2">
+                GeoNames (geonames.org)
+              </a>
+              ,{" "}
+              <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license" className="underline underline-offset-2">
+                CC BY 4.0
+              </a>
+              .
+            </p>
+          ) : null}
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-text-muted">
               © {new Date().getFullYear()} {brand.legalEntity}. All rights reserved.

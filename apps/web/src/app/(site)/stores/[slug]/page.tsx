@@ -11,6 +11,8 @@ import { ApiErrorPanel } from "@/components/api-error";
 import { Crumbs } from "@/components/crumbs";
 import { JsonLd, breadcrumbJsonLd } from "@/components/json-ld";
 import { SearchResults } from "@/components/search/search-results";
+import { CouponCard, FollowStoreButton } from "@/components/coupons/coupon-card";
+import { load, serverApi } from "@/lib/api-server";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<SearchParams> };
 
@@ -47,6 +49,8 @@ export default async function StorePage({ params, searchParams }: Props) {
     );
   }
   const { retailer, topCategories } = res.data;
+  const couponApi = await serverApi({ revalidate: 300 });
+  const coupons = await load(() => couponApi.coupons.forRetailer(slug, { pageSize: 6, sort: "popular" }));
   const status = statusLabel[retailer.integrationStatus] ?? statusLabel.disabled!;
   return (
     <div className="container-content py-6">
@@ -90,6 +94,34 @@ export default async function StorePage({ params, searchParams }: Props) {
             </li>
           ))}
         </ul>
+      ) : null}
+      {coupons.ok ? (
+        <section aria-labelledby="store-coupons" className="mb-8 rounded-lg border border-border bg-surface-2 p-4" data-testid="store-coupons">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 id="store-coupons" className="text-lg font-bold">
+              {retailer.name} coupons
+            </h2>
+            <div className="flex items-center gap-3">
+              {coupons.data.total > coupons.data.items.length ? (
+                <Link href={`/coupons?retailer=${slug}`} className="text-sm font-semibold text-primary hover:underline">
+                  All {coupons.data.total} coupons
+                </Link>
+              ) : null}
+              <FollowStoreButton retailerSlug={slug} retailerName={retailer.name} />
+            </div>
+          </div>
+          {coupons.data.items.length ? (
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {coupons.data.items.map((c) => (
+                <li key={c.id}>
+                  <CouponCard coupon={c} showStore={false} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-text-muted">No verified coupons for this store yet. Follow the store to get notified when one appears.</p>
+          )}
+        </section>
       ) : null}
       <SearchResults basePath={`/stores/${slug}`} searchParams={sp} fixed={{ retailer: [slug] }} hide={{ retailer: true }} />
     </div>

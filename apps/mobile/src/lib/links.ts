@@ -2,7 +2,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Share } from "react-native";
 import { track } from "./analytics";
 import { api } from "./api";
-import { WEB_URL } from "./config";
+import { WEB_URL, brand } from "./config";
 
 const browserOptions: WebBrowser.WebBrowserOpenOptions = {
   presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
@@ -27,5 +27,5 @@ export async function openWebPath(path: string): Promise<void> {
 /** Native share sheet with the public web URL (universal link → opens the app when installed). */
 export async function shareProduct(slug: string, title: string): Promise<void> {
   const url = `${WEB_URL}/products/${slug}`;
-  await Share.share({ title, message: `${title} — compare prices on Pricora\n${url}`, url });
+  await Share.share({ title, message: `${title} — compare prices on ${brand.name}\n${url}`, url });
 }

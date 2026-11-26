@@ -155,6 +155,9 @@ export function createApiClient(options: ApiClientOptions) {
     },
 
     travel: {
+      guides: withQuery("travel.guides"),
+      guide: (guideSlug: string, o?: Opts) => withParams("travel.guide")(slug(guideSlug), o),
+      places: (q: string, opts?: { types?: string; limit?: number }, o?: Opts) => withQuery("travel.places")({ q, ...opts }, o),
       airports: (q: string, o?: Opts) => withQuery("travel.airports")({ q }, o),
       flights: (query: EndpointQuery<"travel.flights">, o?: Opts) => withQuery("travel.flights")(query, o),
       hotels: (query: EndpointQuery<"travel.hotels">, o?: Opts) => withQuery("travel.hotels")(query, o),
@@ -240,6 +243,13 @@ export function createApiClient(options: ApiClientOptions) {
         clear: (integrationId: string, o?: Opts) => withParams("admin.integrations.clear")(id(integrationId), o),
       },
       openapi: noArgs("admin.openapi"),
+      guides: {
+        list: withQuery("admin.guides.list"),
+        get: (guideId: string, o?: Opts) => withParams("admin.guides.get")(id(guideId), o),
+        create: withBody("admin.guides.create"),
+        update: (guideId: string, body: EndpointBody<"admin.guides.update">, o?: Opts) => withParamsBody("admin.guides.update")(id(guideId), body, o),
+        remove: (guideId: string, o?: Opts) => withParams("admin.guides.delete")(id(guideId), o),
+      },
       coupons: {
         list: withQuery("admin.coupons.list"),
         create: withBody("admin.coupons.create"),

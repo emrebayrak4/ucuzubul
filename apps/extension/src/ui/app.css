@@ -1,0 +1,27 @@
+@import "tailwindcss";
+@import "@pricora/design-tokens/tailwind.css";
+@source "../";
+
+/* Nunito Sans is bundled with the extension (scripts/assets.mjs copies the variable latin woff2); never fetched from Google. */
+@font-face {
+  font-family: "Nunito Sans";
+  src: url("/fonts/nunito-sans-latin-wght-normal.woff2") format("woff2");
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* The token font stacks start with these variables (web sets them via next/font). */
+  --font-nunito-sans: "Nunito Sans";
+  --font-geist-mono: ui-monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--pc-color-bg);
+  color: var(--pc-color-text);
+  font-family: var(--pc-font-sans);
+  -webkit-font-smoothing: antialiased;
+}

@@ -29,6 +29,16 @@ import {
 } from "./coupons";
 import { ExtensionProductQuery, ExtensionProductResponse } from "./extension";
 import {
+  AdminGuide,
+  AdminGuideListQuery,
+  AdminGuideListResponse,
+  AdminUpdateGuideRequest,
+  AdminUpsertGuideRequest,
+  GuideDetail,
+  GuideListQuery,
+  GuideListResponse,
+} from "./guides";
+import {
   AuthSessionResponse,
   ForgotPasswordRequest,
   ForgotPasswordResponse,
@@ -91,6 +101,8 @@ import {
   HotelDetailResponse,
   HotelSearchQuery,
   HotelSearchResponse,
+  PlacesQuery,
+  PlacesResponse,
   TravelGoParams,
 } from "./travel";
 import { AssistantRequest, AssistantResponse, GoParams, GoQuery, HealthResponse, ScanParams, ScanResponse } from "./misc";
@@ -250,6 +262,9 @@ export const endpoints = {
   "go.offer": def({ method: "GET", path: "/go/:offerId", auth: "optional", params: GoParams, query: GoQuery, response: null, description: "Log click, 302 to allow-listed retailer URL" }),
 
   /* Travel */
+  "travel.places": def({ method: "GET", path: "/travel/places", auth: "public", query: PlacesQuery, response: PlacesResponse, description: "Airports, cities (incl. multi-airport 'Any airport') and countries autocomplete" }),
+  "travel.guides": def({ method: "GET", path: "/travel/guides", auth: "public", query: GuideListQuery, response: GuideListResponse, description: "Published city travel guides" }),
+  "travel.guide": def({ method: "GET", path: "/travel/guides/:slug", auth: "public", params: SlugParam, response: GuideDetail, description: "Guide with sanitised Markdown + TOC headings" }),
   "travel.airports": def({ method: "GET", path: "/travel/airports", auth: "public", query: AirportSearchQuery, response: AirportSearchResponse, description: "Airport autocomplete" }),
   "travel.flights": def({ method: "GET", path: "/travel/flights/search", auth: "public", query: FlightSearchQuery, response: FlightSearchResponse, description: "Flight search across providers" }),
   "travel.hotels": def({ method: "GET", path: "/travel/hotels/search", auth: "public", query: HotelSearchQuery, response: HotelSearchResponse, description: "Hotel search" }),
@@ -304,6 +319,12 @@ export const endpoints = {
   "admin.coupons.delete": def({ method: "DELETE", path: "/admin/coupons/:id", auth: "staff", params: IdParam, response: OkResponse, description: "Delete coupon (EDITOR+)" }),
   "admin.checkoutConfigs.list": def({ method: "GET", path: "/admin/checkout-configs", auth: "staff", response: AdminCheckoutConfigListResponse, description: "Extension checkout configs" }),
   "admin.checkoutConfigs.upsert": def({ method: "PUT", path: "/admin/checkout-configs/:id", auth: "staff", params: IdParam, body: AdminUpsertCheckoutConfigRequest, response: AdminCheckoutConfig, description: "Create/update config for retailer :id (EDITOR+; bumps version)" }),
+
+  "admin.guides.list": def({ method: "GET", path: "/admin/guides", auth: "staff", query: AdminGuideListQuery, response: AdminGuideListResponse, description: "Travel guides (all statuses)" }),
+  "admin.guides.get": def({ method: "GET", path: "/admin/guides/:id", auth: "staff", params: IdParam, response: AdminGuide, description: "Guide for editing" }),
+  "admin.guides.create": def({ method: "POST", path: "/admin/guides", auth: "staff", body: AdminUpsertGuideRequest, response: AdminGuide, description: "Create guide (EDITOR+)" }),
+  "admin.guides.update": def({ method: "PATCH", path: "/admin/guides/:id", auth: "staff", params: IdParam, body: AdminUpdateGuideRequest, response: AdminGuide, description: "Edit/publish guide (EDITOR+; protects it from file sync)" }),
+  "admin.guides.delete": def({ method: "DELETE", path: "/admin/guides/:id", auth: "staff", params: IdParam, response: OkResponse, description: "Delete guide (EDITOR+)" }),
 
   /* Merchant */
   "merchant.profile.get": def({ method: "GET", path: "/merchant/profile", auth: "merchant", response: MerchantProfile, description: "Merchant profile" }),

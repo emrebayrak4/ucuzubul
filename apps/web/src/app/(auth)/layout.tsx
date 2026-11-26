@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { BellRing, Plane, Scale } from "lucide-react";
+import { BellRing, Ticket, Scale } from "lucide-react";
 import { brand } from "@pricora/config/brand";
 import { Logo } from "@/components/logo";
 
 const props = [
   { icon: Scale, text: "Compare prices across stores, including shipping and estimated tax" },
   { icon: BellRing, text: "Price history and alerts so you buy at the right time" },
-  { icon: Plane, text: "Flights and hotels from multiple providers in one search" },
+  { icon: Ticket, text: "Coupons with real success reports and a smart basket to pay less overall" },
 ];
 
 /** Split layout (DESIGN_SYSTEM §13.6): form panel left, brand panel right on lg+. */
@@ -15,7 +15,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="grid min-h-dvh lg:grid-cols-12">
       <main className="flex flex-col bg-surface-2 px-4 py-8 sm:px-8 lg:col-span-5">
         <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center">
-          <Logo className="mb-6 self-center" />
+          <Logo className="mb-6 self-center" height={44} />
           <ul className="mb-6 space-y-1.5 lg:hidden">
             {props.map((p) => (
               <li key={p.text} className="flex items-start gap-2 text-sm text-text-muted">

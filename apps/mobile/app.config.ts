@@ -1,34 +1,43 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import { brand } from "@pricora/config/brand";
 import { darkColors, lightColors } from "@pricora/design-tokens";
 
 /**
- * Expo app config. Brand values mirror packages/config/src/brand.ts (single source of truth for the name);
- * keep `name`/`slug`/`scheme` in sync if the placeholder brand changes.
+ * Expo app config. Name, domain and copy come from packages/config/src/brand.ts (single source of truth).
+ * Brand images in ./assets/brand are copies of packages/config/assets (re-copy if the brand art changes).
  *
  * Universal links: `associatedDomains` / Android `intentFilters` below are placeholders. They only work after
  * the web app serves /.well-known/apple-app-site-association and /.well-known/assetlinks.json (A02 / ORCH).
  */
-const WEB_HOST = "pricora.com";
+const WEB_HOST = brand.domain;
+const cameraCopy = `${brand.name} uses the camera to scan product barcodes and compare prices.`;
+const faceIdCopy = `Use Face ID to unlock your ${brand.name} account.`;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Pricora",
-  slug: "pricora",
-  scheme: "pricora",
+  name: brand.name,
+  slug: "whichless",
+  // `pricora://` kept temporarily so links created before the rebrand still open the app.
+  scheme: ["whichless", "pricora"],
   version: "0.1.0",
   orientation: "portrait",
   userInterfaceStyle: "automatic",
+  icon: "./assets/brand/whichless-app-icon.png",
   ios: {
-    bundleIdentifier: "com.afterwish.pricora",
+    bundleIdentifier: "com.afterwish.whichless",
     supportsTablet: false,
     associatedDomains: [`applinks:${WEB_HOST}`],
     infoPlist: {
-      NSCameraUsageDescription: "Pricora uses the camera to scan product barcodes and compare prices.",
-      NSFaceIDUsageDescription: "Use Face ID to unlock your Pricora account.",
+      NSCameraUsageDescription: cameraCopy,
+      NSFaceIDUsageDescription: faceIdCopy,
     },
   },
   android: {
-    package: "com.afterwish.pricora",
+    package: "com.afterwish.whichless",
+    adaptiveIcon: {
+      foregroundImage: "./assets/brand/whichless-mark.png",
+      backgroundColor: "#FFFFFF",
+    },
     permissions: ["android.permission.CAMERA", "android.permission.USE_BIOMETRIC", "android.permission.POST_NOTIFICATIONS"],
     intentFilters: [
       {
@@ -48,19 +57,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-font",
     "expo-secure-store",
     "expo-web-browser",
-    [
-      "expo-camera",
-      {
-        cameraPermission: "Pricora uses the camera to scan product barcodes and compare prices.",
-        microphonePermission: false,
-        recordAudioAndroid: false,
-      },
-    ],
-    ["expo-local-authentication", { faceIDPermission: "Use Face ID to unlock your Pricora account." }],
+    ["expo-camera", { cameraPermission: cameraCopy, microphonePermission: false, recordAudioAndroid: false }],
+    ["expo-local-authentication", { faceIDPermission: faceIdCopy }],
     "expo-notifications",
     [
       "expo-splash-screen",
-      { backgroundColor: lightColors.bg, dark: { backgroundColor: darkColors.bg }, imageWidth: 120 },
+      {
+        image: "./assets/brand/whichless-mark.png",
+        imageWidth: 120,
+        resizeMode: "contain",
+        backgroundColor: lightColors.bg,
+        dark: { image: "./assets/brand/whichless-mark.png", backgroundColor: darkColors.bg },
+      },
     ],
   ],
   experiments: {
@@ -68,7 +76,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL || null,
-    webUrl: process.env.EXPO_PUBLIC_WEB_URL || `https://${WEB_HOST}`,
+    webUrl: process.env.EXPO_PUBLIC_WEB_URL || brand.url,
     eas: process.env.EXPO_PUBLIC_EAS_PROJECT_ID ? { projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID } : undefined,
   },
 });

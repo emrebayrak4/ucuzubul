@@ -1,0 +1,20 @@
+<!-- TEST-ONLY fixture: a minimal fake checkout page used by autoApply.test.ts. Not a copy of any real retailer page. -->
+<main class="checkout">
+  <section class="summary">
+    <div>Subtotal: <span id="subtotal">$100.00</span></div>
+    <div>Discount: <span id="discount">-$0.00</span></div>
+    <div class="order-total">Order total: <strong id="total">$100.00</strong></div>
+  </section>
+  <form id="promo-form">
+    <label for="promo">Promo code</label>
+    <input id="promo" name="promo" type="text" autocomplete="off" />
+    <button id="apply" type="button">Apply</button>
+    <div class="promo-success" hidden></div>
+    <div class="promo-error" role="alert" hidden></div>
+    <button id="remove" type="button" hidden>Remove</button>
+  </form>
+  <section class="payment">
+    <input id="card" name="card" type="text" />
+    <button id="place-order" type="button">Place order</button>
+  </section>
+</main>

@@ -7,6 +7,9 @@ import {
   Activity,
   BookOpen,
   Cable,
+  MapPinned,
+  ScanSearch,
+  TicketPercent,
   BadgeDollarSign,
   BarChart3,
   Building2,
@@ -77,6 +80,9 @@ const ICONS: Record<IconName, LucideIcon> = {
   webhooks: Webhook,
   integrations: Cable,
   docs: BookOpen,
+  coupons: TicketPercent,
+  guides: MapPinned,
+  checkout: ScanSearch,
 };
 
 function NavList({ groups, role, onNavigate }: { groups: NavGroup[]; role: PublicUser["role"]; onNavigate?: () => void }) {

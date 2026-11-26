@@ -18,3 +18,4 @@
 - 2026-11-26 — Mobile styling: React Native StyleSheet + @pricora/design-tokens instead of NativeWind (NativeWind 4 requires Tailwind v3; repo uses Tailwind 4.3).
 - 2026-11-26 — Mobile pins react 19.3.1 (same as web) to keep a single React copy in the hoisted monorepo; excluded from `expo install` checks.
 - 2026-11-26 — Native auth: `x-pricora-client: native` → bearer sessionToken in SecureStore (no CSRF); web keeps httpOnly cookie + CSRF.
+- 2026-11-26 — Brand renamed to **WhichLess** (founder-provided logo). Logo assets in packages/config/assets (logo, white/on-blue variants, square mark, app icon). Logo blue #0029F8, logo navy #050A31. Internal package scope stays @pricora/* (not user-visible).

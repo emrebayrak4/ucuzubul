@@ -1,4 +1,6 @@
-@import "tailwindcss";
+/* Scan only src/ (+ the ui dist below). Without an explicit base, Tailwind auto-detection also scans .next/
+   (no git repo here, so .gitignore is not applied) — the dev log file then retriggers CSS builds in a reload loop. */
+@import "tailwindcss" source("../");
 @import "@pricora/design-tokens/tailwind.css";
 @source "../../../../packages/ui/dist";
 

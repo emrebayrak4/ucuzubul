@@ -288,6 +288,9 @@ importers:
       '@pricora/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@pricora/content':
+        specifier: workspace:*
+        version: link:../../packages/content
       '@pricora/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -363,7 +366,7 @@ importers:
         version: 7.3.2(supports-color@7.2.0)
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       tsx:
         specifier: 4.23.15
         version: 4.23.15
@@ -372,7 +375,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/extension:
     dependencies:
@@ -434,6 +437,9 @@ importers:
       jsdom:
         specifier: 31.0.1
         version: 31.0.1(@noble/hashes@1.8.0)
+      sharp:
+        specifier: 0.35.5
+        version: 0.35.5(@types/node@24.19.4)
       tailwindcss:
         specifier: 4.3.5
         version: 4.3.5
@@ -445,10 +451,10 @@ importers:
         version: 8.74.0(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       vite:
         specifier: 8.4.0
-        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)
+        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/mobile:
     dependencies:
@@ -703,7 +709,7 @@ importers:
         version: 24.19.4
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       tsx:
         specifier: 4.23.15
         version: 4.23.15
@@ -712,7 +718,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   e2e:
     devDependencies:
@@ -739,7 +745,7 @@ importers:
         version: 10.15.0(jiti@2.7.0)(supports-color@7.2.0)
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -748,10 +754,10 @@ importers:
         version: 8.74.0(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       vite:
         specifier: 8.4.0
-        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)
+        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/analytics:
     devDependencies:
@@ -763,7 +769,7 @@ importers:
         version: 10.15.0(jiti@2.7.0)(supports-color@7.2.0)
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -772,10 +778,10 @@ importers:
         version: 8.74.0(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       vite:
         specifier: 8.4.0
-        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)
+        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/api-client:
     dependencies:
@@ -794,13 +800,13 @@ importers:
         version: 24.19.4
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/config:
     dependencies:
@@ -813,13 +819,38 @@ importers:
         version: 24.19.4
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/content:
+    dependencies:
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@pricora/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: 24.19.4
+        version: 24.19.4
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 5.1.2
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/contracts:
     dependencies:
@@ -835,13 +866,13 @@ importers:
         version: 24.19.4
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/database:
     dependencies:
@@ -861,6 +892,9 @@ importers:
       '@pricora/config':
         specifier: workspace:*
         version: link:../config
+      '@pricora/content':
+        specifier: workspace:*
+        version: link:../content
       '@pricora/utils':
         specifier: workspace:*
         version: link:../utils
@@ -875,7 +909,7 @@ importers:
         version: 7.10.1(@types/node@24.19.4)(@types/react-dom@19.3.0(@types/react@19.3.1))(@types/react@19.3.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3)
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       tsx:
         specifier: 4.23.15
         version: 4.23.15
@@ -884,13 +918,13 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/design-tokens:
     devDependencies:
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -908,7 +942,7 @@ importers:
         version: 10.15.0(jiti@2.7.0)(supports-color@7.2.0)
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -917,10 +951,10 @@ importers:
         version: 8.74.0(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       vite:
         specifier: 8.4.0
-        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)
+        version: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/ui:
     dependencies:
@@ -966,7 +1000,7 @@ importers:
         version: 4.3.5
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -981,13 +1015,13 @@ importers:
         version: 24.19.4
       tsup:
         specifier: 8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
       vitest:
         specifier: 5.1.2
-        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+        version: 5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
 packages:
 
@@ -8192,6 +8226,11 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yargs-parser@21.1.1:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
@@ -9445,8 +9484,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@img/colour@1.1.0':
-    optional: true
+  '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.5':
     optionalDependencies:
@@ -11687,14 +11725,14 @@ snapshots:
       d3-time-format: 4.1.0
       internmap: 2.0.3
 
-  '@vitest/mocker@5.1.2(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))':
+  '@vitest/mocker@5.1.2(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.1.2
       estree-walker: 3.0.3
       magic-string: 1.4.5
     optionalDependencies:
-      vite: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)
+      vite: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/spy@5.1.2': {}
 
@@ -14801,13 +14839,14 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.33)(tsx@4.23.15):
+  postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.33)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lilconfig: 3.1.5
     optionalDependencies:
       jiti: 2.7.0
       postcss: 8.5.33
       tsx: 4.23.15
+      yaml: 2.9.1
 
   postcss@8.5.23:
     dependencies:
@@ -15476,7 +15515,6 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
       '@types/node': 24.19.4
-    optional: true
 
   shebang-command@2.0.0:
     dependencies:
@@ -15815,7 +15853,7 @@ snapshots:
 
   tslib@2.9.1: {}
 
-  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3):
+  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.33)(supports-color@7.2.0)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.7)
       cac: 6.7.14
@@ -15826,7 +15864,7 @@ snapshots:
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
       picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.33)(tsx@4.23.15)
+      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.33)(tsx@4.23.15)(yaml@2.9.1)
       resolve-from: 5.0.0
       rollup: 4.68.8
       source-map: 0.7.6
@@ -16034,7 +16072,7 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15):
+  vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -16049,11 +16087,12 @@ snapshots:
       napi-windows-process-start-time: 0.1.0
       terser: 5.51.4
       tsx: 4.23.15
+      yaml: 2.9.1
 
-  vitest@5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)):
+  vitest@5.1.2(@types/node@24.19.4)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.2(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15))
+      '@vitest/mocker': 5.1.2(vite@8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -16064,7 +16103,7 @@ snapshots:
       tinybench: 6.2.5
       tinyexec: 1.4.0
       tinyglobby: 0.2.17
-      vite: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)
+      vite: 8.4.0(@types/node@24.19.4)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@types/node': 24.19.4
@@ -16187,6 +16226,8 @@ snapshots:
   y18n@5.0.8: {}
 
   yallist@3.1.1: {}
+
+  yaml@2.9.1: {}
 
   yargs-parser@21.1.1: {}
 

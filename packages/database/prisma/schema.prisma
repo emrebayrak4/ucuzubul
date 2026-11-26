@@ -1367,21 +1367,86 @@ model ApiKey {
 
 // ───────────────────────────── Travel ─────────────────────────────
 
+enum AirportType {
+  large
+  medium
+  small
+}
+
+/// Countries (OurAirports countries.csv — public domain; GeoNames countryInfo — CC BY 4.0).
+model Country {
+  iso2          String   @id @db.Char(2)
+  iso3          String?  @db.Char(3)
+  name          String
+  continent     String?  @db.Char(2)
+  currency      String?  @db.Char(3)
+  capital       String?
+  population    BigInt?
+  geonameId     Int?
+  /// Optional localized names, e.g. {"tr":"Türkiye","de":"Türkei"}.
+  nameLocalized Json?
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  cities City[]
+
+  @@index([name])
+  @@map("countries")
+}
+
+/// Cities with population ≥ 5,000 (GeoNames cities5000 — CC BY 4.0).
+model City {
+  geonameId      Int      @id
+  name           String
+  asciiName      String
+  /// Limited set of Latin-script alternate names for search (max ~8).
+  alternateNames String[] @default([])
+  countryIso2    String   @db.Char(2)
+  admin1Code     String?
+  admin1Name     String?
+  lat            Float
+  lng            Float
+  population     Int      @default(0)
+  timezone       String?
+  /// IATA metropolitan/city code for multi-airport cities (NYC, LON, IST…).
+  iataCityCode   String?  @db.Char(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  country Country @relation(fields: [countryIso2], references: [iso2], onDelete: Cascade)
+
+  @@index([countryIso2, population])
+  @@index([iataCityCode])
+  @@index([asciiName])
+  @@map("cities")
+}
+
+/// Airports (OurAirports airports.csv — public domain): IATA-coded with scheduled service, plus large/medium IATA airports.
 model Airport {
-  iata       String  @id @db.Char(3)
-  icao       String? @db.Char(4)
-  name       String
-  city       String
-  region     String?
-  country    String  @db.Char(2)
-  lat        Float?
-  lon        Float?
-  timezone   String?
+  iata             String       @id @db.Char(3)
+  icao             String?      @db.Char(4)
+  name             String
+  city             String
+  region           String?
+  country          String       @db.Char(2)
+  lat              Float?
+  lon              Float?
+  timezone         String?
   /// Higher = shown first in autocomplete.
-  searchRank Int     @default(0)
+  searchRank       Int          @default(0)
+  type             AirportType?
+  scheduledService Boolean      @default(true)
+  /// GeoNames city the airport serves (nearest matching city).
+  cityId           Int?
+  /// ISO 3166-2 region code from OurAirports (e.g. "US-NY").
+  regionCode       String?
+  /// IATA metropolitan area code when part of a multi-airport city (JFK → NYC).
+  metroCode        String?      @db.Char(3)
+  ourairportsId    Int?
+  updatedAt        DateTime     @default(now()) @updatedAt @db.Timestamptz(3)
 
   @@index([city])
   @@index([country, searchRank])
+  @@index([cityId])
+  @@index([metroCode])
   @@map("airports")
 }
 
@@ -1644,4 +1709,43 @@ model RetailerCheckoutConfig {
   retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
 
   @@map("retailer_checkout_configs")
+}
+
+// ───────────────────────────── Travel guides ─────────────────────────────
+
+enum GuideStatus {
+  draft
+  published
+}
+
+/// City travel guide (synced from packages/content/guides/*.md; editable in admin).
+model TravelGuide {
+  id              String      @id @default(cuid())
+  slug            String      @unique
+  /// GeoNames city the guide is about (linked by IATA city code / airport / name+country).
+  cityId          Int?
+  city            String
+  country         String
+  countryIso2     String      @db.Char(2)
+  iataCityCode    String?     @db.Char(3)
+  title           String
+  description     String
+  bestTimeToVisit String?
+  neighborhoods   String[]    @default([])
+  tags            String[]    @default([])
+  lastReviewed    DateTime?   @db.Date
+  bodyMarkdown    String
+  status          GuideStatus @default(draft)
+  publishedAt     DateTime?   @db.Timestamptz(3)
+  /// Set when an admin edits the guide; file sync skips such guides unless --force.
+  adminEditedAt   DateTime?   @db.Timestamptz(3)
+  /// sha256 of the last synced Markdown file.
+  sourceHash      String?
+  updatedById     String?
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+
+  @@index([status, countryIso2])
+  @@index([cityId])
+  @@map("travel_guides")
 }
