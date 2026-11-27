@@ -96,7 +96,7 @@ export class AppModule implements OnApplicationShutdown {
   ) {}
 
   async onApplicationShutdown(): Promise<void> {
-    await Promise.allSettled([this.queues.priceEvents.close(), this.queues.searchIndex.close(), this.queues.priceRefresh.close(), this.queues.merchantFeeds.close(), this.queues.networkIngest.close()]);
+    await Promise.allSettled([this.queues.priceEvents.close(), this.queues.searchIndex.close(), this.queues.priceRefresh.close(), this.queues.merchantFeeds.close(), this.queues.networkIngest.close(), this.queues.catalogSources.close()]);
     await this.integrations.close();
     this.redis.disconnect();
     throttleRedis.disconnect();

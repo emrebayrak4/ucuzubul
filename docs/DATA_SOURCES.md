@@ -27,8 +27,25 @@ Each client's header comment lists the verified endpoints, auth, paging and rate
 Signup and credential steps: [AFFILIATE_ONBOARDING.md](AFFILIATE_ONBOARDING.md).
 
 ## Multi-retailer search and product content (2026-11-27)
-Code: `packages/retailer-adapters/src/sources/` (registry `PRODUCT_SOURCE_REGISTRY`). Neither source is a single retailer or an
-affiliate network, so they have their own registry. Ingestion, enrichment and Admin → Integrations wiring are A04 work (see TASKS.md Requests).
+Code: `packages/retailer-adapters/src/sources/` (registry `PRODUCT_SOURCE_REGISTRY`); ingestion in `apps/api/src/core/catalog-sources.ts`,
+scheduled by the worker queue `catalog-sources`. Neither source is a single retailer or an affiliate network, so they have their own registry.
+
+**How the catalog uses them (founder decisions 2026-11-27):**
+- Channel3 creates ACTIVE products: daily, one search per leaf category (category name as the query, in-stock only), least recently searched first.
+- Credits: ≤30 searches per run and ≤900 per calendar month (counted from `DataIngestionJob` stats); a run stops after 3 consecutive failures.
+- A product is only created when at least one of its offers can be stored (USD, valid store domain, Channel3 https buy link).
+- Offers attach to the product by Channel3 id (`c3:<id>` SKU). Stores we don't have are added as retailers with a US market row.
+- The Channel3 buy-link host is added to each retailer's redirect allow-list.
+- A category with ≥3 real products (active, with an active offer) has its demo products archived; below 3 they are restored automatically.
+- Prices refresh every 6 h through the free product-detail call; offers that vanish are deactivated.
+- Icecat adds images (source `api`) and specs (attributes group `Icecat`) to products with a UPC/EAN/GTIN.
+- Kroger (`kroger-catalog`, daily, free): every grocery leaf category is searched at `KROGER_LOCATION_ID`.
+  - Real products are created with their GTIN, brand and image, plus a Kroger offer (kroger.com link, source `api`).
+  - An existing real product with the same GTIN gets the offer instead.
+  - A category name that finds nothing falls back to the name without punctuation, then to its first word.
+  - The worker's price refresh keeps Kroger prices current afterwards.
+- Admin → Integrations → Channel3 / Kroger / Icecat has an **Import now** section. It calls
+  `POST /v1/admin/catalog-sources/:job/run` (`admin.catalogSources.run`) to queue a job without waiting for the schedule.
 
 ### Channel3 — product search across many US stores (`channel3`)
 - **API: Verified** against the live API on 2026-11-27 with a free developer account.

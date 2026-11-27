@@ -8,7 +8,10 @@ import { Badge, Button, Input, Separator, Sheet, SheetContent, SheetDescription,
 import { errorMessage } from "@/lib/api";
 import { useApiMutation } from "@/lib/mutation";
 import {
+  CATALOG_SOURCE_JOBS,
   INTEGRATIONS_KEY,
+  runCatalogSource,
+  type CatalogSourceJob,
   clearIntegration,
   saveIntegration,
   testIntegration,
@@ -227,6 +230,8 @@ function SheetBody({ integration: i, encryptionConfigured, onClose }: { integrat
           )}
         </section>
 
+        {CATALOG_SOURCE_JOBS[i.id] ? <CatalogRunSection jobs={CATALOG_SOURCE_JOBS[i.id] ?? []} disabled={dirty} /> : null}
+
         <Separator className="my-5" />
         <div className="flex flex-col gap-1 text-xs text-text-muted">
           {i.updatedAt ? (
@@ -281,6 +286,39 @@ function SheetBody({ integration: i, encryptionConfigured, onClose }: { integrat
           }
         }}
       />
+    </>
+  );
+}
+
+/** "Run now" for catalog-source jobs; the worker otherwise runs them on its schedule. */
+function CatalogRunSection({ jobs, disabled }: { jobs: { job: CatalogSourceJob; label: string; hint: string }[]; disabled: boolean }) {
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const run = useMutation({
+    mutationFn: (job: CatalogSourceJob) => runCatalogSource(job),
+    onSuccess: (r) => setResult({ ok: r.queued, message: r.message }),
+    onError: (err) => setResult({ ok: false, message: errorMessage(err) }),
+  });
+  return (
+    <>
+      <Separator className="my-5" />
+      <section aria-labelledby="catalog-run-heading" className="flex flex-col gap-3">
+        <h3 id="catalog-run-heading" className="text-sm font-semibold">
+          Import now
+        </h3>
+        {jobs.map((j) => (
+          <div key={j.job} className="flex items-start justify-between gap-3">
+            <p className="text-xs text-text-muted">{j.hint}</p>
+            <Button type="button" size="sm" variant="secondary" loading={run.isPending && run.variables === j.job} disabled={disabled || run.isPending} onClick={() => run.mutate(j.job)}>
+              {j.label}
+            </Button>
+          </div>
+        ))}
+        {result ? (
+          <p role="status" className={`text-xs ${result.ok ? "text-success" : "text-warning"}`}>
+            {result.message}
+          </p>
+        ) : null}
+      </section>
     </>
   );
 }
