@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs
 import { parseSearchQuery, type ParsedSearchQuery } from "@pricora/algorithms";
 import type {
   CategoryFacetDef,
+  ConditionGroup,
   FacetBucket,
   ParsedQuery,
   PriceHistogramBin,
@@ -20,9 +21,11 @@ import {
   parseFacetJson,
   PRICE_BUCKETS,
   PRODUCTS_INDEX,
+  conditionMask,
   reindexProducts,
   type ProductSearchDoc,
 } from "../core/search-index";
+import { CONDITION_ORDER } from "../core/metrics";
 import { buildVocabulary, suggestCorrection, type SpellVocabulary } from "../core/search-spell";
 import { MEILI, PRISMA, type PrismaClient } from "../common/infra";
 import { CatalogService } from "./catalog.service";
@@ -66,7 +69,11 @@ interface Effective {
   category?: string;
   brands: string[];
   retailers: string[];
-  conditions: string[];
+  /** Selected condition groups (default ["new"]). */
+  conditions: ConditionGroup[];
+  /** Price / total fields for the selected groups (p_<mask>, t_<mask>). */
+  pf: `p_${number}`;
+  tf: `t_${number}`;
   minPrice?: number;
   maxPrice?: number;
   inStock?: boolean;
@@ -190,6 +197,9 @@ export class SearchService implements OnApplicationBootstrap {
   }
 
   private effective(q: SearchQuery, parsed: ParsedSearchQuery | null): Effective {
+    // Second-hand never wins "lowest price" by default: no condition param = new only; "all" = every condition.
+    const raw = q.condition ?? ["new"];
+    const conditions: ConditionGroup[] = raw.includes("all") ? [...CONDITION_ORDER] : CONDITION_ORDER.filter((g) => raw.includes(g));
     const specs = new Map<string, string[]>();
     for (const item of q.spec ?? []) {
       const dot = item.indexOf(".");
@@ -203,7 +213,9 @@ export class SearchService implements OnApplicationBootstrap {
       category: q.category,
       brands: q.brand ?? [],
       retailers: q.retailer ?? [],
-      conditions: q.condition ?? [],
+      conditions,
+      pf: `p_${conditionMask(conditions)}`,
+      tf: `t_${conditionMask(conditions)}`,
       minPrice: q.minPrice,
       maxPrice: q.maxPrice,
       inStock: q.inStock,
@@ -268,7 +280,7 @@ export class SearchService implements OnApplicationBootstrap {
       degraded = true;
       result = await this.searchFallback(q, eff, labels, defs);
     }
-    const items = await this.catalog.cards(result.ids);
+    const items = await this.catalog.cards(result.ids, undefined, { conditions: eff.conditions });
     if (!degraded && items.length < result.ids.length) {
       // Index references products that no longer exist (e.g. after a reseed) → rebuild in the background.
       this.catalog.metrics.invalidate();
@@ -338,10 +350,10 @@ export class SearchService implements OnApplicationBootstrap {
     if (eff.category && omit !== "category") f.push(`categorySlugs = ${esc(eff.category)}`);
     if (eff.brands.length && omit !== "brand") f.push(`brandSlug IN [${eff.brands.map(esc).join(", ")}]`);
     if (eff.retailers.length && omit !== "retailer") f.push(`retailers IN [${eff.retailers.map(esc).join(", ")}]`);
-    if (eff.conditions.length && omit !== "condition") f.push(`condition IN [${eff.conditions.map(esc).join(", ")}]`);
+    if (eff.conditions.length < 4 && omit !== "condition") f.push(`conditions IN [${eff.conditions.map(esc).join(", ")}]`);
     if (omit !== "price") {
-      if (eff.minPrice !== undefined) f.push(`lowestPriceCents >= ${eff.minPrice}`);
-      if (eff.maxPrice !== undefined) f.push(`lowestPriceCents <= ${eff.maxPrice}`);
+      if (eff.minPrice !== undefined) f.push(`${eff.pf} >= ${eff.minPrice}`);
+      if (eff.maxPrice !== undefined) f.push(`${eff.pf} <= ${eff.maxPrice}`);
     }
     if (eff.inStock) f.push("inStock = true");
     if (eff.freeShipping) f.push("freeShipping = true");
@@ -358,9 +370,9 @@ export class SearchService implements OnApplicationBootstrap {
       (omit === "category" || !eff.category || d.categorySlugs.includes(eff.category)) &&
       (omit === "brand" || !eff.brands.length || (d.brandSlug !== null && eff.brands.includes(d.brandSlug))) &&
       (omit === "retailer" || !eff.retailers.length || d.retailers.some((r) => eff.retailers.includes(r))) &&
-      (omit === "condition" || !eff.conditions.length || eff.conditions.includes(d.condition)) &&
-      (omit === "price" || eff.minPrice === undefined || (d.lowestPriceCents ?? -1) >= eff.minPrice) &&
-      (omit === "price" || eff.maxPrice === undefined || (d.lowestPriceCents !== null && d.lowestPriceCents <= eff.maxPrice)) &&
+      (omit === "condition" || d.conditions.some((c) => (eff.conditions as string[]).includes(c))) &&
+      (omit === "price" || eff.minPrice === undefined || (d[eff.pf] ?? -1) >= eff.minPrice) &&
+      (omit === "price" || eff.maxPrice === undefined || (d[eff.pf] !== undefined && (d[eff.pf] as number) <= eff.maxPrice)) &&
       (!eff.inStock || d.inStock) &&
       (!eff.freeShipping || d.freeShipping) &&
       (!eff.pickup || d.pickup) &&
@@ -391,7 +403,7 @@ export class SearchService implements OnApplicationBootstrap {
       void this.ensureIndex(true);
       return null;
     }
-    const sort = SORTS[q.sort];
+    const sort = q.sort === "price_asc" ? [`${eff.pf}:asc`] : q.sort === "price_desc" ? [`${eff.pf}:desc`] : q.sort === "lowest_total" ? [`${eff.tf}:asc`] : SORTS[q.sort];
     const main = await index.search(eff.text, {
       filter: this.filters(eff),
       facets: ["categorySlugs", "condition", "priceBucket", "inStock", "freeShipping", "payOverTime", "payIn4", "specs"],
@@ -405,13 +417,13 @@ export class SearchService implements OnApplicationBootstrap {
     const [brandRes, retailerRes, priceRes, conditionRes, ...specRes] = await Promise.all([
       index.search(eff.text, { filter: this.filters(eff, "brand"), facets: ["brandSlug"], limit: 0 }),
       index.search(eff.text, { filter: this.filters(eff, "retailer"), facets: ["retailers"], limit: 0 }),
-      index.search(eff.text, { filter: this.filters(eff, "price"), facets: ["lowestPriceCents"], limit: 0 }),
-      index.search(eff.text, { filter: this.filters(eff, "condition"), facets: ["condition"], limit: 0 }),
+      index.search(eff.text, { filter: this.filters(eff, "price"), facets: [eff.pf], limit: 0 }),
+      index.search(eff.text, { filter: this.filters(eff, "condition"), facets: ["conditions"], limit: 0 }),
       ...selectedSpecKeys.map((k) => index.search(eff.text, { filter: this.filters(eff, `spec:${k}`), facets: ["specs"], limit: 0 })),
     ]);
     const payDist = eff.payOverTime ? ((await index.search(eff.text, { filter: this.filters(eff, "pay"), facets: ["payOverTime", "payIn4"], limit: 0 })).facetDistribution ?? {}) : null;
     const dist = main.facetDistribution ?? {};
-    const priceDist = priceRes.facetDistribution?.["lowestPriceCents"] ?? {};
+    const priceDist = priceRes.facetDistribution?.[eff.pf] ?? {};
     const prices: number[] = [];
     for (const [v, n] of Object.entries(priceDist)) for (let i = 0; i < n; i++) prices.push(Number(v));
     const { specLabels } = await this.docsState();
@@ -423,7 +435,7 @@ export class SearchService implements OnApplicationBootstrap {
       categories: buckets(dist["categorySlugs"], labels.categories, eff.category ? [eff.category] : []),
       brands: withBrandLogos(buckets(brandRes.facetDistribution?.["brandSlug"], labels.brands, eff.brands), labels),
       retailers: withRetailerMeta(buckets(retailerRes.facetDistribution?.["retailers"], labels.retailers, eff.retailers), labels),
-      conditions: buckets(conditionRes.facetDistribution?.["condition"], CONDITION_LABELS, eff.conditions),
+      conditions: conditionBuckets(conditionRes.facetDistribution?.["conditions"], eff.conditions),
       price: priceFacet(prices, dist["priceBucket"]),
       inStockCount: dist["inStock"]?.["true"] ?? 0,
       freeShippingCount: dist["freeShipping"]?.["true"] ?? 0,
@@ -461,9 +473,9 @@ export class SearchService implements OnApplicationBootstrap {
     const num = (v: number | null, dir: 1 | -1) => (v === null ? Number.POSITIVE_INFINITY : v * dir);
     const sorters: Record<SearchQuery["sort"], (a: ProductSearchDoc, b: ProductSearchDoc) => number> = {
       relevance: (a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || b.storeCount - a.storeCount,
-      lowest_total: (a, b) => num(a.lowestTotalCents, 1) - num(b.lowestTotalCents, 1),
-      price_asc: (a, b) => num(a.lowestPriceCents, 1) - num(b.lowestPriceCents, 1),
-      price_desc: (a, b) => num(a.lowestPriceCents, -1) - num(b.lowestPriceCents, -1),
+      lowest_total: (a, b) => num(a[eff.tf] ?? null, 1) - num(b[eff.tf] ?? null, 1),
+      price_asc: (a, b) => num(a[eff.pf] ?? null, 1) - num(b[eff.pf] ?? null, 1),
+      price_desc: (a, b) => num(a[eff.pf] ?? null, -1) - num(b[eff.pf] ?? null, -1),
       best_deal: (a, b) => num(a.dealScore, -1) - num(b.dealScore, -1),
       popular: (a, b) => b.storeCount - a.storeCount || num(a.dealScore, -1) - num(b.dealScore, -1),
       newest: (a, b) => b.createdAt - a.createdAt,
@@ -477,12 +489,12 @@ export class SearchService implements OnApplicationBootstrap {
       return out;
     };
     const priceSet = docs.filter((d) => match(d, "price"));
-    const prices = priceSet.map((d) => d.lowestPriceCents).filter((x): x is number => x !== null);
+    const prices = priceSet.map((d) => d[eff.pf]).filter((x): x is number => typeof x === "number");
     const facets: SearchFacets = {
       categories: buckets(count(hits, (d) => d.categorySlugs), labels.categories, eff.category ? [eff.category] : []),
       brands: withBrandLogos(buckets(count(docs.filter((d) => match(d, "brand")), (d) => (d.brandSlug ? [d.brandSlug] : [])), labels.brands, eff.brands), labels),
       retailers: withRetailerMeta(buckets(count(docs.filter((d) => match(d, "retailer")), (d) => d.retailers), labels.retailers, eff.retailers), labels),
-      conditions: buckets(count(docs.filter((d) => match(d, "condition")), (d) => [d.condition]), CONDITION_LABELS, eff.conditions),
+      conditions: conditionBuckets(count(docs.filter((d) => match(d, "condition")), (d) => d.conditions), eff.conditions),
       price: priceFacet(prices, count(hits, (d) => (d.priceBucket ? [d.priceBucket] : []))),
       inStockCount: hits.filter((d) => d.inStock).length,
       freeShippingCount: hits.filter((d) => d.freeShipping).length,
@@ -614,6 +626,11 @@ const CONDITION_LABELS = new Map([
   ["used", "Used"],
   ["open_box", "Open box"],
 ]);
+
+/** Condition facet in fixed display order (New, Open box, Refurbished, Used), counts per group. */
+function conditionBuckets(dist: Record<string, number> | undefined, selected: ConditionGroup[]): FacetBucket[] {
+  return CONDITION_ORDER.map((g) => ({ value: g, label: CONDITION_LABELS.get(g) ?? g, count: dist?.[g] ?? 0, selected: selected.includes(g) }));
+}
 
 function buckets(dist: Record<string, number> | undefined, labels: Map<string, string>, selected: string[]): FacetBucket[] {
   const list = Object.entries(dist ?? {})

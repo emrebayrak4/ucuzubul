@@ -44,8 +44,22 @@ export const UsZip = z
 export const DataSource = z.enum(["api", "feed", "merchant_upload", "affiliate", "demo"]);
 export type DataSource = z.infer<typeof DataSource>;
 
-export const ProductCondition = z.enum(["new", "refurbished", "used", "open_box"]);
+export const ProductCondition = z.enum(["new", "refurbished", "used", "open_box", "for_parts", "unknown"]);
 export type ProductCondition = z.infer<typeof ProductCondition>;
+
+/**
+ * Shopper-facing condition groups used by filters, tabs and per-condition stats.
+ * `used` also covers `for_parts` and `unknown` (unknown is never treated as new).
+ */
+export const ConditionGroup = z.enum(["new", "open_box", "refurbished", "used"]);
+export type ConditionGroup = z.infer<typeof ConditionGroup>;
+
+export function conditionGroupOf(c: ProductCondition): ConditionGroup {
+  return c === "new" || c === "open_box" || c === "refurbished" ? c : "used";
+}
+
+export const ConditionGrade = z.enum(["like_new", "very_good", "good", "acceptable"]);
+export type ConditionGrade = z.infer<typeof ConditionGrade>;
 
 export const StockStatus = z.enum(["in_stock", "low_stock", "out_of_stock", "preorder", "unknown"]);
 export type StockStatus = z.infer<typeof StockStatus>;

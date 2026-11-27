@@ -1,3 +1,4 @@
+import { conditionGroupOf } from "@pricora/contracts";
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from "@nestjs/common";
 import { verify } from "@node-rs/argon2";
 import type {
@@ -108,6 +109,7 @@ export class MeController {
           id: r.id,
           product,
           type: r.type,
+          condition: conditionGroupOf(r.condition),
           targetPriceCents: r.targetPriceCents,
           dropPercentBp: r.dropPercentBp,
           retailerSlug: r.retailer?.slug ?? null,
@@ -149,6 +151,7 @@ export class MeController {
         userId: user.id,
         productId: b.productId,
         type: b.type,
+        condition: b.condition,
         targetPriceCents: b.targetPriceCents ?? null,
         dropPercentBp: b.dropPercentBp ?? null,
         retailerId: retailer?.id ?? null,

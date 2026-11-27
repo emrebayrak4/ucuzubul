@@ -55,6 +55,7 @@ const CONDITION: Record<string, string> = {
   used: "https://schema.org/UsedCondition",
   refurbished: "https://schema.org/RefurbishedCondition",
   open_box: "https://schema.org/UsedCondition",
+  for_parts: "https://schema.org/DamagedCondition",
 };
 
 export const realOffers = (offers: Offer[]) => offers.filter((o) => o.source !== "demo");
@@ -147,7 +148,11 @@ export function productJsonLd(d: ProductDetailResponse): Json {
   }
   const real = realOffers(d.offers);
   if (real.length) {
-    const prices = real.map((o) => o.priceCents);
+    // Low/high price come from the default condition (new when available) so used listings never set the headline;
+    // every offer still lists its own itemCondition.
+    const def = d.defaultCondition ?? "new";
+    const headline = real.filter((o) => (o.conditionGroup ?? "new") === def);
+    const prices = (headline.length ? headline : real).map((o) => o.priceCents);
     const anyInStock = real.some((o) => o.stock === "in_stock" || o.stock === "low_stock");
     const allOut = real.every((o) => o.stock === "out_of_stock");
     data.offers = {

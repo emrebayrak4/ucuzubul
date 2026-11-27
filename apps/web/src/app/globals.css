@@ -73,14 +73,62 @@
   animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Navigation progress bar */
+/* Navigation feedback (components/nav-progress.tsx, route-skeleton.tsx). Composite-only (transform/opacity). */
 @keyframes nav-progress {
-  from { transform: scaleX(0.05); }
-  to { transform: scaleX(0.85); }
+  from { transform: scaleX(0.08); }
+  to { transform: scaleX(0.9); }
 }
+/* Brand blue with a soft glow; the light core keeps it visible over the blue header bar. */
 .nav-progress {
   transform-origin: left;
+  background: linear-gradient(90deg, var(--pc-color-primary), #6f86ff 70%, #c7d0ff);
+  box-shadow: 0 0 10px 1px rgb(111 134 255 / 0.85), 0 0 3px rgb(255 255 255 / 0.9);
   animation: nav-progress 2.4s cubic-bezier(0.1, 0.6, 0.3, 1) forwards;
+}
+.nav-progress-done {
+  animation: none;
+  transform: scaleX(1);
+  opacity: 0;
+  transition: transform 160ms ease-out, opacity 220ms ease-out 80ms;
+}
+/* Pressed link while its page loads. */
+[data-nav-pending] {
+  transition: transform 120ms var(--pc-ease-out, ease-out);
+  transform: scale(0.985);
+}
+@keyframes nav-press-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+.nav-press-shimmer {
+  background: rgb(0 41 248 / 0.04);
+}
+.nav-press-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.55) 50%, transparent 80%);
+  animation: nav-press-sweep 900ms ease-in-out infinite;
+}
+/* Route skeleton overlay: fades in quickly, crossfades out over the new page. */
+.route-skeleton {
+  opacity: 1;
+  transition: opacity 180ms ease-out;
+  @starting-style {
+    opacity: 0;
+  }
+}
+.route-skeleton[data-leaving] {
+  opacity: 0;
+}
+/* Branded loader ("w" mark) for waits > 800 ms. */
+@keyframes brand-loader-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-8px) scale(1.04, 0.97); }
+  55% { transform: translateY(0) scale(0.97, 1.03); }
+}
+.brand-loader {
+  animation: brand-loader-bounce 1.1s cubic-bezier(0.3, 0, 0.3, 1) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -90,6 +138,17 @@
     animation: none !important;
   }
   .nav-progress {
-    display: none;
+    animation: none;
+    transform: scaleX(0.6);
+  }
+  [data-nav-pending] {
+    transform: none;
+  }
+  .nav-press-shimmer::after,
+  .brand-loader {
+    animation: none;
+  }
+  .route-skeleton {
+    transition: none;
   }
 }

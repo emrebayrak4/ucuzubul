@@ -4,7 +4,7 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { LineChart as LineChartIcon } from "lucide-react";
-import type { HistoryRange, PriceStats } from "@pricora/contracts";
+import type { ConditionGroup, HistoryRange, PriceStats } from "@pricora/contracts";
 import { DemoDataBadge, EmptyState, ErrorState, Skeleton, Stat, formatPrice } from "@pricora/ui";
 import { api } from "@/lib/api-browser";
 import { Segmented } from "@/components/segmented";
@@ -144,11 +144,27 @@ function StatsRow({ stats, currency }: { stats: PriceStats; currency: string }) 
   );
 }
 
-export function PriceHistory({ slug, initialStats, currency = "USD", hasDemoData }: { slug: string; initialStats: PriceStats; currency?: string; hasDemoData: boolean }) {
+export function PriceHistory({
+  slug,
+  initialStats,
+  currency = "USD",
+  hasDemoData,
+  defaultCondition = "new",
+  conditions = [],
+}: {
+  slug: string;
+  initialStats: PriceStats;
+  currency?: string;
+  hasDemoData: boolean;
+  defaultCondition?: ConditionGroup;
+  conditions?: ConditionGroup[];
+}) {
   const [range, setRange] = React.useState<HistoryRange>("90d");
+  // One condition per chart — used / refurbished prices never enter the new-price history or "lowest ever".
+  const [condition, setCondition] = React.useState<ConditionGroup>(defaultCondition);
   const q = useQuery({
-    queryKey: ["history", slug, range],
-    queryFn: ({ signal }) => api.catalog.productHistory(slug, { range }, { signal }),
+    queryKey: ["history", slug, range, condition],
+    queryFn: ({ signal }) => api.catalog.productHistory(slug, { range, condition }, { signal }),
     staleTime: 5 * 60_000,
     placeholderData: (prev) => prev,
   });
@@ -183,7 +199,18 @@ export function PriceHistory({ slug, initialStats, currency = "USD", hasDemoData
           </h2>
           {anyDemo ? <DemoDataBadge size="sm" /> : null}
         </div>
-        <Segmented label="History range" value={range} onChange={setRange} options={ranges} itemClassName="price px-2.5" />
+        <div className="flex flex-wrap items-center gap-2">
+          {conditions.length > 1 ? (
+            <Segmented
+              label="Condition"
+              value={condition}
+              onChange={(v) => setCondition(v)}
+              options={conditions.map((c) => ({ value: c, label: c === "new" ? "New" : c === "open_box" ? "Open box" : c === "refurbished" ? "Refurbished" : "Used" }))}
+              itemClassName="px-2.5"
+            />
+          ) : null}
+          <Segmented label="History range" value={range} onChange={setRange} options={ranges} itemClassName="price px-2.5" />
+        </div>
       </div>
       <p className="mb-2 text-xs text-text-muted">Daily lowest price across stores, plus each store&apos;s own price. Only real observations are plotted — gaps mean no data, never an estimate.</p>
       {series.length ? (

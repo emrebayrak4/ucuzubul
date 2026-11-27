@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Cents, Id, IsoDateTime, PaginationQuery, Slug, UsZip, paginated } from "./common";
+import { Cents, ConditionGroup, Id, IsoDateTime, PaginationQuery, Slug, UsZip, paginated } from "./common";
 import { ProductCard } from "./catalog";
 import { PublicUser } from "./auth";
 
@@ -33,6 +33,8 @@ export const PriceAlert = z.object({
   id: Id,
   product: ProductCard,
   type: AlertType,
+  /** Condition group the alert watches (default new). */
+  condition: ConditionGroup.optional(),
   targetPriceCents: Cents.nullable(),
   /** Basis points (1000 = 10%). */
   dropPercentBp: z.number().int().nullable(),
@@ -51,6 +53,8 @@ export const CreatePriceAlertRequest = z
   .object({
     productId: Id,
     type: AlertType,
+    /** Which offers to watch (default new; used/refurbished alerts are opt-in). */
+    condition: ConditionGroup.default("new"),
     targetPriceCents: Cents.positive().optional(),
     dropPercentBp: z.number().int().min(100).max(9000).optional(),
     retailerSlug: Slug.optional(),

@@ -225,6 +225,7 @@ describe("eBay Browse API", () => {
     expect(a.generateAffiliateLink("https://ebay.com.evil.example/itm/1")).toBeNull();
     expect(ebayCondition("2500", "")).toBe("refurbished");
     expect(ebayCondition("3000", "")).toBe("used");
+    expect(ebayCondition("7000", "")).toBe("for_parts");
     expect(ebayCondition(undefined, "Open box")).toBe("open_box");
   });
 });

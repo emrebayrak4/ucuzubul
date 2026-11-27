@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellPlus, GitCompareArrows, Heart, Share2, ShoppingBasket } from "lucide-react";
-import type { AlertType } from "@pricora/contracts";
+import type { AlertType, ConditionGroup } from "@pricora/contracts";
 import {
   Button,
   Checkbox,
@@ -38,7 +38,12 @@ export interface ActionProduct {
   lowestPriceCents: number | null;
   currency: string;
   hasDemoData: boolean;
+  /** Condition groups with offers; alerts watch one (default `defaultCondition`, normally new). */
+  conditions?: ConditionGroup[];
+  defaultCondition?: ConditionGroup;
 }
+
+const COND_LABEL: Record<ConditionGroup, string> = { new: "New", open_box: "Open box", refurbished: "Refurbished", used: "Used" };
 
 function useAuthRedirect() {
   const router = useRouter();
@@ -101,6 +106,7 @@ export function AlertDialogButton({ product, variant = "accent", fullWidth = fal
   const qc = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [type, setType] = React.useState<AlertType>("below_price");
+  const [condition, setCondition] = React.useState<ConditionGroup>(product.defaultCondition ?? "new");
   const [target, setTarget] = React.useState("");
   const [pct, setPct] = React.useState("10");
   const [email, setEmail] = React.useState(true);
@@ -119,6 +125,7 @@ export function AlertDialogButton({ product, variant = "accent", fullWidth = fal
       return api.me.alerts.create({
         productId: product.id,
         type,
+        condition,
         targetPriceCents: type === "below_price" ? Math.round(Number(target) * 100) : undefined,
         dropPercentBp: type === "drop_percent" ? Number(pct) * 100 : undefined,
         channels,
@@ -158,6 +165,26 @@ export function AlertDialogButton({ product, variant = "accent", fullWidth = fal
               <DialogTitle>Price alert</DialogTitle>
               <DialogDescription className="line-clamp-2">{product.title}</DialogDescription>
             </DialogHeader>
+            {(product.conditions?.length ?? 0) > 1 ? (
+              <div className="mt-4">
+                <Label htmlFor="alert-condition" className="text-sm font-semibold">
+                  Condition
+                </Label>
+                <select
+                  id="alert-condition"
+                  value={condition}
+                  onChange={(e) => setCondition(e.target.value as ConditionGroup)}
+                  className="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2 text-sm"
+                  data-testid="alert-condition"
+                >
+                  {(product.conditions ?? []).map((c) => (
+                    <option key={c} value={c}>
+                      {COND_LABEL[c]} offers only
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <RadioGroup value={type} onValueChange={(v) => setType(v as AlertType)} className="mt-4 flex flex-col gap-2.5" aria-label="Alert type">
               {alertOptions.map((o) => (
                 <div key={o.value} className="flex items-start gap-2.5">
@@ -331,7 +358,7 @@ export function InlinePriceAlert({ product }: { product: ActionProduct }) {
   const [done, setDone] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const m = useMutation({
-    mutationFn: () => api.me.alerts.create({ productId: product.id, type: "below_price", targetPriceCents: Math.round(Number(target) * 100), channels: ["email", "in_app"] }),
+    mutationFn: () => api.me.alerts.create({ productId: product.id, type: "below_price", condition: product.defaultCondition ?? "new", targetPriceCents: Math.round(Number(target) * 100), channels: ["email", "in_app"] }),
     onSuccess: () => {
       setDone(true);
       toast.success("Price alarm set", { description: `We'll tell you when it drops to ${formatPrice(Math.round(Number(target) * 100), { currency: product.currency })} or less.` });

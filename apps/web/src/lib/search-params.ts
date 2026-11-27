@@ -12,7 +12,7 @@ export function viewMode(sp: SearchParams): "grid" | "list" {
   return first(sp.view) === "list" ? "list" : "grid";
 }
 
-const CONDITIONS = new Set(["new", "refurbished", "used", "open_box"]);
+const CONDITIONS = new Set(["new", "open_box", "refurbished", "used", "all"]);
 
 function int(v: string | undefined): number | undefined {
   if (!v || !/^\d+$/.test(v)) return undefined;

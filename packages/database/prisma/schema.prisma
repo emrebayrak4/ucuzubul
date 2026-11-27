@@ -41,6 +41,25 @@ enum ProductCondition {
   refurbished
   used
   open_box
+  /// Sold for parts / not working.
+  for_parts
+  /// Source didn't say — never treated as new.
+  unknown
+}
+
+/// Used-condition grade when the seller provides one.
+enum ConditionGrade {
+  like_new
+  very_good
+  good
+  acceptable
+}
+
+enum SellerType {
+  /// Sold by the retailer itself.
+  retailer
+  /// Third-party marketplace seller (eBay seller, Amazon third-party, …).
+  marketplace
 }
 
 enum StockStatus {
@@ -787,6 +806,15 @@ model Offer {
   url               String
   affiliateUrl      String?
   condition         ProductCondition @default(new)
+  /// Grade for used offers when provided (eBay/Best Buy-style grading).
+  conditionGrade    ConditionGrade?
+  /// Who refurbished it when known: "manufacturer" | "seller" | "retailer" (certified programs).
+  refurbishedBy     String?
+  sellerType        SellerType?
+  /// Marketplace seller / program name, e.g. "Amazon Resale", eBay seller id.
+  sellerName        String?
+  /// Return policy summary as published by the store/seller, e.g. "30-day returns".
+  returnPolicy      String?
   priceCents        Int
   listPriceCents    Int?
   /// null = unknown, 0 = free.
@@ -922,6 +950,8 @@ model PriceAlert {
   userId           String
   productId        String
   type             AlertType
+  /// Which offers the alert watches (default new — used/refurbished never trigger a new-condition alert).
+  condition        ProductCondition @default(new)
   targetPriceCents Int?
   dropPercentBp    Int?
   retailerId       String?

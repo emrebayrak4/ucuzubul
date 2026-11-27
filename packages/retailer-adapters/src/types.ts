@@ -7,7 +7,8 @@ export type AdapterStatus = "live" | "pending_configuration" | "error";
 export type AdapterKind = "retailer" | "flight" | "hotel";
 export type DataAccess = "official_api" | "affiliate_feed" | "partner_only";
 export type Availability = "in_stock" | "limited" | "out_of_stock" | "preorder" | "backorder" | "unknown";
-export type Condition = "new" | "refurbished" | "used" | "open_box";
+/** Offer condition. `unknown` = the source did not say (never treated as new). */
+export type Condition = "new" | "refurbished" | "used" | "open_box" | "for_parts" | "unknown";
 /** Mirrors the DB `source` enum (minus "demo": adapters never produce demo data). */
 export type OfferSource = "api" | "feed" | "merchant_upload" | "affiliate";
 

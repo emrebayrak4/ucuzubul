@@ -13,7 +13,7 @@ import {
   type DealComponent,
   type PricePoint,
 } from "@pricora/algorithms";
-import type { DealScore, FakeDiscount, PriceStats } from "@pricora/contracts";
+import { conditionGroupOf, type ConditionGroup, type DealScore, type FakeDiscount, type PriceStats, type ProductCondition } from "@pricora/contracts";
 import type { PrismaClient } from "@pricora/database";
 
 const DAY_MS = 86_400_000;
@@ -50,7 +50,14 @@ export interface ProductMetrics {
   /** Daily lowest-price series (real points only). */
   lowestSeries: { t: Date; priceCents: number }[];
   lastCheckedAt: Date | null;
+  /** Condition group these metrics describe (offers of other conditions are never mixed in). */
+  condition: ConditionGroup;
+  /** Per-condition metrics (set on the product's primary metrics only; includes the primary group itself). */
+  groups: Partial<Record<ConditionGroup, ProductMetrics>>;
 }
+
+/** Display / preference order of condition groups. */
+export const CONDITION_ORDER: ConditionGroup[] = ["new", "open_box", "refurbished", "used"];
 
 const FACTOR: Record<DealComponent, DealScore["reasons"][number]["factor"]> = {
   vsMedian90d: "vs_median_90d",
@@ -155,6 +162,7 @@ interface OfferRow {
   source: string;
   lastCheckedAt: Date;
   retailer: { trustScore: number | null };
+  condition?: ProductCondition;
 }
 
 export function computeMetricsForProduct(
@@ -162,6 +170,7 @@ export function computeMetricsForProduct(
   offers: OfferRow[],
   history: Map<string, { t: Date; priceCents: number; inStock: boolean }[]>,
   now: Date,
+  condition: ConditionGroup = "new",
 ): ProductMetrics {
   const inStockOffers = offers.filter((o) => o.stock !== "out_of_stock");
   const pool = inStockOffers.length > 0 ? inStockOffers : offers;
@@ -284,6 +293,45 @@ export function computeMetricsForProduct(
     recentDrop,
     lowestSeries: series,
     lastCheckedAt: offers.reduce<Date | null>((m, o) => (m === null || o.lastCheckedAt > m ? o.lastCheckedAt : m), null),
+    condition,
+    groups: {},
+  };
+}
+
+/**
+ * Metrics per condition group; the primary is `new` when any new offer exists, otherwise the cheapest group
+ * (so a refurbished-only product still has a price, clearly labeled as refurbished).
+ */
+export function computeConditionMetrics(
+  productId: string,
+  offers: OfferRow[],
+  history: Map<string, { t: Date; priceCents: number; inStock: boolean }[]>,
+  now: Date,
+): ProductMetrics {
+  const byGroup = new Map<ConditionGroup, OfferRow[]>();
+  for (const o of offers) {
+    const g = conditionGroupOf(o.condition ?? "new");
+    const list = byGroup.get(g) ?? [];
+    list.push(o);
+    byGroup.set(g, list);
+  }
+  const groups: Partial<Record<ConditionGroup, ProductMetrics>> = {};
+  for (const g of CONDITION_ORDER) {
+    const list = byGroup.get(g);
+    if (list?.length) groups[g] = computeMetricsForProduct(productId, list, history, now, g);
+  }
+  const primaryKey: ConditionGroup =
+    groups.new
+      ? "new"
+      : (CONDITION_ORDER.filter((g) => groups[g]).sort((a, b) => (groups[a]?.lowestPriceCents ?? Infinity) - (groups[b]?.lowestPriceCents ?? Infinity))[0] ?? "new");
+  const primary = groups[primaryKey] ?? computeMetricsForProduct(productId, [], history, now, "new");
+  // Store coverage / retailers / demo flag describe the whole product, not just the primary group.
+  return {
+    ...primary,
+    storeCount: new Set(offers.map((o) => o.retailerId)).size,
+    retailerIds: [...new Set(offers.map((o) => o.retailerId))],
+    hasDemoData: offers.some((o) => o.source === "demo"),
+    groups,
   };
 }
 
@@ -306,6 +354,7 @@ export async function computeProductMetrics(
       stock: true,
       source: true,
       lastCheckedAt: true,
+      condition: true,
       retailer: { select: { trustScore: true } },
     },
   });
@@ -331,6 +380,6 @@ export async function computeProductMetrics(
     arr.push(o);
   }
   const out = new Map<string, ProductMetrics>();
-  for (const [pid, list] of byProduct) out.set(pid, computeMetricsForProduct(pid, list, history, now));
+  for (const [pid, list] of byProduct) out.set(pid, computeConditionMetrics(pid, list, history, now));
   return out;
 }

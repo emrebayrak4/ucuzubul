@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ViewTransition } from "react";
 import Link from "next/link";
 import { Check, GitCompareArrows } from "lucide-react";
 import type { ProductCard } from "@pricora/contracts";
-import { CategoryIcon, CountUp, DealScoreBadge, DemoDataBadge, PriceDropBadge, PriceTag, SponsoredLabel, Skeleton, cn, formatPrice } from "@pricora/ui";
+import { Badge, CategoryIcon, CountUp, DealScoreBadge, DemoDataBadge, PriceDropBadge, PriceTag, SponsoredLabel, Skeleton, cn, formatPrice } from "@pricora/ui";
 import { ratioToPercent } from "@/lib/format";
 import { COMPARE_MAX, compareStore, toggleCompare } from "@/lib/compare-store";
 import { BrandMark } from "./brand-mark";
@@ -40,10 +39,30 @@ export function CompareToggle({ product, className }: { product: Pick<ProductCar
   );
 }
 
+const conditionLabel: Record<string, string> = { new: "New", open_box: "Open box", refurbished: "Refurbished", used: "Used" };
+
+/** Tile spec line: drop empty / bare-number / yes-no fragments and duplicates, so no stray "· 1" or "· Yes" bits. */
+export function cleanSpecs(specs: readonly string[] | undefined, max = 3): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of specs ?? []) {
+    const s = raw.replace(/^[\s·•|,;-]+|[\s·•|,;-]+$/g, "").trim();
+    if (!s || /^\d+([.,]\d+)?$/.test(s) || /^(yes|no|n\/a|none|-)$/i.test(s)) continue;
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 /**
- * Marketplace product tile: white card, square light-grey image well (category icon when no image),
- * 2-line title, big bold price, real strike-through only when a real previous price is known,
- * drop chip, "Lowest at <store> · N stores", Deal Score pill, Demo/Sponsored labels.
+ * Marketplace product tile with FIXED slots, so every element lines up across a row (rails and grids):
+ * image (square) · chips row (1 line, always reserved) · brand (1 line) · title (exactly 2 lines) · specs (1 line) ·
+ * price block pinned to the bottom with a fixed height [price + real saving | struck previous price or blank |
+ * pay-in-4 / "Used from" or blank] · store line (logo tile + "Lowest at Store · N stores", one line, ellipsis).
+ * The red "↓ N%" badge appears only with a real previous price; a median-based drop shows a neutral "N% below avg".
  */
 export function ProductCardTile({
   product,
@@ -56,7 +75,7 @@ export function ProductCardTile({
   className,
 }: {
   product: ProductCard;
-  /** Override the drop shown (e.g. a price-drop item's real drop). */
+  /** Override the drop shown (e.g. a price-drop item's real drop). Only rendered as a red drop badge with a real previous price. */
   dropPercent?: number | null;
   /** Real previous price at the same store (price-drop items). Never a fabricated "was" price. */
   previousPriceCents?: number | null;
@@ -70,19 +89,27 @@ export function ProductCardTile({
   className?: string;
 }) {
   const price = product.lowestPriceCents;
+  const currency = product.currency;
   // Real previous price only: explicit (price-drop items) or the API's 7-day store drop on the card.
   const previous = previousPriceCents ?? product.previousPriceCents ?? null;
-  const showWas = typeof previous === "number" && price !== null && previous > price;
-  const drop =
-    dropPercent !== undefined ? dropPercent : showWas && previous !== null && price !== null ? Math.round(((previous - price) / previous) * 100) : ratioToPercent(product.dropRatio);
+  const was = typeof previous === "number" && price !== null && previous > price ? previous : null;
+  // Red drop badge ⇔ a struck previous price is shown, so badge and price never contradict.
+  const realDrop = was !== null && price !== null ? (dropPercent ?? Math.round(((was - price) / was) * 100)) : null;
+  // Otherwise a median comparison (dropRatio = below the 30-day median) gets a neutral badge.
+  const belowAvg = was === null ? ratioToPercent(product.dropRatio) : null;
   const stores = product.storeCount;
-  // The morph name is only set on the tile the user is opening, so a product shown in two rails never
-  // produces duplicate view-transition names (which would abort the transition).
-  const [morph, setMorph] = React.useState(false);
+  const specs = cleanSpecs(product.keySpecs);
+  const otherCondition =
+    price !== null
+      ? [...(product.otherConditions ?? [])].filter((c) => c.lowestPriceCents < price).sort((a, b) => a.lowestPriceCents - b.lowestPriceCents)[0]
+      : undefined;
+  const conditionChip = product.priceCondition && product.priceCondition !== "new" ? conditionLabel[product.priceCondition] : null;
+  const payIn4 = product.payIn4 && price !== null ? product.payIn4 : null;
   return (
     <article
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-md border border-border bg-surface text-text",
+        // @container: narrow tiles (< 12rem, e.g. 2-up on phones) switch to compact badge / store-line forms.
+        "@container group relative flex h-full flex-col overflow-hidden rounded-md border border-border bg-surface text-text",
         "transition-[box-shadow,translate] duration-fast ease-standard hover:shadow-md motion-safe:hover:-translate-y-0.5",
         className,
       )}
@@ -90,11 +117,8 @@ export function ProductCardTile({
       <Link
         href={`/products/${product.slug}`}
         className="flex h-full flex-col rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        onPointerDown={() => setMorph(true)}
-        onKeyDown={(e) => e.key === "Enter" && setMorph(true)}
       >
-        <ViewTransition name={morph ? `product-${product.slug}` : undefined} share="vt-morph" default="none">
-        <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-surface-2">
+        <div className="relative flex aspect-square w-full shrink-0 items-center justify-center overflow-hidden bg-surface-2">
           {product.image ? (
             <img
               src={product.image.url}
@@ -106,65 +130,94 @@ export function ProductCardTile({
           ) : (
             <CategoryIcon category={product.category?.slug ?? null} size={52} className="opacity-60" />
           )}
-          {drop ? <PriceDropBadge percent={drop} size="sm" className="absolute left-2 top-2 shadow-xs" /> : null}
+          {realDrop ? (
+            <PriceDropBadge percent={realDrop} size="sm" className="absolute left-2 top-2 shadow-xs" />
+          ) : belowAvg ? (
+            <Badge size="sm" variant="outline" className="absolute left-2 top-2 shadow-xs" title="Current lowest price vs. its 30-day median" data-testid="below-avg-badge">
+              {belowAvg}% below avg
+            </Badge>
+          ) : null}
           {product.dealScore !== null ? (
-            <DealScoreBadge score={product.dealScore} size="sm" className="absolute right-2 top-2 shadow-xs" />
+            <DealScoreBadge score={product.dealScore} size="sm" className="absolute right-2 top-2 shadow-xs @max-[12rem]:[&>span+span]:hidden" />
           ) : null}
         </div>
-        </ViewTransition>
-        <div className="flex flex-1 flex-col gap-1 p-3">
-          {product.sponsored || product.hasDemoData ? (
-            <div className="flex flex-wrap gap-1">
-              {product.sponsored ? <SponsoredLabel /> : null}
-              {product.hasDemoData ? <DemoDataBadge size="sm" label="Demo" /> : null}
-            </div>
-          ) : null}
-          {product.brand ? <p className="truncate text-2xs font-semibold uppercase tracking-wide text-text-muted">{product.brand.name}</p> : null}
-          <h3 className="line-clamp-2 min-h-[2lh] text-sm leading-snug text-text group-hover:text-primary" title={product.title}>
+        <div className="flex flex-1 flex-col p-3">
+          {/* Chips row: always reserved (h-5) so brand/title start at the same y in every tile. */}
+          <div className="flex h-5 items-center gap-1 overflow-hidden" data-slot="chips">
+            {product.sponsored ? <SponsoredLabel /> : null}
+            {product.hasDemoData ? <DemoDataBadge size="sm" label="Demo" /> : null}
+            {conditionChip ? (
+              <Badge size="sm" variant="outline">
+                {conditionChip}
+              </Badge>
+            ) : null}
+          </div>
+          <p className="mt-1 h-4 truncate text-2xs font-semibold uppercase leading-4 tracking-wide text-text-muted">{product.brand?.name ?? ""}</p>
+          <h3 className="mt-0.5 line-clamp-2 h-[2lh] text-sm leading-snug text-text group-hover:text-primary" title={product.title}>
             {product.title}
           </h3>
-          {product.keySpecs?.length ? <p className="line-clamp-1 text-xs text-text-muted">{product.keySpecs.slice(0, 3).join(" · ")}</p> : null}
-          <div className="mt-auto pt-1.5">
-            {price !== null ? (
-              <div className="flex flex-wrap items-baseline gap-x-2">
-                {showWas ? (
-                  <PriceTag cents={price} previousCents={previous} currency={product.currency} size="lg" className="[&>.price]:font-extrabold [&>.price]:text-price-drop" data-testid="dropped-price" />
-                ) : (
-                  <span className="price text-lg font-extrabold text-text">{formatPrice(price, { currency: product.currency })}</span>
-                )}
-                {showWas ? (
-                  <s className="price text-xs text-text-muted">
-                    <span className="sr-only">Previously </span>
-                    {formatPrice(previous!, { currency: product.currency })}
-                  </s>
-                ) : null}
-              </div>
-            ) : (
-              <span className="text-sm text-text-muted">No current offers</span>
-            )}
-            {product.payIn4 && price !== null ? (
-              <p className="price text-xs text-text-muted" title={`Interest-free pay-in-4 at checkout, subject to approval by ${product.payIn4.provider}. Not offered by WhichLess.`} data-testid="tile-pay-in-4">
-                or 4 × <span className="font-semibold text-text">{formatPrice(product.payIn4.installmentCents, { currency: product.currency })}</span> with {product.payIn4.provider}
-              </p>
-            ) : null}
+          <p className="mt-0.5 h-4 truncate text-xs leading-4 text-text-muted" data-slot="specs">
+            {specs.join(" · ")}
+          </p>
+          {/* Price block: pinned to the bottom, fixed height (24 + 16 + 16). */}
+          <div className="mt-auto pt-2" data-slot="price-block">
+            <div className="flex h-6 items-baseline gap-x-1.5 overflow-hidden whitespace-nowrap" data-slot="price">
+              {price === null ? (
+                <span className="text-sm text-text-muted">No current offers</span>
+              ) : was !== null ? (
+                <PriceTag cents={price} previousCents={was} currency={currency} size="lg" className="[&>.price]:font-extrabold [&>.price]:text-price-drop" data-testid="dropped-price" />
+              ) : (
+                <span className="price text-lg font-extrabold text-text">{formatPrice(price, { currency })}</span>
+              )}
+            </div>
+            <p className="h-4 truncate text-xs leading-4 text-text-muted" data-slot="was">
+              {was !== null ? (
+                <s className="price">
+                  <span className="sr-only">Previously </span>
+                  {formatPrice(was, { currency })}
+                </s>
+              ) : null}
+            </p>
+            <p
+              className="price h-4 truncate text-xs leading-4 text-text-muted"
+              data-slot="extra"
+              title={payIn4 ? `Interest-free pay-in-4 at checkout, subject to approval by ${payIn4.provider}. Not offered by WhichLess.` : undefined}
+            >
+              {payIn4 ? (
+                <span data-testid="tile-pay-in-4">
+                  or 4 × <span className="font-semibold text-text">{formatPrice(payIn4.installmentCents, { currency })}</span> · {payIn4.provider}
+                </span>
+              ) : null}
+              {payIn4 && otherCondition ? " · " : null}
+              {otherCondition ? (
+                <span data-testid="tile-other-condition">
+                  {otherCondition.condition === "open_box" ? "Open-box" : (conditionLabel[otherCondition.condition] ?? otherCondition.condition)} from{" "}
+                  <span className="font-semibold text-text">{formatPrice(otherCondition.lowestPriceCents, { currency })}</span>
+                </span>
+              ) : null}
+            </p>
+          </div>
+          {/* Store line: one line, logo tile + "Lowest at Store" (truncates) + "· N stores" (never truncates). */}
+          <div className="mt-1.5 flex h-5 min-w-0 items-center gap-1.5 text-xs text-text-muted" data-slot="store">
             {stores > 0 ? (
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-text-muted">
-                {storeName && storeLogoUrl ? <BrandMark name={storeName} logoUrl={storeLogoUrl} size="tile-xs" className="-my-0.5" /> : null}
-                {storeName ? (
-                  <>
-                    <span className="min-w-0 truncate">
-                      {storeIsLowest ? "Lowest at" : "At"} <span className="font-medium text-text">{storeName}</span>
+              <>
+                {storeName ? <BrandMark name={storeName} logoUrl={storeLogoUrl ?? null} size="tile-xs" className="@max-[12rem]:hidden" /> : null}
+                <span className="min-w-0 truncate">
+                  {storeName ? (
+                    <>
+                      <span className="sr-only @min-[12rem]:not-sr-only">{storeIsLowest ? "Lowest at " : "At "}</span>
+                      <span className="font-medium text-text">{storeName}</span>
                       {storeNote ? ` · ${storeNote}` : ""}
-                    </span>
-                    <span aria-hidden>·</span>
-                  </>
-                ) : (
-                  "at "
-                )}
-                <span className="whitespace-nowrap">
+                    </>
+                  ) : (
+                    "Compared at"
+                  )}
+                </span>
+                <span className="shrink-0 whitespace-nowrap">
+                  {storeName ? "· " : ""}
                   <CountUp value={stores} className="price" /> {stores === 1 ? "store" : "stores"}
                 </span>
-              </p>
+              </>
             ) : null}
           </div>
         </div>

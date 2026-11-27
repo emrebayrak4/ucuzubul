@@ -4,7 +4,7 @@ import type { User } from "@pricora/database";
 import { notFound } from "../common/errors";
 import { PRISMA, type PrismaClient } from "../common/infra";
 import { couponInclude, liveWhere, toCoupon } from "../core/coupons";
-import { EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
+import { CONDITION_ORDER, EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
 import { CatalogService, offerInclude, recentPreviousPrice } from "./catalog.service";
 
 @Injectable()
@@ -112,6 +112,23 @@ export class ProductService {
       hasDemoData: offers.some((o) => o.source === "demo") || p.isDemo,
       coupons: couponRows.map(toCoupon),
       previousLowestPriceCents: recentPreviousPrice(metrics),
+      defaultCondition: metrics?.condition ?? "new",
+      conditionNote:
+        metrics && metrics.condition !== "new" && !metrics.groups.new
+          ? `No new offers right now — showing ${CONDITION_LABEL[metrics.condition]} offers.`
+          : null,
+      conditionSummary: CONDITION_ORDER.flatMap((g) => {
+        const n = offers.filter((o) => o.conditionGroup === g).length;
+        return n ? [{ condition: g, offerCount: n, lowestPriceCents: metrics?.groups[g]?.lowestPriceCents ?? null }] : [];
+      }),
+      byCondition: Object.fromEntries(
+        CONDITION_ORDER.flatMap((g) => {
+          const gm = metrics?.groups[g];
+          return gm
+            ? [[g, { priceStats: gm.stats, dealScore: gm.dealScore, fakeDiscount: gm.fakeDiscount, lowestOfferId: gm.lowestOfferId, previousLowestPriceCents: recentPreviousPrice(gm) }]]
+            : [];
+        }),
+      ),
       related,
       alternatives,
       lastUpdatedAt: (metrics?.lastCheckedAt ?? p.updatedAt).toISOString(),
@@ -154,3 +171,5 @@ export class ProductService {
     return { related, alternatives };
   }
 }
+
+const CONDITION_LABEL: Record<string, string> = { new: "new", open_box: "open-box", refurbished: "refurbished", used: "used" };

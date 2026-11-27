@@ -218,7 +218,10 @@ describe("util", () => {
     expect(mapCondition("Certified - Refurbished")).toBe("refurbished");
     expect(mapCondition("Open box")).toBe("open_box");
     expect(mapCondition("Pre-Owned")).toBe("used");
-    expect(mapCondition(undefined)).toBe("new");
+    expect(mapCondition(undefined)).toBe("unknown");
+    expect(mapCondition("New")).toBe("new");
+    expect(mapCondition("For parts or not working")).toBe("for_parts");
+    expect(mapCondition("something odd")).toBe("unknown");
   });
 
   it("parses ISO-8601 durations and GTINs", () => {

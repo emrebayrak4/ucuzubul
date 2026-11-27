@@ -12,7 +12,8 @@ const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
  * 3. Android emulator default http://10.0.2.2:4400 (host loopback), iOS simulator http://localhost:4400
  */
 function resolveApiUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL || extra.apiUrl;
+  const raw: unknown = process.env.EXPO_PUBLIC_API_URL || extra.apiUrl;
+  const fromEnv = typeof raw === "string" ? raw.trim() : "";
   if (fromEnv) return fromEnv.replace(/\/+$/, "");
 
   const hostUri = Constants.expoConfig?.hostUri; // e.g. "192.168.1.20:8081"
@@ -24,6 +25,7 @@ function resolveApiUrl(): string {
 }
 
 export const API_URL = resolveApiUrl();
-export const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || extra.webUrl || brand.url).replace(/\/+$/, "");
+const rawWeb: unknown = process.env.EXPO_PUBLIC_WEB_URL || extra.webUrl;
+export const WEB_URL = (typeof rawWeb === "string" && rawWeb ? rawWeb : brand.url).replace(/\/+$/, "");
 export const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || extra.eas?.projectId || null;
 export { brand };

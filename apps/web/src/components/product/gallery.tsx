@@ -1,22 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { ViewTransition } from "react";
 import type { ProductImage } from "@pricora/contracts";
 import { CategoryIcon, cn } from "@pricora/ui";
 
 /** Vertical thumbnails + main image on a neutral well. No image → category icon tile (never a stock photo). */
-export function Gallery({ images, title, category, slug }: { images: ProductImage[]; title: string; category: string | null; slug: string }) {
+export function Gallery({ images, title, category, slug: _slug }: { images: ProductImage[]; title: string; category: string | null; slug: string }) {
   const [index, setIndex] = React.useState(0);
   const current = images[index];
   if (!current) {
     return (
-      <ViewTransition name={`product-${slug}`} share="vt-morph" default="none">
         <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-md bg-surface-2" data-testid="gallery-fallback">
           <CategoryIcon category={category} size={72} className="opacity-60" />
           <span className="text-xs text-text-muted">No product image available</span>
         </div>
-      </ViewTransition>
     );
   }
   return (
@@ -41,7 +38,6 @@ export function Gallery({ images, title, category, slug }: { images: ProductImag
           ))}
         </ul>
       ) : null}
-      <ViewTransition name={`product-${slug}`} share="vt-morph" default="none">
       <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-md bg-surface-2 p-6">
         <img
           src={current.url}
@@ -52,7 +48,6 @@ export function Gallery({ images, title, category, slug }: { images: ProductImag
           fetchPriority="high"
         />
       </div>
-      </ViewTransition>
     </div>
   );
 }

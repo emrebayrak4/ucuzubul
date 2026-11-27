@@ -6,6 +6,7 @@ import { ChevronDown, LayoutGrid, List, Search, SlidersHorizontal, X } from "luc
 import type { FacetBucket, SearchFacets } from "@pricora/contracts";
 import { Button, Checkbox, Input, Label, Select, Sheet, SheetContent, SheetTitle, Switch, cn, formatPrice } from "@pricora/ui";
 import { BrandMark } from "@/components/brand-mark";
+import { startNavFeedback } from "@/lib/nav-feedback";
 
 type Hide = Partial<Record<"category" | "brand" | "retailer", boolean>>;
 
@@ -29,6 +30,7 @@ function useParamUpdater() {
       }
       if (!opts.keepPage) next.delete("page");
       const s = next.toString();
+      startNavFeedback(null); // progress bar; the page stays (no skeleton) and the control already shows the new value
       start(() => {
         setOptimisticParams(next);
         router.push(s ? `${pathname}?${s}` : pathname, { scroll: false });
@@ -160,6 +162,40 @@ function ParamCheckList({ title, buckets, paramKey, logo, searchable, max }: { t
         searchable={searchable}
         max={max}
       />
+    </Section>
+  );
+}
+
+const ALL_CONDITIONS = ["new", "open_box", "refurbished", "used"];
+
+/** Current condition selection: no param = New only (default), "all" = every condition. */
+function selectedConditions(raw: string | null): string[] {
+  if (!raw) return ["new"];
+  const list = csvOf(raw);
+  return list.includes("all") ? [...ALL_CONDITIONS] : list.filter((c) => ALL_CONDITIONS.includes(c));
+}
+
+function conditionParam(list: string[]): string | null {
+  if (list.length === 1 && list[0] === "new") return null; // default
+  if (!list.length || ALL_CONDITIONS.every((c) => list.includes(c))) return "all";
+  return ALL_CONDITIONS.filter((c) => list.includes(c)).join(",");
+}
+
+/** Condition: New is selected by default so second-hand never wins "lowest price" unless the shopper asks. */
+function ConditionFilter({ buckets }: { buckets: FacetBucket[] }) {
+  const { params, update } = useParamUpdater();
+  const selected = selectedConditions(params.get("condition"));
+  if (!buckets.length) return null;
+  return (
+    <Section title="Condition" count={params.get("condition") ? selected.length : 0}>
+      <CheckList
+        buckets={buckets}
+        idPrefix="f-condition"
+        isChecked={(b) => selected.includes(b.value)}
+        onToggle={(b) => update({ condition: conditionParam(selected.includes(b.value) ? selected.filter((c) => c !== b.value) : [...selected, b.value]) })}
+        max={4}
+      />
+      <p className="mt-1.5 text-xs text-text-muted">Prices and sorting use only the conditions you pick.</p>
     </Section>
   );
 }
@@ -362,7 +398,7 @@ function FilterBody({ facets, hide }: { facets: SearchFacets; hide: Hide }) {
       {hide.brand ? null : <ParamCheckList title="Brand" buckets={facets.brands} paramKey="brand" logo="brand" searchable />}
       <SpecFilters facets={facets.specs} />
       {hide.retailer ? null : <ParamCheckList title="Store" buckets={facets.retailers} paramKey="retailer" logo="store" searchable max={6} />}
-      <ParamCheckList title="Condition" buckets={facets.conditions} paramKey="condition" />
+      <ConditionFilter buckets={facets.conditions} />
       <Availability facets={facets} />
     </div>
   );
@@ -441,7 +477,14 @@ function AppliedFiltersInner({ facets, hide = {} }: { facets: SearchFacets; hide
     const f = (c: string) => dollars(Number(c));
     chips.push({ key: "price", label: min && max ? `${f(min)} – ${f(max)}` : min ? `Over ${f(min)}` : `Under ${f(max!)}`, remove: () => update({ minPrice: null, maxPrice: null }) });
   }
-  for (const v of csvOf(params.get("condition"))) chips.push({ key: `c-${v}`, label: labelOf(facets.conditions, v), remove: () => update({ condition: toggleCsv(params.get("condition"), v) }) });
+  {
+    const cur = selectedConditions(params.get("condition"));
+    if (cur.length < 4) {
+      for (const v of cur) {
+        chips.push({ key: `c-${v}`, label: labelOf(facets.conditions, v), remove: () => update({ condition: conditionParam(cur.filter((c) => c !== v)) }) });
+      }
+    }
+  }
   if (params.get("inStock") === "true") chips.push({ key: "stock", label: "In stock", remove: () => update({ inStock: null }) });
   if (params.get("freeShipping") === "true") chips.push({ key: "ship", label: "Free shipping", remove: () => update({ freeShipping: null }) });
   const pay = params.get("payOverTime");

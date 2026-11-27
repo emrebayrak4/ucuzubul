@@ -24,6 +24,7 @@ import { input } from "../common/validate";
 import { dailyLowest, emptyStats, type ProductMetrics } from "../core/metrics";
 import { effectiveFacets, parseFacetJson } from "../core/search-index";
 import type { Prisma } from "@pricora/database";
+import { conditionGroupOf, type ConditionGroup } from "@pricora/contracts";
 import { CatalogService } from "../services/catalog.service";
 import { ProductService } from "../services/product.service";
 
@@ -208,14 +209,19 @@ export class CatalogController {
     if (!p || p.status !== "active") throw notFound("Product");
     const days = RANGE_DAYS[q.range] ?? null;
     const since = days === null ? undefined : new Date(Date.now() - days * DAY_MS);
-    const offers = await this.prisma.offer.findMany({
-      where: { productId: p.id, ...(q.retailer ? { retailer: { slug: q.retailer } } : {}) },
-      include: {
-        retailer: { select: { slug: true, name: true, brandColor: true } },
-        history: { where: since ? { observedAt: { gte: since } } : {}, orderBy: { observedAt: "asc" } },
-      },
-    });
-    const metrics = (await this.catalog.metrics.fresh([p.id])).get(p.id);
+    const primary = (await this.catalog.metrics.fresh([p.id])).get(p.id);
+    // One condition group per chart: used/refurbished observations never enter the new-price history or stats.
+    const cond = q.condition ?? primary?.condition ?? "new";
+    const metrics = primary?.groups[cond];
+    const offers = (
+      await this.prisma.offer.findMany({
+        where: { productId: p.id, ...(q.retailer ? { retailer: { slug: q.retailer } } : {}) },
+        include: {
+          retailer: { select: { slug: true, name: true, brandColor: true } },
+          history: { where: since ? { observedAt: { gte: since } } : {}, orderBy: { observedAt: "asc" } },
+        },
+      })
+    ).filter((o) => conditionGroupOf(o.condition) === cond);
     const all = offers.flatMap((o) => o.history.map((h) => ({ t: h.observedAt, priceCents: h.priceCents })));
     return {
       productId: p.id,
@@ -284,10 +290,21 @@ export class CatalogController {
     });
   }
 
+  /** Product id → metrics of one condition group (deals/drops/home rails are new-only unless asked). */
+  private async groupMetrics(g: ConditionGroup): Promise<Map<string, ProductMetrics>> {
+    const all = await this.catalog.metrics.all();
+    const out = new Map<string, ProductMetrics>();
+    for (const [id, m] of all) {
+      const gm = m.groups[g];
+      if (gm) out.set(id, { ...gm, groups: {} });
+    }
+    return out;
+  }
+
   @Get("home")
   @Auth("optional")
   async home(@Req() req: AuthedRequest): Promise<HomeResponse> {
-    const metrics = await this.catalog.metrics.all();
+    const metrics = await this.groupMetrics("new");
     const list = [...metrics.values()];
     const byScore = list.filter((m) => m.dealScore).sort((a, b) => (b.dealScore?.score ?? 0) - (a.dealScore?.score ?? 0));
     const under = (max: number) =>
@@ -335,7 +352,7 @@ export class CatalogController {
       under100: u100,
       topCategories: cats.filter((c) => c.parentId === null),
       retailers: retailers.sort((a, b) => b.offerCount - a.offerCount).map(({ _row, ...r }) => r),
-      ...(recent ? { recentlyViewed: await this.catalog.cards(recent.map((r) => r.productId), metrics) } : {}),
+      ...(recent ? { recentlyViewed: await this.catalog.cards(recent.map((r) => r.productId)) } : {}),
       hasDemoData: all.some((c) => c.hasDemoData),
       generatedAt: new Date().toISOString(),
     };
@@ -344,7 +361,7 @@ export class CatalogController {
   @Get("deals")
   async deals(@Query() query: unknown): Promise<DealsResponse> {
     const q = input("catalog.deals", "query", query);
-    const metrics = await this.catalog.metrics.all();
+    const metrics = await this.groupMetrics(q.condition);
     let list = [...metrics.values()].filter((m) => m.dealScore && (q.minScore === undefined || m.dealScore.score >= q.minScore));
     if (q.category) {
       const catIds = new Set((await this.catalog.categorySubtreeIds(q.category)) ?? []);
@@ -366,7 +383,7 @@ export class CatalogController {
   @Get("price-drops")
   async priceDrops(@Query() query: unknown): Promise<PriceDropsResponse> {
     const q = input("catalog.priceDrops", "query", query);
-    const metrics = await this.catalog.metrics.all();
+    const metrics = await this.groupMetrics(q.condition);
     let list = this.priceDropItems(metrics, DROP_WINDOW_MS[q.window] ?? 7 * DAY_MS, q.minDropRatio ?? 0.01);
     if (q.category) {
       const catIds = (await this.catalog.categorySubtreeIds(q.category)) ?? [];

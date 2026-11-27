@@ -4,6 +4,7 @@
  */
 import { evaluateAlerts, type AlertRule, type AlertState, type PriceChangeEvent } from "@pricora/algorithms";
 import type { PrismaClient } from "@pricora/database";
+import { conditionGroupOf } from "@pricora/contracts";
 import { deliverPush } from "./push";
 
 export const PRICE_EVENTS_QUEUE = "price-events";
@@ -28,15 +29,23 @@ export async function processPriceEvent(prisma: PrismaClient, job: PriceEventJob
   });
   if (!offer) return { evaluated: 0, created: 0 };
 
-  const alerts = await prisma.priceAlert.findMany({ where: { productId: offer.productId, active: true } });
+  // Alerts watch one condition group (default new): a used/refurbished price change never fires a new-condition alert,
+  // and best price / all-time low are computed within the same group only.
+  const group = conditionGroupOf(offer.condition);
+  const alerts = (await prisma.priceAlert.findMany({ where: { productId: offer.productId, active: true } })).filter((a) => conditionGroupOf(a.condition) === group);
   if (alerts.length === 0) return { evaluated: 0, created: 0 };
 
-  const others = await prisma.offer.findMany({
-    where: { productId: offer.productId, isActive: true, NOT: { id: offer.id } },
-    select: { priceCents: true, retailerId: true },
-  });
+  const others = (
+    await prisma.offer.findMany({
+      where: { productId: offer.productId, isActive: true, NOT: { id: offer.id } },
+      select: { priceCents: true, retailerId: true, condition: true },
+    })
+  ).filter((o) => conditionGroupOf(o.condition) === group);
+  const groupOfferIds = (await prisma.offer.findMany({ where: { productId: offer.productId }, select: { id: true, condition: true } }))
+    .filter((o) => conditionGroupOf(o.condition) === group)
+    .map((o) => o.id);
   const atl = await prisma.priceHistory.aggregate({
-    where: { productId: offer.productId, observedAt: { lt: new Date(job.occurredAt) } },
+    where: { productId: offer.productId, offerId: { in: groupOfferIds }, observedAt: { lt: new Date(job.occurredAt) } },
     _min: { priceCents: true },
   });
   const prevBest = [...others, { priceCents: job.previousPriceCents ?? offer.priceCents, retailerId: offer.retailerId }].sort(

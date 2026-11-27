@@ -17,6 +17,7 @@ import { demoUpc, offerSeries, pick, productIndex, randInt, type Rng } from "./h
 import type { PricePattern } from "./products";
 import { RETAILERS, type SeedRetailer } from "./reference";
 import { seedPaymentOptions } from "./catalog-payment-options";
+import { seedConditionOffers } from "./catalog-conditions";
 
 const DAY_MS = 86_400_000;
 const SKU_PREFIX = "DEMO-CAT-";
@@ -417,6 +418,8 @@ export async function seedCatalogExpansion(prisma: PrismaClient, opts: { now?: D
   }
   await flush(true);
   const payments = await seedPaymentOptions(prisma);
+  const second = await seedConditionOffers(prisma, now);
+  log(`condition demo offers: ${second.offers} on ${second.products} products`);
   log(`payment options: ${payments.upserted} (${payments.retailersWithOptions} retailers)`);
   return { payments: payments.upserted, categories: catIds.size, enriched, products: items.length, offers: offerCount, history: historyCount, topLevel: CATALOG_TREE.length };
 }

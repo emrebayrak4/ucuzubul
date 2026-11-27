@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { computeOfferTotal } from "@pricora/algorithms";
-import type { DealItem, Offer, ProductCard } from "@pricora/contracts";
+import { conditionGroupOf, type ConditionGroup, type DealItem, type Offer, type ProductCard } from "@pricora/contracts";
 import type { Prisma } from "@pricora/database";
-import { computeProductMetrics, EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
+import { CONDITION_ORDER, computeProductMetrics, EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
 import { applicableOptions, loadPaymentIndex, payIn4For, type PaymentIndex } from "../core/payment-options";
 import { PRISMA, type PrismaClient } from "../common/infra";
 
@@ -79,6 +79,17 @@ export function recentPreviousPrice(m: ProductMetrics | undefined): number | nul
   return Date.now() - d.droppedAt.getTime() <= DROP_WINDOW_MS ? d.previousPriceCents : null;
 }
 
+/**
+ * Metrics for the headline price: the cheapest of the selected condition groups (search filter),
+ * otherwise the product's primary group (new when any new offer exists).
+ */
+export function headlineMetrics(m: ProductMetrics | undefined, conditions?: ConditionGroup[]): ProductMetrics | undefined {
+  if (!m || !conditions?.length) return m;
+  const candidates = conditions.map((g) => m.groups[g]).filter((x): x is ProductMetrics => Boolean(x?.lowestPriceCents != null));
+  if (!candidates.length) return m;
+  return candidates.sort((a, b) => (a.lowestPriceCents ?? Infinity) - (b.lowestPriceCents ?? Infinity))[0];
+}
+
 @Injectable()
 export class CatalogService {
   constructor(
@@ -96,8 +107,18 @@ export class CatalogService {
     return index;
   }
 
-  toCard(p: CardProduct, m: ProductMetrics | undefined, sponsored = false): ProductCard {
+  toCard(p: CardProduct, all: ProductMetrics | undefined, sponsored = false, conditions?: ConditionGroup[]): ProductCard {
     const img = p.images[0];
+    const m = headlineMetrics(all, conditions);
+    const head = m?.lowestPriceCents ?? null;
+    // Cheaper offers in other condition groups → muted "Used from $X" line, never the headline.
+    const otherConditions = all
+      ? CONDITION_ORDER.flatMap((g) => {
+          const gm = all.groups[g];
+          if (!gm || g === m?.condition || gm.lowestPriceCents === null || (head !== null && gm.lowestPriceCents >= head)) return [];
+          return [{ condition: g, lowestPriceCents: gm.lowestPriceCents, offerCount: gm.retailerIds.length }];
+        })
+      : [];
     return {
       id: p.id,
       slug: p.slug,
@@ -116,6 +137,8 @@ export class CatalogService {
       hasDemoData: m?.hasDemoData ?? p.isDemo,
       sponsored,
       previousPriceCents: recentPreviousPrice(m),
+      priceCondition: m?.condition ?? "new",
+      otherConditions,
       keySpecs: keySpecs(p.attributes),
       updatedAt: (m?.lastCheckedAt ?? p.updatedAt).toISOString(),
     };
@@ -154,6 +177,11 @@ export class CatalogService {
       source: o.source,
       sponsored: false,
       lastCheckedAt: o.lastCheckedAt.toISOString(),
+      conditionGroup: conditionGroupOf(o.condition),
+      conditionGrade: o.conditionGrade,
+      refurbishedBy: o.refurbishedBy,
+      seller: o.sellerType ? { name: o.sellerName, type: o.sellerType } : null,
+      returnPolicy: o.returnPolicy,
       ...(pay
         ? {
             // Basis = price + known shipping (tax excluded; providers finance the checkout total).
@@ -165,7 +193,7 @@ export class CatalogService {
   }
 
   /** Cards for product ids, preserving order and skipping missing/inactive products. */
-  async cards(ids: string[], metrics?: Map<string, ProductMetrics>): Promise<ProductCard[]> {
+  async cards(ids: string[], metrics?: Map<string, ProductMetrics>, opts: { conditions?: ConditionGroup[] } = {}): Promise<ProductCard[]> {
     if (ids.length === 0) return [];
     const m = metrics ?? (await this.metrics.all());
     const [products, pay, offers] = await Promise.all([
@@ -179,8 +207,9 @@ export class CatalogService {
       if (!p) return [];
       const pm = m.get(id);
       const own = offers.filter((o) => o.productId === id);
-      const lowest = own.find((o) => o.id === pm?.lowestOfferId);
-      const card = this.toCard(p, pm);
+      const head = headlineMetrics(pm, opts.conditions);
+      const lowest = own.find((o) => o.id === head?.lowestOfferId);
+      const card = this.toCard(p, pm, false, opts.conditions);
       card.payIn4 = lowest ? payIn4For(pay.get(lowest.retailerId), lowest.priceCents + (lowest.shippingCents ?? 0)) : null;
       card.payOverTime = own.some((o) => applicableOptions(pay.get(o.retailerId), o.priceCents + (o.shippingCents ?? 0)).length > 0);
       return [card];

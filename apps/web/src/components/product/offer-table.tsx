@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, Ticket, TriangleAlert, Truck } from "lucide-react";
-import type { Coupon, Offer } from "@pricora/contracts";
+import type { ConditionGroup, Coupon, Offer } from "@pricora/contracts";
 import {
   Badge,
   DemoDataBadge,
@@ -15,10 +15,10 @@ import {
   TableHeader,
   TableRow,
 } from "@pricora/ui";
-import { formatPrice } from "@pricora/ui/utils";
+import { cn, formatPrice } from "@pricora/ui/utils";
 import { goHref, outboundRel } from "./outbound";
 import { PayOverTimeChips } from "./pay-over-time";
-import { absolute, conditionLabel, isStale, relative, stockLabel } from "@/lib/format";
+import { absolute, isStale, relative, stockLabel } from "@/lib/format";
 import { SetZipButton } from "@/components/zip-provider";
 import { BrandMark } from "@/components/brand-mark";
 
@@ -125,6 +125,45 @@ function Checked({ iso }: { iso: string }) {
  * Line 1 = name + compact status chips (Demo, Sponsored, Lowest — always visible); line 2 = exactly ONE reserved chip
  * line (coupon + pay-over-time, passed as `badges`, never wraps) → every row has the same height (~65px).
  */
+const TAB_ORDER: ConditionGroup[] = ["new", "refurbished", "used", "open_box"];
+const TAB_LABEL: Record<ConditionGroup, string> = { new: "New", refurbished: "Refurbished", used: "Used", open_box: "Open box" };
+const GRADE_LABEL: Record<string, string> = { like_new: "Like new", very_good: "Very good", good: "Good", acceptable: "Acceptable" };
+
+/** Clear condition badge (amber used, blue refurbished, gray open-box) + seller type and return policy when known. */
+export function ConditionCell({ offer }: { offer: Offer }) {
+  const c = offer.condition;
+  if (c === "new") return <span className="text-sm">New</span>;
+  const label =
+    c === "used"
+      ? `Used${offer.conditionGrade ? ` · ${GRADE_LABEL[offer.conditionGrade] ?? offer.conditionGrade}` : ""}`
+      : c === "refurbished"
+        ? `Refurbished${offer.refurbishedBy === "manufacturer" ? " · Manufacturer" : ""}`
+        : c === "open_box"
+          ? `Open box${offer.conditionGrade ? ` · ${GRADE_LABEL[offer.conditionGrade] ?? offer.conditionGrade}` : ""}`
+          : c === "for_parts"
+            ? "For parts / not working"
+            : "Condition not stated";
+  const tone =
+    c === "used" || c === "for_parts" || c === "unknown"
+      ? "bg-warning-soft text-text border-warning/40"
+      : c === "refurbished"
+        ? "bg-primary-soft text-primary-soft-fg border-primary/30"
+        : "bg-surface-2 text-text border-border";
+  const meta = [offer.seller?.type === "marketplace" ? `${offer.seller.name ?? "Marketplace seller"}` : offer.seller?.name ?? null, offer.returnPolicy ?? null].filter(Boolean).join(" · ");
+  return (
+    <span className="inline-flex max-w-44 flex-col items-start gap-0.5 text-left">
+      <span className={cn("inline-flex h-5 items-center whitespace-nowrap rounded-sm border px-1.5 text-xs font-semibold", tone)} data-testid="condition-badge">
+        {label}
+      </span>
+      {meta ? (
+        <span className="line-clamp-1 text-xs text-text-muted" title={meta} data-testid="condition-meta">
+          {meta}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function StoreCell({ offer, badges, lowest = false }: { offer: Offer; badges?: React.ReactNode; lowest?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
@@ -170,15 +209,67 @@ function VisitButton({ offer, placement }: { offer: Offer; placement: string }) 
 /**
  * Offer comparison table. Organic order = lowest estimated total (sponsored rows never take the top slot).
  */
-export function OfferTable({ offers, lowestOfferId, coupons = [] }: { offers: Offer[]; lowestOfferId: string | null; coupons?: Coupon[] }) {
+export function OfferTable({
+  offers: allOffers,
+  lowestOfferId,
+  coupons = [],
+  defaultCondition = "new",
+  conditionNote = null,
+}: {
+  offers: Offer[];
+  lowestOfferId: string | null;
+  coupons?: Coupon[];
+  defaultCondition?: ConditionGroup;
+  conditionNote?: string | null;
+}) {
   const couponFor = (o: Offer) => coupons.find((c) => c.retailer.id === o.retailer.id || c.retailer.slug === o.retailer.slug);
   const [sort, setSort] = React.useState<{ key: SortKey; dir: 1 | -1 }>({ key: "total", dir: 1 });
   const onSort = (k: SortKey) => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 1 ? -1 : 1 } : { key: k, dir: 1 }));
+  // Condition tabs: New by default — second-hand offers are listed separately and never mixed into the new ranking.
+  const groupOf = (o: Offer): ConditionGroup => o.conditionGroup ?? (o.condition === "new" || o.condition === "open_box" || o.condition === "refurbished" ? o.condition : "used");
+  const present = TAB_ORDER.filter((g) => allOffers.some((o) => groupOf(o) === g));
+  const [tab, setTab] = React.useState<ConditionGroup>(present.includes(defaultCondition) ? defaultCondition : (present[0] ?? "new"));
+  const offers = allOffers.filter((o) => groupOf(o) === tab);
   const sorted = sortOffers(offers, sort.key, sort.dir);
   const anyTaxUnknown = offers.some((o) => o.tax.status === "unknown_set_zip");
+  const lowestId =
+    tab === defaultCondition && lowestOfferId && offers.some((o) => o.id === lowestOfferId)
+      ? lowestOfferId
+      : ([...offers].filter((o) => o.stock !== "out_of_stock").sort((a, b) => a.estimatedTotalCents - b.estimatedTotalCents)[0]?.id ?? null);
 
   return (
     <div>
+      {present.length > 1 || conditionNote ? (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+          {present.length > 1 ? (
+            <div role="tablist" aria-label="Offer condition" className="scrollbar-none inline-flex max-w-full gap-0.5 overflow-x-auto rounded-md bg-surface-2 p-0.5" data-testid="condition-tabs">
+              {present.map((g) => {
+                const n = allOffers.filter((o) => groupOf(o) === g).length;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === g}
+                    onClick={() => setTab(g)}
+                    className={cn("inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-sm px-3 text-sm font-medium text-text-muted hover:text-text", tab === g && "bg-surface text-text shadow-xs")}
+                    data-testid={`condition-tab-${g}`}
+                  >
+                    {TAB_LABEL[g]} <span className="price ml-1 text-xs text-text-muted">({n})</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {conditionNote ? (
+            <p className="text-sm text-warning" data-testid="condition-note">
+              {conditionNote}
+            </p>
+          ) : tab !== "new" ? (
+            <p className="text-sm text-text-muted">Showing {TAB_LABEL[tab].toLowerCase()} offers — not new. Check each store&apos;s condition notes and return policy.</p>
+          ) : null}
+        </div>
+      ) : null}
       {/* Desktop table */}
       <div className="hidden lg:block">
         <Table data-testid="offer-table" className="[&_td]:px-2.5 [&_th]:px-2.5 xl:[&_td]:px-3 xl:[&_th]:px-3">
@@ -200,12 +291,12 @@ export function OfferTable({ offers, lowestOfferId, coupons = [] }: { offers: Of
           </TableHeader>
           <TableBody>
             {sorted.map((o) => (
-              <TableRow key={o.id} data-testid="offer-row" data-offer-id={o.id} className={o.id === lowestOfferId ? "bg-primary-soft/40" : undefined}>
+              <TableRow key={o.id} data-testid="offer-row" data-offer-id={o.id} className={o.id === lowestId ? "bg-primary-soft/40" : undefined}>
                 {/* Lowest total: tinted row + 3px primary accent bar on the leading edge (inset shadow → no layout shift). */}
-                <TableCell className={"w-80 min-w-[17.5rem] max-w-96 xl:min-w-[19rem]" + (o.id === lowestOfferId ? " shadow-[inset_3px_0_0_var(--pc-color-primary)]" : "")}>
+                <TableCell className={"w-80 min-w-[17.5rem] max-w-96 xl:min-w-[19rem]" + (o.id === lowestId ? " shadow-[inset_3px_0_0_var(--pc-color-primary)]" : "")}>
                   <StoreCell
                     offer={o}
-                    lowest={o.id === lowestOfferId}
+                    lowest={o.id === lowestId}
                     badges={
                       <>
                         {couponFor(o) ? (
@@ -249,7 +340,9 @@ export function OfferTable({ offers, lowestOfferId, coupons = [] }: { offers: Of
                   <span className="price text-md font-semibold">{formatPrice(o.estimatedTotalCents, { currency: o.currency })}</span>
                   {o.tax.status === "unknown_set_zip" ? <span className="block text-2xs text-text-muted">excl. tax</span> : null}
                 </TableCell>
-                <TableCell>{conditionLabel[o.condition] ?? o.condition}</TableCell>
+                <TableCell>
+                  <ConditionCell offer={o} />
+                </TableCell>
                 <TableCell>
                   <Stock offer={o} />
                 </TableCell>
@@ -317,7 +410,9 @@ export function OfferTable({ offers, lowestOfferId, coupons = [] }: { offers: Of
                   <Tax offer={o} />
                 </dd>
                 <dt className="text-text-muted">Condition</dt>
-                <dd className="text-right">{conditionLabel[o.condition]}</dd>
+                <dd className="text-right">
+                  <ConditionCell offer={o} />
+                </dd>
                 <dt className="text-text-muted">Stock</dt>
                 <dd className="text-right">
                   <Stock offer={o} />

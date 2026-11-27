@@ -35,12 +35,12 @@ const windows = [
 
 export default async function PriceDropsPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const parsed = PriceDropsQuery.safeParse({ window: first(sp.window), category: first(sp.category) || undefined, page: first(sp.page), pageSize: 30 });
+  const parsed = PriceDropsQuery.safeParse({ window: first(sp.window), category: first(sp.category) || undefined, condition: first(sp.condition) || undefined, page: first(sp.page), pageSize: 30 });
   const query = parsed.success ? parsed.data : PriceDropsQuery.parse({ pageSize: 30 });
   const api = await serverApi({ revalidate: 300 });
   const [res, cats] = await Promise.all([load(() => api.catalog.priceDrops(query)), load(() => api.catalog.categories())]);
   const href = (o: Record<string, string | number | undefined>) =>
-    "/price-drops" + toQueryString({ window: query.window === "7d" ? undefined : query.window, category: query.category, ...o });
+    "/price-drops" + toQueryString({ window: query.window === "7d" ? undefined : query.window, category: query.category, condition: query.condition === "new" ? undefined : query.condition, ...o });
 
   const freshest = res.ok ? res.data.items.reduce<string | null>((m, d) => (!m || d.droppedAt > m ? d.droppedAt : m), null) : null;
   return (
@@ -60,6 +60,16 @@ export default async function PriceDropsPage({ searchParams }: Props) {
       <p className="mt-1 text-sm text-text-muted">Computed from real price observations — previous vs. current price at the same store.</p>
       <div className="my-5 flex flex-wrap items-center justify-between gap-3">
         <LinkTabs label="Time window" items={windows.map((w) => ({ href: href({ window: w.value === "7d" ? undefined : w.value }), label: w.label, active: query.window === w.value }))} />
+        <UrlSelect
+          name="condition"
+          label="Condition"
+          allLabel="New only"
+          options={[
+            { value: "open_box", label: "Open-box deals" },
+            { value: "refurbished", label: "Refurbished deals" },
+            { value: "used", label: "Used deals" },
+          ]}
+        />
         {cats.ok ? <UrlSelect name="category" label="Category" allLabel="All categories" options={cats.data.items.flatMap((c) => [{ value: c.slug, label: c.name }, ...c.children.filter((x) => x.productCount > 0).map((x) => ({ value: x.slug, label: `– ${x.name}` }))])} /> : null}
       </div>
       {!res.ok ? (

@@ -5,7 +5,8 @@ import type { Meilisearch } from "meilisearch";
 import type { CategoryFacetDef } from "@pricora/contracts";
 import type { PrismaClient } from "@pricora/database";
 import { slugify } from "@pricora/utils";
-import { computeProductMetrics, type ProductMetrics } from "./metrics";
+import { CONDITION_ORDER, computeProductMetrics, type ProductMetrics } from "./metrics";
+import type { ConditionGroup } from "@pricora/contracts";
 import { applicableOptions, loadPaymentIndex, payIn4For } from "./payment-options";
 
 export const PRODUCTS_INDEX = "products";
@@ -48,6 +49,10 @@ export interface ProductSearchDoc {
   dealScore: number | null;
   dropRatio: number | null;
   hasDemoData: boolean;
+  /** Condition groups with an active offer (new / open_box / refurbished / used). */
+  conditions: string[];
+  /** Lowest price / total per condition-group mask (see conditionMask), e.g. p_1 = new only, p_15 = any. */
+  [priceField: `p_${number}` | `t_${number}`]: number | undefined;
   /** Spec facet values as `key.value-slug` (keys from the category's effective facet definitions). */
   specs: string[];
   /** Display labels for `specs`, same order (not filterable; used for facet labels and key specs). */
@@ -55,6 +60,33 @@ export interface ProductSearchDoc {
   /** First-listed time (earliest offer) — drives "Newly added". */
   createdAt: number;
   updatedAt: number;
+}
+
+/** Bit mask of condition groups: new=1, open_box=2, refurbished=4, used=8 (15 = all). */
+export function conditionMask(groups: ConditionGroup[]): number {
+  return groups.reduce((m, g) => m | (1 << CONDITION_ORDER.indexOf(g)), 0) || 1;
+}
+
+const MASKS = Array.from({ length: 15 }, (_, i) => i + 1);
+const PRICE_FIELDS = MASKS.flatMap((m) => [`p_${m}`, `t_${m}`]);
+
+/** Lowest price/total over the groups in each mask (only for masks with offers). */
+function maskPrices(pm: ProductMetrics | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!pm) return out;
+  for (const m of MASKS) {
+    let p: number | null = null;
+    let t: number | null = null;
+    CONDITION_ORDER.forEach((g, i) => {
+      if (!(m & (1 << i))) return;
+      const gm = pm.groups[g];
+      if (gm?.lowestPriceCents != null && (p === null || gm.lowestPriceCents < p)) p = gm.lowestPriceCents;
+      if (gm?.lowestTotalCents != null && (t === null || gm.lowestTotalCents < t)) t = gm.lowestTotalCents;
+    });
+    if (p !== null) out[`p_${m}`] = p;
+    if (t !== null) out[`t_${m}`] = t;
+  }
+  return out;
 }
 
 /** Spec value → URL-safe slug used in `spec=key.slug`. */
@@ -99,9 +131,11 @@ export const SEARCH_SETTINGS = {
     "priceBucket",
     "dealScore",
     "specs",
+    "conditions",
+    ...PRICE_FIELDS,
     "id",
   ],
-  sortableAttributes: ["lowestPriceCents", "lowestTotalCents", "dealScore", "dropRatio", "storeCount", "createdAt", "updatedAt"],
+  sortableAttributes: ["lowestPriceCents", "lowestTotalCents", "dealScore", "dropRatio", "storeCount", "createdAt", "updatedAt", ...PRICE_FIELDS],
   synonyms: {
     tv: ["television", "televisions", "tvs"],
     television: ["tv"],
@@ -195,6 +229,8 @@ export async function buildSearchDocuments(
       hasDemoData: pm?.hasDemoData ?? p.isDemo,
       specs,
       specLabels,
+      conditions: pm ? CONDITION_ORDER.filter((g) => pm.groups[g]) : [],
+      ...maskPrices(pm),
       createdAt: p.createdAt.getTime(),
       updatedAt: p.updatedAt.getTime(),
     };

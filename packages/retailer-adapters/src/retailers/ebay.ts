@@ -21,6 +21,7 @@ export function ebayCondition(conditionId: unknown, label: unknown): Condition {
     if (id === 1000) return "new";
     if (id === 1500 || id === 1750) return "open_box";
     if (id >= 2000 && id <= 2500) return "refurbished";
+    if (id === 7000) return "for_parts";
     if (id >= 2750) return "used";
   }
   return mapCondition(typeof label === "string" ? label : "");

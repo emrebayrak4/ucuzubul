@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   Cents,
+  ConditionGrade,
+  ConditionGroup,
   DataSource,
   Id,
   IntegrationStatus,
@@ -222,6 +224,10 @@ export const ProductCard = z.object({
    * last 7 days. null/absent when there was no such drop. Never a list/"was" price.
    */
   previousPriceCents: Cents.nullable().optional(),
+  /** Condition group of the headline price (new unless the product has no new offers or the shopper filtered). */
+  priceCondition: ConditionGroup.optional(),
+  /** Cheaper offers in other condition groups, e.g. [{condition:"used", lowestPriceCents:…}] → "Used from $X". */
+  otherConditions: z.array(z.object({ condition: ConditionGroup, lowestPriceCents: Cents, offerCount: z.number().int().nonnegative() })).optional(),
   /** Pay-in-4 estimate at the lowest-price store, when available (see PayIn4). */
   payIn4: PayIn4.nullable().optional(),
   /** Any store carrying it offers a pay-over-time option for its price. */
@@ -261,6 +267,16 @@ export const Offer = z.object({
   }),
   title: z.string(),
   condition: ProductCondition,
+  /** Filter/tab group of `condition` (used covers for_parts + unknown). */
+  conditionGroup: ConditionGroup.optional(),
+  /** Used grade when the seller provides one. */
+  conditionGrade: ConditionGrade.nullable().optional(),
+  /** "manufacturer" | "seller" | "retailer" when a refurbished offer names who refurbished it. */
+  refurbishedBy: z.string().nullable().optional(),
+  /** Marketplace seller (eBay seller, Amazon third-party / resale program) — null when sold by the retailer. */
+  seller: z.object({ name: z.string().nullable(), type: z.enum(["retailer", "marketplace"]) }).nullable().optional(),
+  /** Return policy summary as published, e.g. "30-day returns". */
+  returnPolicy: z.string().nullable().optional(),
   priceCents: Cents,
   listPriceCents: Cents.nullable(),
   currency: z.string().length(3),
@@ -378,6 +394,16 @@ export const ProductDetailResponse = z.object({
   hasDemoData: z.boolean(),
   /** Active coupons that apply (store-wide, or scoped to this product/category) at the stores carrying it. */
   coupons: z.array(Coupon),
+  /** Condition group the top-level price/stats/deal score refer to (new when any new offer exists). */
+  defaultCondition: ConditionGroup.optional(),
+  /** Set when there are no new offers ("No new offers right now — showing refurbished"). */
+  conditionNote: z.string().nullable().optional(),
+  /** Offer counts and lowest price per condition group, in display order. */
+  conditionSummary: z.array(z.object({ condition: ConditionGroup, offerCount: z.number().int().nonnegative(), lowestPriceCents: Cents.nullable() })).optional(),
+  /** Stats / Deal Score per condition group — computed only from that group's offers (never mixed). */
+  byCondition: z
+    .record(z.string(), z.object({ priceStats: PriceStats, dealScore: DealScore.nullable(), fakeDiscount: FakeDiscount, lowestOfferId: Id.nullable(), previousLowestPriceCents: Cents.nullable() }))
+    .optional(),
   /** Real previous price at the lowest-price store if it dropped in the last 7 days (see ProductCard.previousPriceCents). */
   previousLowestPriceCents: Cents.nullable().optional(),
   /** Same category, closest specs/price. */
@@ -392,6 +418,8 @@ export const HistoryRange = z.enum(["7d", "30d", "90d", "180d", "365d", "all"]);
 export type HistoryRange = z.infer<typeof HistoryRange>;
 
 export const ProductHistoryQuery = z.object({
+  /** Condition group whose offers are plotted/stat'ed (default: the product's default condition, normally new). */
+  condition: ConditionGroup.optional(),
   range: HistoryRange.default("90d"),
   retailer: Slug.optional(),
 });
@@ -452,6 +480,8 @@ export type CompareResponse = z.infer<typeof CompareResponse>;
 /* ------------------------------------------------------------------ */
 
 export const DealsQuery = PaginationQuery.extend({
+  /** Condition group (default new; used/refurbished deals are a separate, labeled view). */
+  condition: ConditionGroup.default("new"),
   sort: z.enum(["score", "drop", "newest", "price_asc"]).default("score"),
   category: Slug.optional(),
   minScore: z.coerce.number().int().min(0).max(100).optional(),
@@ -470,6 +500,8 @@ export const DealsResponse = paginated(DealItem);
 export type DealsResponse = z.infer<typeof DealsResponse>;
 
 export const PriceDropsQuery = PaginationQuery.extend({
+  /** Condition group (default new; used/refurbished deals are a separate, labeled view). */
+  condition: ConditionGroup.default("new"),
   category: Slug.optional(),
   window: z.enum(["24h", "7d", "30d"]).default("7d"),
   minDropRatio: z.coerce.number().min(0).max(1).optional(),

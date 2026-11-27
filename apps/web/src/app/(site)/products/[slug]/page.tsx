@@ -78,6 +78,8 @@ export default async function ProductPage({ params }: Props) {
   ];
   const upc = p.identifiers.find((i) => i.type === "UPC" || i.type === "GTIN" || i.type === "EAN");
   const actionProduct: ActionProduct = {
+    conditions: (d.conditionSummary ?? []).map((c) => c.condition),
+    defaultCondition: d.defaultCondition ?? "new",
     id: p.id,
     slug: p.slug,
     title: p.title,
@@ -203,7 +205,9 @@ export default async function ProductPage({ params }: Props) {
               <>
                 <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
                   <div>
-                    <p className="text-xs text-text-muted">Lowest price</p>
+                    <p className="text-xs text-text-muted" data-testid="lowest-price-label">
+                      {(d.defaultCondition ?? "new") === "new" ? "Lowest new price" : `Lowest ${d.defaultCondition === "open_box" ? "open-box" : d.defaultCondition} price — no new offers`}
+                    </p>
                     {d.previousLowestPriceCents && d.previousLowestPriceCents > lowest.priceCents ? (
                       <span className="flex flex-wrap items-baseline gap-x-2">
                         <PriceTag cents={lowest.priceCents} previousCents={d.previousLowestPriceCents} currency={currency} size="xl" className="[&>.price]:text-price-drop" data-testid="lowest-price" />
@@ -314,14 +318,21 @@ export default async function ProductPage({ params }: Props) {
           </p>
         ) : null}
         {d.offers.length ? (
-          <OfferTable offers={d.offers} lowestOfferId={d.lowestOfferId} coupons={d.coupons ?? []} />
+          <OfferTable offers={d.offers} lowestOfferId={d.lowestOfferId} coupons={d.coupons ?? []} defaultCondition={d.defaultCondition ?? "new"} conditionNote={d.conditionNote ?? null} />
         ) : (
           <EmptyState icon={<PackageX aria-hidden />} title="No offers right now" description="Set a price alert and we'll tell you when a store lists it." action={<AlertDialogButton product={actionProduct} variant="secondary" />} />
         )}
       </section>
 
       <div className="mt-(--pc-section-gap)">
-        <PriceHistory slug={p.slug} initialStats={d.priceStats} currency={currency} hasDemoData={d.hasDemoData} />
+        <PriceHistory
+          slug={p.slug}
+          initialStats={d.priceStats}
+          currency={currency}
+          hasDemoData={d.hasDemoData}
+          defaultCondition={d.defaultCondition ?? "new"}
+          conditions={(d.conditionSummary ?? []).map((c) => c.condition)}
+        />
       </div>
 
       <div className="mt-(--pc-section-gap) grid gap-8 lg:grid-cols-12">

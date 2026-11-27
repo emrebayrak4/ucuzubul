@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CsvList, MAX_PAGE_SIZE, ProductCondition, QueryBoolean, Slug } from "./common";
+import { CsvList, MAX_PAGE_SIZE, QueryBoolean, Slug } from "./common";
 import { BrandSummary, CategorySummary, ProductCard } from "./catalog";
 
 export const SearchSort = z.enum([
@@ -22,7 +22,11 @@ export const SearchQuery = z.object({
   retailer: CsvList.optional(),
   minPrice: z.coerce.number().int().nonnegative().optional(),
   maxPrice: z.coerce.number().int().nonnegative().optional(),
-  condition: CsvList.pipe(z.array(ProductCondition)).optional(),
+  /**
+   * Condition groups (default ["new"] when omitted — second-hand never wins "lowest price" by default).
+   * "all" = every condition. Legacy values for_parts/unknown map to "used".
+   */
+  condition: CsvList.transform((list) => list.map((v) => (v === "for_parts" || v === "unknown" ? "used" : v))).pipe(z.array(z.enum(["new", "open_box", "refurbished", "used", "all"]))).optional(),
   inStock: QueryBoolean.optional(),
   freeShipping: QueryBoolean.optional(),
   pickup: QueryBoolean.optional(),

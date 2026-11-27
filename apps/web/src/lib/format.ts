@@ -31,6 +31,8 @@ export const conditionLabel: Record<string, string> = {
   refurbished: "Refurbished",
   used: "Used",
   open_box: "Open box",
+  for_parts: "For parts",
+  unknown: "Condition unknown",
 };
 
 export const stockLabel: Record<string, string> = {

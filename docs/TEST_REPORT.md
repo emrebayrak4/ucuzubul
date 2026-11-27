@@ -204,11 +204,46 @@ Method (`click.mjs`, Playwright, desktop 1366×860, no CPU throttle, warm caches
 2. **Filters were not optimistic**: checkbox/switch/sort state is read from the URL, which only changes when the navigation commits. `useParamUpdater` now uses `useOptimistic` inside the existing transition — controls change in 4 ms (prod) / 10 ms (dev), revert automatically on failure (`components/search/filters.tsx`).
 3. **Dynamic pages had no useful prefetch** (nonce CSP → every page dynamic → viewport prefetch fetches only the shared layout). New `components/intent-prefetch.tsx` (mounted in `providers.tsx`) does a full `router.prefetch(href, { kind: FULL })` after 60 ms of mouse hover or on touchstart, production only, max once per 30 s per URL, skipping /account, /login, /signup, /api and — for signed-in visitors or before session is known — `/products/*` (a full prefetch looks like a navigation to the server and would record "recently viewed"). With a 250 ms hover: product tile complete 166 → 121 ms, category 247 → 194 ms, nav 410 → 173 ms.
 4. Not changed, with reasons (measured):
-   - **More `loading.tsx` skeletons were not added.** On /deals the skeleton paints at ~105 ms, the RSC response is done at ~150 ms, but the content appears at ~400 ms: React deliberately holds a Suspense fallback ≥ 300 ms before revealing content (anti-flicker throttle). On a warm production server a segment skeleton therefore makes navigation *slower* overall; routes without one (category, product) completed in 166–278 ms. BUG-W01 also rules out segment `loading.tsx` on slug routes. The pointerdown progress bar gives the instant feedback instead.
+   - **More `loading.tsx` skeletons were not added** (BUG-W01 forbids them on slug routes). *Correction (§6.4):* the /deals gap measured here (skeleton at ~105 ms, data done at ~150 ms, content at ~400 ms) was caused by the route `<ViewTransition>`, not by React's Suspense throttle — with the ViewTransition removed the same navigation shows content at ~100 ms.
    - **SSR waterfalls**: product page = one API call (history loads client-side), category = category → (popular + drops in parallel), all through the URL-keyed data cache; warm server TTFB 8–80 ms prod (target < 200 ms ✅), so no extra Suspense split was needed.
    - Priority+ nav / CountUp / PriceRoll: no work on click paths after the earlier fixes (no long task > 50 ms on any measured click in prod).
 
 **How much is dev-mode only:** warm (already-compiled) dev navigations complete in 230–810 ms vs 40–280 ms in production for the same clicks; SSR of an already-compiled page is 80–230 ms in dev vs 8–80 ms in prod (`/brands/sony`: dev first hit 764 ms, second 228 ms, prod 79 ms). After any file save by any parallel session the next click on an affected route waits for a recompile (dev TTFB 250–1850 ms measured in the Lighthouse dev runs). None of that exists in production. Before this change the user also saw **no feedback at all** during that wait (bug 1).
+
+### 6.4 Loading feedback + removing animations that slow clicks (perf session, 2026-11-27)
+
+Founder: "hide the wait inside an animation" + "if an animation slows things down, remove it". Same method as §6.3 (prod build :3190, stopped afterwards; machine shared with other sessions, CPU 31–59 % busy → ±30 % noise between runs).
+
+**Animation cost on click paths** (measured on the same build by disabling each in the browser, `MODE=novt` / `noanim` in `click.mjs`; complete-ms medians):
+
+| Interaction | As shipped | Route ViewTransition off | + all CSS animations/transitions off |
+|---|---|---|---|
+| Header nav → /deals | 188 | **136** | 127 |
+| Home category tile | 265 | **217** | 277 |
+| Category product tile | 170 | **154** | 181 |
+| Filter / sort / pagination | 66 / 51 / 54 | 74 / 48 / 50 | 70 / 52 / 55 |
+
+→ The route `<ViewTransition>` (plus its own 120–240 ms crossfade, and the tile→product image morph) delayed every navigation; all other CSS animations (shimmer badges, hover effects, PriceRoll/CountUp, mega-menu pop-in) made no measurable difference after §6.1. **Removed:** route ViewTransition (`components/page-transition.tsx` is now a pass-through; layouts/templates untouched), product image morph (`product-card.tsx`, `product/gallery.tsx`; the tile no longer re-renders on pointerdown). Kept: everything else (no measurable click cost). autoAdvance rails, priority+ nav ResizeObserver: no task > 50 ms on any measured click.
+
+**Loading feedback** (all decorative, `aria-hidden`; reduced motion → static bar/skeleton, no press, no bounce, no fade; no scroll-reveal):
+1. pointerdown → top bar (brand blue, soft glow, light core so it shows on the blue header) — painted **4 ms** after press.
+2. Pressed link: slight press (`[data-nav-pending]` scale .985) + light shimmer sweep over its box.
+3. Destination skeleton (product / results / grid / coupons / generic, reusing `page-skeletons.tsx` with shimmer) **120 ms** after the click if the page hasn't arrived, below the sticky header, fixed-position (no layout shift); crossfades out in 180 ms over the new page.
+4. > 800 ms: the brand "w" mark (`/brand/mark.png`) in a small round chip with a soft bounce, centered in the content area — never full-screen.
+- Implementation: `lib/nav-feedback.ts` (store), `components/nav-progress.tsx` (listeners), `components/route-skeleton.tsx` (`FeedbackLayer`). The visuals render in a **separate React root**: rendering the skeleton inside the page tree interrupted the router's transition render (measured: category page 180 → 341 ms when the skeleton appeared); in its own root the page commits on time (skeleton shown 215 ms, page 215 ms, skeleton leaving 228 ms). Filter updates show the bar only (control already updated optimistically).
+- Verified: unknown slugs still 404 (`/products/nope`, `/categories/nope`, `/brands/nope`); slowed navigation (+1.5 s on the RSC response) shows bar → press → skeleton → "w" loader → crossfade, overlay removed afterwards, also under reduced motion (screenshots `fb-*.png`); dev server: no console errors, no leftover overlay/attributes.
+
+**Click → paint, prod (first / complete, ms):**
+
+| Interaction | §6.3 start (before) | Final, click without hover | Final, 250 ms hover then click |
+|---|---|---|---|
+| Header nav → /deals | 70 / 410 | 51 / **127** (bar at 4 ms) | 40 / 129 |
+| Home category tile | 50 / 247 | 29 / 207 | 33 / 188 |
+| Category product tile | 27 / 166 | 16 / 172 | 10 / **93** |
+| Filter checkbox | 6 / 62 (box ticked at ~59) | 15 / 75 (box ticks at 4) | 19 / 76 |
+| Sort change | 7 / 48 | 5 / 55 | 5 / 53 |
+| Pagination | 47 / 51 | 7 / 69 | 6 / 48 |
+| Show code | ~25 | ~25 | 26 / 41 |
 
 ## 7. Not verified ❌
 - Production builds (web, admin, API) and Lighthouse or load numbers on them. Behaviour behind a real reverse proxy (trust proxy, Secure cookies, HSTS).

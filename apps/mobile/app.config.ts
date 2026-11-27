@@ -91,7 +91,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     typedRoutes: true,
   },
   extra: {
-    apiUrl: process.env.EXPO_PUBLIC_API_URL || null,
+    // Omit when unset: a `null` here reaches the app as `{}` through the dev manifest (crashed `.replace` in config.ts).
+    apiUrl: process.env.EXPO_PUBLIC_API_URL || undefined,
     webUrl: process.env.EXPO_PUBLIC_WEB_URL || brand.url,
     eas: process.env.EXPO_PUBLIC_EAS_PROJECT_ID ? { projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID } : undefined,
   },

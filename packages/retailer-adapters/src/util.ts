@@ -58,13 +58,19 @@ export function mapAvailability(value: unknown): Availability {
   return "unknown";
 }
 
+/**
+ * Free-text / feed condition → Condition. Missing or unrecognized values map to "unknown" — never to "new" —
+ * so second-hand listings can't win "lowest new price" by omission. Retailers that only sell new pass "new" explicitly.
+ */
 export function mapCondition(value: unknown): Condition {
-  if (typeof value !== "string") return "new";
+  if (typeof value !== "string" || !value.trim()) return "unknown";
   const v = value.trim().toLowerCase();
-  if (/open[\s_-]?box|new other|new \(other\)/.test(v)) return "open_box";
+  if (/for parts|not working|parts only|for_parts/.test(v)) return "for_parts";
+  if (/open[\s_-]?box|new other|new \(other\)|new with defects|damaged box/.test(v)) return "open_box";
   if (/refurb|renewed|reconditioned|remanufactured/.test(v)) return "refurbished";
-  if (/used|pre-?owned|collectible/.test(v)) return "used";
-  return "new";
+  if (/used|pre-?owned|collectible|like new|very good|acceptable|good/.test(v)) return "used";
+  if (/^(new|brand new|new_condition|newcondition|https?:\/\/schema\.org\/newcondition)$/.test(v) || v === "new item") return "new";
+  return "unknown";
 }
 
 export function readEnv(env: EnvLike, keys: readonly string[]): { values: Record<string, string>; missing: string[] } {

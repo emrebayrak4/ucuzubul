@@ -5,7 +5,6 @@ import { CompareTray } from "@/components/compare/compare-tray";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Mounts when switching between the shopping and travel areas → horizontal slide (types set by VerticalSwitcher).
     <PageTransition>
       <a
         href="#main"

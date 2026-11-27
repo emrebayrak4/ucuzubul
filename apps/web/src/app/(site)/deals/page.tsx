@@ -36,12 +36,12 @@ const sorts = [
 
 export default async function DealsPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const parsed = DealsQuery.safeParse({ sort: first(sp.sort), category: first(sp.category) || undefined, page: first(sp.page), pageSize: 30 });
+  const parsed = DealsQuery.safeParse({ sort: first(sp.sort), category: first(sp.category) || undefined, condition: first(sp.condition) || undefined, page: first(sp.page), pageSize: 30 });
   const query = parsed.success ? parsed.data : DealsQuery.parse({ pageSize: 30 });
   const api = await serverApi({ revalidate: 300 });
   const [res, cats] = await Promise.all([load(() => api.catalog.deals(query)), load(() => api.catalog.categories())]);
   const href = (o: Record<string, string | number | undefined>) =>
-    "/deals" + toQueryString({ sort: query.sort === "score" ? undefined : query.sort, category: query.category, ...o });
+    "/deals" + toQueryString({ sort: query.sort === "score" ? undefined : query.sort, category: query.category, condition: query.condition === "new" ? undefined : query.condition, ...o });
 
   const freshest = res.ok ? res.data.items.reduce<string | null>((m, d) => (!m || d.offer.lastCheckedAt > m ? d.offer.lastCheckedAt : m), null) : null;
   return (
@@ -64,6 +64,16 @@ export default async function DealsPage({ searchParams }: Props) {
       </p>
       <div className="my-5 flex flex-wrap items-center justify-between gap-3">
         <LinkTabs label="Sort deals" items={sorts.map((s) => ({ href: href({ sort: s.value === "score" ? undefined : s.value }), label: s.label, active: query.sort === s.value }))} />
+        <UrlSelect
+          name="condition"
+          label="Condition"
+          allLabel="New only"
+          options={[
+            { value: "open_box", label: "Open-box deals" },
+            { value: "refurbished", label: "Refurbished deals" },
+            { value: "used", label: "Used deals" },
+          ]}
+        />
         {cats.ok ? <UrlSelect name="category" label="Category" allLabel="All categories" options={cats.data.items.map((c) => ({ value: c.slug, label: c.name }))} /> : null}
       </div>
       {!res.ok ? (
