@@ -23,6 +23,7 @@ import { ENV, PRISMA, QUEUES, type PrismaClient, type Queues } from "../common/i
 import { input } from "../common/validate";
 import type { PriceEventJob } from "../core/alerts";
 import { FEED_INLINE_MAX_ROWS, FEED_MAX_ROWS, parseMerchantFeed, processMerchantFeed, type MerchantFeedJob } from "../core/feeds";
+import { syncLocalInventory } from "../core/local-inventory";
 import { MetricsService } from "../services/catalog.service";
 
 const MAX_FEED_BYTES = 10 * 1024 * 1024;
@@ -143,11 +144,12 @@ export class MerchantController {
       throw new ApiException(413, "payload_too_large", `Feeds are limited to ${FEED_MAX_ROWS} rows per upload (got ${parsed.stats.rows})`);
     }
     const feed = await this.prisma.retailerFeed.create({
-      data: { retailerId: retailer.id, merchantAccountId: acc.id, name: meta.name, format, status: "queued", rowsTotal: parsed.stats.rows },
+      data: { retailerId: retailer.id, merchantAccountId: acc.id, name: meta.name, format, status: "queued", rowsTotal: parsed.stats.rows, reviewStatus: acc.isLocalSeller ? "pending" : "verified" },
     });
 
     if (parsed.stats.rows <= FEED_INLINE_MAX_ROWS) {
       await processMerchantFeed(this.prisma, feed.id, parsed, (job) => this.enqueuePriceEventJob(job));
+      if (acc.isLocalSeller) await syncLocalInventory(this.prisma, acc.id);
       this.metrics.invalidate();
       return feedOut(await this.prisma.retailerFeed.findUniqueOrThrow({ where: { id: feed.id } }));
     }

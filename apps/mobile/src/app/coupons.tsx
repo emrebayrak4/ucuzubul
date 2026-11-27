@@ -6,10 +6,13 @@ import type { CouponListQuery } from "@pricora/contracts";
 import { ToolbarButton } from "@/components/browse/ProductBrowser";
 import { StoreMark } from "@/components/common";
 import { CouponCard } from "@/components/CouponCard";
+import { SubmitCouponSheet } from "@/components/SubmitCouponSheet";
 import { Sheet } from "@/components/Sheet";
 import { AppText, Button, Chip, EmptyState, ErrorState, Field, Notice, OfflineBanner, Row, Skeleton } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useFollowStore } from "@/lib/coupons";
+import { requireLogin } from "@/lib/saved";
 import { haptic } from "@/lib/format";
 import { param } from "@/lib/hooks";
 import { tokens, useTheme } from "@/lib/theme";
@@ -33,6 +36,8 @@ export default function CouponsScreen() {
   const [storeOpen, setStoreOpen] = useState(false);
   const [storeQ, setStoreQ] = useState("");
   const follow = useFollowStore(store);
+  const { user } = useAuth();
+  const [submitOpen, setSubmitOpen] = useState(false);
 
   const retailers = useQuery({ queryKey: ["retailers"], queryFn: ({ signal }) => api.catalog.retailers({ signal }), staleTime: 60 * 60_000 });
   const q = useInfiniteQuery({
@@ -62,6 +67,7 @@ export default function CouponsScreen() {
               Success rates come only from real “worked / didn’t work” reports. Codes marked Demo are placeholders for development.
             </AppText>
             <Row gap={2} style={{ flexWrap: "wrap" }}>
+              <ToolbarButton icon="add-circle-outline" label="Submit a coupon" onPress={() => (user ? setSubmitOpen(true) : requireLogin("Log in to share a coupon code."))} />
               <ToolbarButton icon="storefront-outline" label={store ? (storeName ?? "Store") : "All stores"} badge={store ? 1 : undefined} onPress={() => setStoreOpen(true)} />
               {store ? (
                 <Button
@@ -115,6 +121,7 @@ export default function CouponsScreen() {
         refreshControl={<RefreshControl refreshing={q.isRefetching && !q.isFetchingNextPage} onRefresh={() => void q.refetch()} tintColor={c.primary} />}
         contentInsetAdjustmentBehavior="automatic"
       />
+      <SubmitCouponSheet visible={submitOpen} onClose={() => setSubmitOpen(false)} defaultStore={store} />
       <Sheet visible={storeOpen} onClose={() => setStoreOpen(false)} title="Filter by store">
         <Field placeholder="Search stores" value={storeQ} onChangeText={setStoreQ} autoCorrect={false} />
         <Pressable

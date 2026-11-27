@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { isRunningInExpoGo } from "expo";
 import { Platform } from "react-native";
 import { brand } from "@pricora/config/brand";
 
@@ -29,3 +30,11 @@ const rawWeb: unknown = process.env.EXPO_PUBLIC_WEB_URL || extra.webUrl;
 export const WEB_URL = (typeof rawWeb === "string" && rawWeb ? rawWeb : brand.url).replace(/\/+$/, "");
 export const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || extra.eas?.projectId || null;
 export { brand };
+
+/**
+ * Running inside Expo Go (dev only; production builds are standalone). Uses the native ExpoGo module check:
+ * in SDK 58 Expo Go reports `executionEnvironment: "bare"` and `appOwnership: null`, so those can't be used.
+ */
+export const IN_EXPO_GO = isRunningInExpoGo();
+// Expo Go's floating developer "Tools button" is a dev-only overlay; turn it off in Expo Go's dev menu
+// (Tools button switch) instead of reserving layout space. Dev and production builds don't have it.

@@ -61,10 +61,10 @@ describe("pure helpers", () => {
 });
 
 describe("category tree", () => {
-  it("has 16 top-level categories and three levels", async () => {
+  it("has 17 top-level categories (incl. Household Essentials from seed:grocery) and three levels", async () => {
     const res = await request(server).get("/v1/categories").expect(200);
     expect(endpoints["catalog.categories"].response.safeParse(res.body).success).toBe(true);
-    expect(res.body.items).toHaveLength(16);
+    expect(res.body.items).toHaveLength(17);
     const computers = res.body.items.find((c: { slug: string }) => c.slug === "computers");
     const laptops = computers.children.find((c: { slug: string }) => c.slug === "laptops");
     expect(laptops.children.map((c: { slug: string }) => c.slug)).toContain("gaming-laptops");

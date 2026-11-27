@@ -323,6 +323,7 @@ export function OfferTable({
                 </TableCell>
                 <TableCell numeric>
                   <span className="price">{formatPrice(o.priceCents, { currency: o.currency })}</span>
+                  {o.unitPrice ? <span className="price block text-2xs text-text-muted" data-testid="offer-unit-price">{o.unitPrice.label}</span> : null}
                   {o.listPriceCents !== null && o.listPriceCents > o.priceCents ? (
                     <s className="price block text-2xs text-text-muted">
                       <span className="sr-only">List price </span>
@@ -397,7 +398,10 @@ export function OfferTable({
               <summary className="cursor-pointer text-text-muted">Details</summary>
               <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
                 <dt className="text-text-muted">Price</dt>
-                <dd className="price text-right">{formatPrice(o.priceCents, { currency: o.currency })}</dd>
+                <dd className="price text-right">
+                  {formatPrice(o.priceCents, { currency: o.currency })}
+                  {o.unitPrice ? <span className="block text-2xs text-text-muted">{o.unitPrice.label}</span> : null}
+                </dd>
                 <dt className="text-text-muted">
                   <Truck aria-hidden className="mr-1 inline size-3" />
                   Shipping

@@ -1,0 +1,8 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "code": "USD",
+    "name": "United States (US) dollar",
+    "symbol": "&#36;"
+  }
+}

@@ -5,6 +5,8 @@ import { notFound } from "../common/errors";
 import { PRISMA, type PrismaClient } from "../common/infra";
 import { couponInclude, liveWhere, toCoupon } from "../core/coupons";
 import { CONDITION_ORDER, EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
+import { bestValueIndex } from "@pricora/algorithms";
+import { netQuantityOf, unitPriceFor } from "../core/grocery";
 import { CatalogService, offerInclude, recentPreviousPrice } from "./catalog.service";
 
 @Injectable()
@@ -41,14 +43,15 @@ export class ProductService {
         ? this.prisma.productVariant.findMany({
             where: { familyKey: p.variant.familyKey },
             orderBy: { sortOrder: "asc" },
-            include: { product: { select: { id: true, slug: true, condition: true, status: true } } },
+            include: { product: { select: { id: true, slug: true, condition: true, status: true, netQuantity: true, netUnit: true, packCount: true, sizeLabel: true } } },
           })
         : Promise.resolve([]),
       this.catalog.metrics.all(),
     ]);
 
+    const qty = netQuantityOf(p);
     const offers = p.offers
-      .map((o) => this.catalog.toOffer(o, zip, pay))
+      .map((o) => this.catalog.toOffer(o, zip, pay, qty))
       .sort((a, b) => Number(a.stock === "out_of_stock") - Number(b.stock === "out_of_stock") || a.estimatedTotalCents - b.estimatedTotalCents);
 
     const { related, alternatives } = await this.similar(p, siblings.map((x) => x.product.id), allMetrics, metrics?.lowestPriceCents ?? null);
@@ -112,6 +115,9 @@ export class ProductService {
       hasDemoData: offers.some((o) => o.source === "demo") || p.isDemo,
       coupons: couponRows.map(toCoupon),
       previousLowestPriceCents: recentPreviousPrice(metrics),
+      netQuantity: qty,
+      sizeFamily: sizeFamily(siblings, allMetrics, p.id),
+      unitPricing: p.category?.unitPricing ?? false,
       defaultCondition: metrics?.condition ?? "new",
       conditionNote:
         metrics && metrics.condition !== "new" && !metrics.groups.new
@@ -173,3 +179,33 @@ export class ProductService {
 }
 
 const CONDITION_LABEL: Record<string, string> = { new: "new", open_box: "open-box", refurbished: "refurbished", used: "used" };
+
+type SiblingRow = {
+  label: string;
+  attributes: unknown;
+  product: { id: string; slug: string; status: string; netQuantity: number | null; netUnit: string | null; packCount: number | null; sizeLabel: string | null };
+};
+
+/**
+ * "Best value size": siblings that differ by size (variant attributes carry a `size` key) with unit prices.
+ * Sizes stay separate products; only same-basis unit prices are compared.
+ */
+function sizeFamily(siblings: SiblingRow[], allMetrics: Map<string, ProductMetrics>, currentId: string): ProductDetailResponse["sizeFamily"] {
+  const sized = siblings.filter((s) => s.product.status === "active" && s.attributes && typeof s.attributes === "object" && "size" in (s.attributes as Record<string, unknown>));
+  if (sized.length < 2) return [];
+  const rows = sized.map((s) => {
+    const qty = netQuantityOf(s.product);
+    const price = allMetrics.get(s.product.id)?.groups.new?.lowestPriceCents ?? null;
+    return { s, qty, price, unit: unitPriceFor(price, qty) };
+  });
+  const best = bestValueIndex(rows.map((r) => r.unit));
+  return rows.map((r, i) => ({
+    slug: r.s.product.slug,
+    label: r.s.product.sizeLabel ?? r.s.label,
+    netQuantity: r.qty,
+    lowestPriceCents: r.price,
+    unitPrice: r.unit,
+    current: r.s.product.id === currentId,
+    bestValue: i === best,
+  }));
+}

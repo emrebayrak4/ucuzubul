@@ -39,6 +39,7 @@
     "seed:catalog": "tsx prisma/seed/catalog-cli.ts",
     "seed:payments": "tsx prisma/seed/catalog-payments-cli.ts",
     "seed:conditions": "tsx prisma/seed/catalog-conditions-cli.ts",
+    "seed:grocery": "tsx prisma/seed/grocery-cli.ts",
     "geo:import": "tsx prisma/geo/import.ts",
     "zip:import": "tsx prisma/geo/zip-import.ts",
     "guides:sync": "tsx prisma/guides-sync.ts",

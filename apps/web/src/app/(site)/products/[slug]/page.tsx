@@ -18,6 +18,8 @@ import { PriceHistory } from "@/components/product/price-history";
 import { AlertDialogButton, InlinePriceAlert, ProductIconActions, type ActionProduct } from "@/components/product/product-actions";
 import { CompareWithList } from "@/components/product/alternatives";
 import { SetZipButton } from "@/components/zip-provider";
+import { AvailableNearby } from "@/components/local/available-nearby";
+import { SizeFamily } from "@/components/local/size-family";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -228,6 +230,12 @@ export default async function ProductPage({ params }: Props) {
                   {d.dealScore ? <DealScoreBadge score={d.dealScore.score} tier={d.dealScore.tier} className="mb-1.5" /> : null}
                   {d.hasDemoData ? <DemoDataBadge className="mb-1.5" /> : null}
                 </div>
+                {lowest.unitPrice ? (
+                  <p className="mt-1 text-sm text-text-muted" data-testid="lowest-unit-price">
+                    <span className="price font-semibold text-text">{lowest.unitPrice.label}</span>
+                    {d.netQuantity ? <> · {d.netQuantity.label}</> : null}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-sm text-text-muted">
                   Est. total <span className="price font-semibold text-text">{formatPrice(lowest.estimatedTotalCents, { currency })}</span>{" "}
                   {lowest.tax.status === "unknown_set_zip" ? (
@@ -292,6 +300,7 @@ export default async function ProductPage({ params }: Props) {
               <InlinePriceAlert product={actionProduct} />
             </div>
           </div>
+          {d.sizeFamily && d.sizeFamily.length > 1 ? <SizeFamily members={d.sizeFamily} /> : null}
         </div>
       </div>
 
@@ -323,6 +332,8 @@ export default async function ProductPage({ params }: Props) {
           <EmptyState icon={<PackageX aria-hidden />} title="No offers right now" description="Set a price alert and we'll tell you when a store lists it." action={<AlertDialogButton product={actionProduct} variant="secondary" />} />
         )}
       </section>
+
+      <AvailableNearby slug={p.slug} zip={zip} unitLabel={lowest?.unitPrice?.label ?? null} />
 
       <div className="mt-(--pc-section-gap)">
         <PriceHistory

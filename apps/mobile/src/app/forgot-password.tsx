@@ -36,7 +36,7 @@ export default function ForgotPasswordScreen() {
       {done ? (
         <>
           <Notice tone="info">{done}</Notice>
-          <AppText color="text-muted">Open the link in the email to choose a new password (it opens on the web).</AppText>
+          <AppText color="text-muted">Open the link in the email to choose a new password. It opens in the app when installed, otherwise on the web.</AppText>
           <Button title="Back to log in" onPress={() => router.replace("/login")} />
         </>
       ) : (

@@ -15,8 +15,9 @@ const GUTTER = tokens.layout.gutter.base;
 /** Brand: logo + description, category breakdown chips (scope the listing), filterable products. */
 export default function BrandScreen() {
   const { c } = useTheme();
-  const slug = param(useLocalSearchParams<{ slug: string }>().slug) ?? "";
-  const [category, setCategory] = useState<string | undefined>(undefined);
+  const params = useLocalSearchParams<{ slug: string; category?: string }>();
+  const slug = param(params.slug) ?? "";
+  const [category, setCategory] = useState<string | undefined>(param(params.category) || undefined);
   const q = useQuery({ queryKey: ["brand", slug], queryFn: ({ signal }) => api.catalog.brand(slug, { signal }), enabled: !!slug });
   const scope = useMemo(() => ({ brand: slug, category }), [slug, category]);
   const d = q.data;
@@ -57,6 +58,9 @@ export default function BrandScreen() {
               {d.categoryBreakdown.length > 1 ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -GUTTER }} contentContainerStyle={{ gap: sp[2], paddingHorizontal: GUTTER }}>
                   <Chip label="All" selected={!category} onPress={() => setCategory(undefined)} />
+                  {category && !d.categoryBreakdown.some((cc) => cc.slug === category) ? (
+                    <Chip label={category.replace(/-/g, " ")} icon="close" selected onPress={() => setCategory(undefined)} />
+                  ) : null}
                   {d.categoryBreakdown.map((cc) => (
                     <Chip key={cc.slug} label={`${cc.name} · ${cc.count}`} selected={category === cc.slug} onPress={() => setCategory(cc.slug)} />
                   ))}

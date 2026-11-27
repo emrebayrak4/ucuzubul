@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional, type OnApplicationBootstrap } from "@nestjs/common";
 import { parseSearchQuery, type ParsedSearchQuery } from "@pricora/algorithms";
 import type {
   CategoryFacetDef,
@@ -13,7 +13,10 @@ import type {
   SuggestResponse,
   Suggestion,
   TrendingResponse,
+  NearestStore,
+  ZipOrigin,
 } from "@pricora/contracts";
+import type { User } from "@pricora/database";
 import type { Meilisearch } from "meilisearch";
 import {
   buildSearchDocuments,
@@ -29,6 +32,7 @@ import { CONDITION_ORDER } from "../core/metrics";
 import { buildVocabulary, suggestCorrection, type SpellVocabulary } from "../core/search-spell";
 import { MEILI, PRISMA, type PrismaClient } from "../common/infra";
 import { CatalogService } from "./catalog.service";
+import { LocalService } from "./local.service";
 
 /** Maps @pricora/algorithms category hints to our category slugs, plus words to strip from the text query. */
 const CATEGORY_HINTS: Record<string, { slug: string; words: string[] }> = {
@@ -60,6 +64,9 @@ const SORTS: Record<SearchQuery["sort"], string[] | null> = {
   popular: ["storeCount:desc", "dealScore:desc"],
   newest: ["createdAt:desc"],
   biggest_drop: ["dropRatio:desc"],
+  unit_price: ["unitPriceMilli:asc"],
+  // Distance needs the shopper ZIP → always served by the in-memory path (see search()).
+  distance: null,
 };
 
 const HISTOGRAM_BINS = 24;
@@ -83,6 +90,9 @@ interface Effective {
   minDiscount?: number;
   /** Selected spec values grouped by facet key → ["key.slug", …]. */
   specs: Map<string, string[]>;
+  /** Nearest store per product within the radius (only when a ZIP is known and near/distance asked). */
+  nearby?: Map<string, NearestStore>;
+  near?: boolean;
 }
 
 /** Which filter group to leave out (disjunctive facet counts). */
@@ -120,6 +130,7 @@ export class SearchService implements OnApplicationBootstrap {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(MEILI) private readonly meili: Meilisearch,
     @Inject(CatalogService) private readonly catalog: CatalogService,
+    @Optional() @Inject(LocalService) private readonly local?: LocalService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -251,7 +262,7 @@ export class SearchService implements OnApplicationBootstrap {
     };
   }
 
-  async search(q: SearchQuery, userId?: string | null): Promise<SearchResponse> {
+  async search(q: SearchQuery, userId?: string | null, user?: User): Promise<SearchResponse> {
     const started = Date.now();
     // Strip control characters (incl. NUL, which Postgres text columns reject).
     if (q.q) q = { ...q, q: q.q.replace(/[\u0000-\u001f\u007f]/g, " ").trim() };
@@ -269,18 +280,44 @@ export class SearchService implements OnApplicationBootstrap {
     }
 
     const defs = this.facetDefs(eff.category, labels);
+    // Shopper location (query ZIP, else saved ZIP) for "Near me" / distance / nearby counts.
+    let location: ZipOrigin | null = null;
+    const radius = q.radius ?? 25;
+    if (this.local && (q.zip || q.near || q.sort === "distance" || user)) {
+      const o = await this.local.resolveOrigin(q.zip, user).catch(() => null);
+      if (o?.status === "ok") {
+        location = o.origin;
+        eff.nearby = await this.local.nearestByProduct(o.origin, radius);
+      }
+    }
+    eff.near = Boolean(q.near);
+    // Near-me filter and distance sort depend on the shopper ZIP → in-memory path (not a degradation).
+    const local = eff.near || q.sort === "distance";
     let result: { ids: string[]; total: number; facets: SearchFacets } | null = null;
     let degraded = false;
-    try {
-      result = await this.searchMeili(q, eff, labels, defs);
-    } catch (err) {
-      this.log.warn(`Meilisearch unavailable, using Postgres fallback: ${err instanceof Error ? err.message : String(err)}`);
+    if (!local) {
+      try {
+        result = await this.searchMeili(q, eff, labels, defs);
+      } catch (err) {
+        this.log.warn(`Meilisearch unavailable, using Postgres fallback: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
     if (!result) {
-      degraded = true;
-      result = await this.searchFallback(q, eff, labels, defs);
+      degraded = !local;
+      // Near-me / distance: keep Meilisearch relevance for the text part when the index is up.
+      let ranked: string[] | undefined;
+      if (local && eff.text.trim()) {
+        ranked = await this.meili
+          .index<ProductSearchDoc>(PRODUCTS_INDEX)
+          .search(eff.text, { limit: 1000, attributesToRetrieve: ["id"] })
+          .then((r) => r.hits.map((h) => h.id))
+          .catch(() => undefined);
+      }
+      result = await this.searchFallback(q, eff, labels, defs, ranked);
     }
     const items = await this.catalog.cards(result.ids, undefined, { conditions: eff.conditions });
+    if (eff.nearby) for (const card of items) card.nearest = eff.nearby.get(card.id) ?? null;
+    if (eff.nearby && result.facets.nearbyCount === undefined) result.facets.nearbyCount = (await this.docs()).filter((d) => eff.nearby?.has(d.id) && this.matcher(eff)(d)).length;
     if (!degraded && items.length < result.ids.length) {
       // Index references products that no longer exist (e.g. after a reseed) → rebuild in the background.
       this.catalog.metrics.invalidate();
@@ -291,7 +328,7 @@ export class SearchService implements OnApplicationBootstrap {
       const fix = suggestCorrection(eff.text, (await this.docsState()).vocab);
       if (fix && fix !== eff.text.trim().toLowerCase()) didYouMean = fix;
     }
-    return this.finish({
+    const out = this.finish({
       items,
       facets: result.facets,
       total: result.total,
@@ -302,6 +339,7 @@ export class SearchService implements OnApplicationBootstrap {
       started,
       userId,
     });
+    return { ...out, location };
   }
 
   private finish(a: {
@@ -378,7 +416,8 @@ export class SearchService implements OnApplicationBootstrap {
       (!eff.pickup || d.pickup) &&
       (omit === "pay" || !eff.payOverTime || (eff.payOverTime === "payin4" ? d.payIn4 : d.payOverTime)) &&
       (eff.minDiscount === undefined || (d.dropRatio ?? -1) >= eff.minDiscount) &&
-      [...eff.specs].every(([key, items]) => omit === `spec:${key}` || items.some((i) => d.specs.includes(i)));
+      [...eff.specs].every(([key, items]) => omit === `spec:${key}` || items.some((i) => d.specs.includes(i))) &&
+      (!eff.near || Boolean(eff.nearby?.has(d.id)));
   }
 
   private buildSpecFacets(defs: CategoryFacetDef[], eff: Effective, countsFor: (key: string) => Record<string, number>, specLabels: Map<string, string>): SpecFacet[] {
@@ -446,11 +485,14 @@ export class SearchService implements OnApplicationBootstrap {
     return { ids: main.hits.map((h) => h.id), total: main.totalHits ?? 0, facets };
   }
 
-  private async searchFallback(q: SearchQuery, eff: Effective, labels: Labels, defs: CategoryFacetDef[]) {
+  private async searchFallback(q: SearchQuery, eff: Effective, labels: Labels, defs: CategoryFacetDef[], ranked?: string[]) {
     const state = await this.docsState();
     let docs = state.docs;
     const scores = new Map<string, number>();
-    if (eff.text.trim()) {
+    if (ranked) {
+      ranked.forEach((id, i) => scores.set(id, ranked.length - i));
+      docs = docs.filter((d) => scores.has(d.id));
+    } else if (eff.text.trim()) {
       const text = eff.text.trim();
       // Escape LIKE wildcards so user input matches literally (default escape char is backslash).
       const like = "%" + text.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
@@ -480,6 +522,9 @@ export class SearchService implements OnApplicationBootstrap {
       popular: (a, b) => b.storeCount - a.storeCount || num(a.dealScore, -1) - num(b.dealScore, -1),
       newest: (a, b) => b.createdAt - a.createdAt,
       biggest_drop: (a, b) => num(a.dropRatio, -1) - num(b.dropRatio, -1),
+      // Cheapest per unit first; products without a known size last.
+      unit_price: (a, b) => num(a.unitPriceMilli, 1) - num(b.unitPriceMilli, 1),
+      distance: (a, b) => num(eff.nearby?.get(a.id)?.distanceMi ?? null, 1) - num(eff.nearby?.get(b.id)?.distanceMi ?? null, 1) || b.storeCount - a.storeCount,
     };
     hits.sort(sorters[q.sort]);
 

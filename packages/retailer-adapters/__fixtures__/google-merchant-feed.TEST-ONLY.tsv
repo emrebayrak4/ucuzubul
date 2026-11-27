@@ -1,0 +1,4 @@
+id	title	description	link	image_link	price	sale_price	availability	brand	gtin	mpn	condition
+TSV-1	Acme Desk Lamp	LED lamp	https://shop.example.com/p/tsv-1	https://shop.example.com/i/tsv-1.jpg	39.99 USD		in stock	Acme	012345678905	LMP-1	refurbished
+TSV-2	No Currency Item		https://shop.example.com/p/tsv-2		12.00		in stock				new
+TSV-3	Acme Cable	USB-C	https://shop.example.com/p/tsv-3		9.95 USD	7.15 USD	limited	Acme		CBL-3	new

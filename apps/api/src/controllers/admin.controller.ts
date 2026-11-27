@@ -26,6 +26,7 @@ import { Auth, type AuthedRequest, CurrentUser, requireEditor } from "../common/
 import { ApiException, conflict, notFound } from "../common/errors";
 import { PRISMA, QUEUES, type PrismaClient, type Queues } from "../common/infra";
 import { input } from "../common/validate";
+import { createOfferFromMatch } from "../core/local-inventory";
 import { MetricsService } from "../services/catalog.service";
 
 const RANGE_MS = { "24h": 86_400_000, "7d": 7 * 86_400_000, "30d": 30 * 86_400_000, "90d": 90 * 86_400_000 } as const;
@@ -586,6 +587,11 @@ export class AdminController {
       this.prisma.matchReview.create({ data: { matchId: id, reviewerId: user.id, decision: b.decision, productId, note: b.note ?? null } }),
       this.prisma.productMatch.update({ where: { id }, data: { status: b.decision === "reject" ? "rejected" : "approved", productId } }),
     ]);
+    // Merchant-feed listings without a GTIN match become offers once an editor approves the product.
+    if (b.decision !== "reject" && productId) {
+      const offerId = await createOfferFromMatch(this.prisma, match, productId);
+      if (offerId) await this.prisma.productMatch.update({ where: { id }, data: { offerId } });
+    }
     await this.audit(req, "match.review", "ProductMatch", id, b);
     return { ok: true };
   }

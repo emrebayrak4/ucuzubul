@@ -1,0 +1,165 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "data": {
+      "productVariants": {
+        "pageInfo": {
+          "hasNextPage": true,
+          "endCursor": "eyJsYXN0X2lkIjoxMDAzfQ=="
+        },
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/1001",
+            "sku": "ACME-X100",
+            "barcode": "012345678905",
+            "price": "12.99",
+            "compareAtPrice": "19.99",
+            "title": "Default Title",
+            "image": null,
+            "product": {
+              "id": "gid://shopify/Product/9001",
+              "title": "Acme X100 Headphones",
+              "description": "Wireless over-ear headphones",
+              "vendor": "Acme",
+              "status": "ACTIVE",
+              "onlineStoreUrl": "https://acme-test.myshopify.com/products/x100",
+              "featuredMedia": {
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/test/x100.jpg"
+                  }
+                }
+              }
+            },
+            "inventoryItem": {
+              "tracked": true,
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "location": {
+                      "id": "gid://shopify/Location/1"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 12
+                      }
+                    ]
+                  },
+                  {
+                    "location": {
+                      "id": "gid://shopify/Location/2"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 2
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/ProductVariant/1002",
+            "sku": "ACME-CASE-RED",
+            "barcode": "123",
+            "price": "4.35",
+            "compareAtPrice": null,
+            "title": "Red",
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/test/case-red.jpg"
+            },
+            "product": {
+              "id": "gid://shopify/Product/9002",
+              "title": "Acme Case",
+              "description": "",
+              "vendor": "Acme",
+              "status": "ACTIVE",
+              "onlineStoreUrl": null,
+              "featuredMedia": null
+            },
+            "inventoryItem": {
+              "tracked": false,
+              "inventoryLevels": {
+                "nodes": []
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/ProductVariant/1003",
+            "sku": "DRAFT-1",
+            "barcode": null,
+            "price": "9.00",
+            "compareAtPrice": null,
+            "title": "Default Title",
+            "image": null,
+            "product": {
+              "id": "gid://shopify/Product/9003",
+              "title": "Draft Product",
+              "description": null,
+              "vendor": null,
+              "status": "DRAFT",
+              "onlineStoreUrl": null,
+              "featuredMedia": null
+            },
+            "inventoryItem": {
+              "tracked": true,
+              "inventoryLevels": {
+                "nodes": []
+              }
+            }
+          }
+        ]
+      },
+      "shop": {
+        "currencyCode": "USD"
+      },
+      "locations": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Location/1",
+            "name": "Austin Store",
+            "isActive": true,
+            "address": {
+              "address1": "100 Congress Ave",
+              "city": "Austin",
+              "provinceCode": "TX",
+              "zip": "78701",
+              "latitude": 30.2672,
+              "longitude": -97.7431,
+              "phone": "+15125550100"
+            }
+          },
+          {
+            "id": "gid://shopify/Location/2",
+            "name": "Warehouse",
+            "isActive": true,
+            "address": {
+              "address1": null,
+              "city": "Round Rock",
+              "provinceCode": "TX",
+              "zip": "78664",
+              "latitude": null,
+              "longitude": null,
+              "phone": null
+            }
+          },
+          {
+            "id": "gid://shopify/Location/3",
+            "name": "Closed Pop-up",
+            "isActive": false,
+            "address": {}
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 562,
+        "actualQueryCost": 41
+      }
+    }
+  }
+}

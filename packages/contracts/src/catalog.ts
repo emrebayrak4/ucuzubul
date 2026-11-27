@@ -13,6 +13,7 @@ import {
   StockStatus,
   paginated,
 } from "./common";
+import { NearestStore, NetQuantity, SizeFamilyMember, UnitPrice } from "./grocery";
 import { Coupon } from "./coupons";
 
 /* ------------------------------------------------------------------ */
@@ -76,6 +77,8 @@ export const CategoryDetailResponse = z.object({
   facets: z.array(CategoryFacetDef),
   /** Longer SEO / buying-guide text (plain paragraphs separated by blank lines). */
   seoText: z.string().nullable(),
+  /** Grocery / household: unit prices shown prominently and the unit-price sort offered. */
+  unitPricing: z.boolean().optional(),
 });
 export type CategoryDetailResponse = z.infer<typeof CategoryDetailResponse>;
 
@@ -234,6 +237,12 @@ export const ProductCard = z.object({
   payOverTime: z.boolean().optional(),
   /** Up to 4 short spec values for tiles / list rows, e.g. ["16 GB RAM", "512 GB SSD"]. */
   keySpecs: z.array(z.string()).optional(),
+  /** Unit price of the headline price (grocery / everyday items with a known net quantity). */
+  unitPrice: UnitPrice.nullable().optional(),
+  /** Size as sold ("18.8 oz", "2 × 12 oz"). */
+  sizeLabel: z.string().nullable().optional(),
+  /** Nearest store carrying it (only in "Near me" / distance-sorted results). */
+  nearest: NearestStore.nullable().optional(),
   updatedAt: IsoDateTime,
 });
 export type ProductCard = z.infer<typeof ProductCard>;
@@ -297,6 +306,8 @@ export const Offer = z.object({
   paymentOptions: z.array(PaymentOption).optional(),
   /** Interest-free pay-in-4 estimate for this offer, or null. */
   payIn4: PayIn4.nullable().optional(),
+  /** Price per unit (¢/oz, $/100 sheets…) when the product has a known net quantity. */
+  unitPrice: UnitPrice.nullable().optional(),
 });
 export type Offer = z.infer<typeof Offer>;
 
@@ -406,6 +417,12 @@ export const ProductDetailResponse = z.object({
     .optional(),
   /** Real previous price at the lowest-price store if it dropped in the last 7 days (see ProductCard.previousPriceCents). */
   previousLowestPriceCents: Cents.nullable().optional(),
+  /** Net quantity (total across a multipack) — drives unit prices. */
+  netQuantity: NetQuantity.nullable().optional(),
+  /** Other sizes of the same product line with unit prices ("best value size"); separate products, never merged. */
+  sizeFamily: z.array(SizeFamilyMember).optional(),
+  /** Category shows unit prices prominently (grocery / household). */
+  unitPricing: z.boolean().optional(),
   /** Same category, closest specs/price. */
   related: z.array(ProductCard),
   /** Alternatives from other brands in the same category and price band (one-click compare). */

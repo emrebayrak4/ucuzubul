@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { ProductBrowser } from "@/components/browse/ProductBrowser";
 import { PhotoCredit } from "@/components/common";
@@ -16,6 +16,21 @@ const sp = tokens.spacing;
 const GUTTER = tokens.layout.gutter.base;
 
 /** Category: photo header, breadcrumbs, subcategory chips, top brands, then the filterable product listing. */
+/** Category buying guide (plain paragraphs), collapsed to 3 lines. */
+function GuideText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: 4 }}>
+      <AppText color="text-muted" numberOfLines={open ? undefined : 3}>
+        {text.trim()}
+      </AppText>
+      <AppText variant="caption" color="primary" onPress={() => setOpen((v) => !v)} accessibilityRole="button">
+        {open ? "Show less" : "Read the buying guide"}
+      </AppText>
+    </View>
+  );
+}
+
 export default function CategoryScreen() {
   const { c } = useTheme();
   const params = useLocalSearchParams<Record<string, string>>();
@@ -76,6 +91,14 @@ export default function CategoryScreen() {
                 ))}
               </ScrollView>
             ) : null}
+            {d ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -GUTTER }} contentContainerStyle={{ gap: sp[2], paddingHorizontal: GUTTER }}>
+                <Chip label={`Best ${d.category.name} deals`} icon="trophy-outline" onPress={() => router.push({ pathname: "/best/[slug]", params: { slug } })} />
+                <Chip label={`Popular in ${d.category.name}`} icon="flame-outline" onPress={() => router.push({ pathname: "/popular", params: { category: slug } })} />
+                <Chip label="Price drops" icon="trending-down-outline" onPress={() => router.push({ pathname: "/price-drops", params: { category: slug } })} />
+              </ScrollView>
+            ) : null}
+            {d?.seoText ? <GuideText text={d.seoText} /> : null}
             {d?.topBrands.length ? (
               <View style={{ gap: sp[1.5] }}>
                 <AppText variant="label" color="text-muted">

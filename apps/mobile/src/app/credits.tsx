@@ -22,6 +22,7 @@ export default function CreditsScreen() {
       ListHeaderComponent={
         <AppText color="text-muted" style={{ marginVertical: sp[3] }}>
           Photos from Unsplash, used under the Unsplash License. Tap a row to see the photo on Unsplash. Product images and store logos belong to their owners.
+          {" "}Data sources: prices and availability come from store APIs, affiliate and merchant feeds where connected; anything else is labeled “Demo data”. ZIP lookups use US Census ZCTA data (public domain).
         </AppText>
       }
       renderSectionHeader={({ section }) => (

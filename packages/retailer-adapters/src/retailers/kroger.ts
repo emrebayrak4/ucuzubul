@@ -7,14 +7,62 @@
  * Price/inventory are only returned when filter.locationId (a store) is supplied, so
  * KROGER_LOCATION_ID is required: prices are store-specific.
  * Quota: 10,000 calls/day per client (mirrored docs).
+ *
+ * Per-store:
+ *   Locations: GET /v1/locations?filter.zipCode.near=&filter.radiusInMiles=&filter.limit=  (same token)
+ *   fetchProducts / fetchProductDetails accept an optional locationId overriding KROGER_LOCATION_ID;
+ *   fetchProductsAtLocation() returns per-store price, stock bucket and fulfillment flags.
+ *   Store-scoped calls need only KROGER_CLIENT_ID / KROGER_CLIENT_SECRET (+ a locationId argument).
  */
 import { BaseRetailerAdapter, type AdapterOptions } from "../base";
-import { ResponseShapeError } from "../errors";
+import type { CommerceLocation, CommerceStock } from "../commerce/types";
+import { PendingConfigurationError, ResponseShapeError } from "../errors";
 import { TokenCache } from "../oauth";
 import type { Availability, FetchResult, NormalizedListing, ProductQuery } from "../types";
-import { arr, base64, cleanGtin, compactAttrs, get, isObject, str, toCents } from "../util";
+import { arr, base64, cleanGtin, compactAttrs, get, isObject, readEnv, str, toCents } from "../util";
 
 const BASE = "https://api.kroger.com/v1";
+const CREDENTIAL_ENV = ["KROGER_CLIENT_ID", "KROGER_CLIENT_SECRET"] as const;
+
+export interface KrogerLocation extends CommerceLocation {
+  /** Banner, e.g. "KROGER", "RALPHS", "FRED MEYER". */
+  chain: string | null;
+}
+
+export interface KrogerFulfillment {
+  curbside: boolean | null;
+  instore: boolean | null;
+  delivery: boolean | null;
+  shipToHome: boolean | null;
+}
+
+export interface KrogerStoreListing extends NormalizedListing {
+  locationId: string;
+  stock: CommerceStock;
+  fulfillment: KrogerFulfillment;
+}
+
+/** Kroger items[].inventory.stockLevel → stock bucket. */
+export function krogerStock(level: unknown): CommerceStock {
+  if (level === "HIGH") return "in_stock";
+  if (level === "LOW") return "low_stock";
+  if (level === "TEMPORARILY_OUT_OF_STOCK") return "out_of_stock";
+  return "unknown";
+}
+
+function assertLocationId(id: string): string {
+  const v = id.trim();
+  if (!/^[A-Za-z0-9]{1,16}$/.test(v)) throw new RangeError("invalid Kroger locationId");
+  return v;
+}
+
+function bool(v: unknown): boolean | null {
+  return typeof v === "boolean" ? v : null;
+}
+
+function num(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
 
 /**
  * Kroger's `upc` is commonly a 13-digit code WITHOUT the check digit (UNVERIFIED quirk observed in
@@ -44,8 +92,15 @@ export class KrogerAdapter extends BaseRetailerAdapter {
     this.tokens = new TokenCache(this.clock);
   }
 
+  /** Client credentials only (store-scoped calls supply their own locationId). Throws PendingConfigurationError. */
+  private credentials(): Record<string, string> {
+    const { values, missing } = readEnv(this.env, CREDENTIAL_ENV);
+    if (missing.length > 0) throw new PendingConfigurationError(this.id, missing);
+    return values;
+  }
+
   private async token(): Promise<string> {
-    const env = this.requireEnv();
+    const env = this.credentials();
     return this.tokens.get(async () => {
       const res = await this.http.json<Record<string, unknown>>({
         url: `${BASE}/connect/oauth2/token`,
@@ -62,22 +117,86 @@ export class KrogerAdapter extends BaseRetailerAdapter {
     });
   }
 
-  private async call(path: string, params: Record<string, string>): Promise<unknown> {
-    const env = this.requireEnv();
+  /** locationId override, else KROGER_LOCATION_ID; throws PendingConfigurationError when neither (or credentials) is set. */
+  private resolveLocation(locationId?: string): string {
+    const missing = readEnv(this.env, CREDENTIAL_ENV).missing;
+    const loc = locationId ?? this.envValue("KROGER_LOCATION_ID");
+    if (missing.length > 0 || !loc) throw new PendingConfigurationError(this.id, loc ? missing : [...missing, "KROGER_LOCATION_ID"]);
+    return assertLocationId(loc);
+  }
+
+  private async call(path: string, params: Record<string, string>, locationId?: string): Promise<unknown> {
+    const loc = this.resolveLocation(locationId);
     const token = await this.token();
-    const qs = new URLSearchParams({ "filter.locationId": env.KROGER_LOCATION_ID as string, ...params });
+    const qs = new URLSearchParams({ "filter.locationId": loc, ...params });
     return this.guard(() => this.http.json({ url: `${BASE}${path}?${qs.toString()}`, headers: { Authorization: `Bearer ${token}` } }));
   }
 
-  async fetchProducts(q: ProductQuery): Promise<FetchResult<NormalizedListing[]>> {
-    this.requireEnv();
+  /** Kroger-family stores near a US ZIP (Locations API). */
+  async locationsNear(zip: string, radiusMiles = 10, limit = 10): Promise<FetchResult<KrogerLocation[]>> {
+    this.credentials();
+    const z = zip.trim();
+    if (!/^\d{5}$/.test(z)) throw new RangeError("zip must be a 5-digit US ZIP code");
+    if (!Number.isInteger(radiusMiles) || radiusMiles < 1 || radiusMiles > 100) throw new RangeError("radiusMiles must be an integer 1-100");
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new RangeError("limit must be an integer 1-200");
+    const token = await this.token();
+    const qs = new URLSearchParams({ "filter.zipCode.near": z, "filter.radiusInMiles": String(radiusMiles), "filter.limit": String(limit) });
+    const res = await this.guard(() => this.http.json({ url: `${BASE}/locations?${qs.toString()}`, headers: { Authorization: `Bearer ${token}` } }));
+    const locations = arr(get(res, "data")).flatMap((l): KrogerLocation[] => {
+      const id = str(get(l, "locationId"));
+      if (!id) return [];
+      return [
+        {
+          externalId: id,
+          name: str(get(l, "name")) ?? id,
+          address1: str(get(l, "address.addressLine1")),
+          city: str(get(l, "address.city")),
+          state: str(get(l, "address.state")),
+          zip: str(get(l, "address.zipCode")),
+          lat: num(get(l, "geolocation.latitude")),
+          lng: num(get(l, "geolocation.longitude")),
+          phone: str(get(l, "phone")),
+          chain: str(get(l, "chain")),
+        },
+      ];
+    });
+    return this.result(locations, this.source);
+  }
+
+  /** Products with this store's price, stock bucket and fulfillment flags. */
+  async fetchProductsAtLocation(locationId: string, q: ProductQuery): Promise<FetchResult<KrogerStoreListing[]>> {
+    const loc = this.resolveLocation(locationId);
+    const raw = await this.searchRaw(q, loc);
+    const out: KrogerStoreListing[] = [];
+    for (const p of raw) {
+      const l = this.normalizeProduct(p);
+      if (!l) continue;
+      const item = arr(get(p, "items"))[0];
+      out.push({
+        ...l,
+        locationId: loc,
+        stock: krogerStock(get(item, "inventory.stockLevel")),
+        fulfillment: {
+          curbside: bool(get(item, "fulfillment.curbside")),
+          // Kroger documents `inStore`; accept the lowercase spelling too.
+          instore: bool(get(item, "fulfillment.inStore")) ?? bool(get(item, "fulfillment.instore")),
+          delivery: bool(get(item, "fulfillment.delivery")),
+          shipToHome: bool(get(item, "fulfillment.shipToHome")),
+        },
+      });
+    }
+    return this.result(out, this.source);
+  }
+
+  private async searchRaw(q: ProductQuery, locationId?: string): Promise<unknown[]> {
     if (q.retailerSkus?.length) {
-      const out: NormalizedListing[] = [];
+      const out: unknown[] = [];
       for (const id of q.retailerSkus.slice(0, 20)) {
-        const r = await this.fetchProductDetails(id);
-        if (r.data) out.push(r.data);
+        const res = await this.call(`/products/${encodeURIComponent(id)}`, {}, locationId);
+        const d = get(res, "data");
+        if (isObject(d)) out.push(d);
       }
-      return this.result(out, this.source);
+      return out;
     }
     const term = q.gtin ?? q.keywords;
     if (!term) throw new RangeError("keywords, gtin or retailerSkus required");
@@ -88,15 +207,19 @@ export class KrogerAdapter extends BaseRetailerAdapter {
       "filter.start": String((Math.max(1, q.page ?? 1) - 1) * limit + 1),
     };
     if (q.brand) params["filter.brand"] = q.brand;
-    const res = await this.call("/products", params);
-    const listings = arr(get(res, "data"))
+    return arr(get(await this.call("/products", params, locationId), "data"));
+  }
+
+  async fetchProducts(q: ProductQuery, locationId?: string): Promise<FetchResult<NormalizedListing[]>> {
+    this.resolveLocation(locationId);
+    const listings = (await this.searchRaw(q, locationId))
       .map((p) => this.normalizeProduct(p))
       .filter((l): l is NormalizedListing => l !== null);
     return this.result(listings, this.source);
   }
 
-  async fetchProductDetails(productId: string): Promise<FetchResult<NormalizedListing | null>> {
-    const res = await this.call(`/products/${encodeURIComponent(productId)}`, {});
+  async fetchProductDetails(productId: string, locationId?: string): Promise<FetchResult<NormalizedListing | null>> {
+    const res = await this.call(`/products/${encodeURIComponent(productId)}`, {}, locationId);
     return this.result(this.normalizeProduct(get(res, "data")), this.source);
   }
 
@@ -109,8 +232,8 @@ export class KrogerAdapter extends BaseRetailerAdapter {
     const regular = toCents(get(item, "price.regular"));
     const promo = toCents(get(item, "price.promo"));
     const priceCents = promo !== null && promo > 0 ? promo : regular;
-    const stock = str(get(item, "inventory.stockLevel"));
-    const availability: Availability = stock === "HIGH" ? "in_stock" : stock === "LOW" ? "limited" : stock === "TEMPORARILY_OUT_OF_STOCK" ? "out_of_stock" : "unknown";
+    const stock = krogerStock(str(get(item, "inventory.stockLevel")));
+    const availability: Availability = stock === "low_stock" ? "limited" : stock;
     const images = arr(raw.images);
     const front = images.find((i) => get(i, "perspective") === "front") ?? images[0];
     const sizes = arr(get(front, "sizes"));

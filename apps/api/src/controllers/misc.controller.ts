@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req } from "@nest
 import { Throttle } from "@nestjs/throttler";
 import { computeOfferTotal, optimizeBasket, type BasketScenario as AlgoScenario, type RetailerPolicy } from "@pricora/algorithms";
 import type { AssistantResponse, BasketOptimizeResponse, BasketScenario, ScanResponse } from "@pricora/contracts";
+import { netQuantityOf, unitPriceFor } from "../core/grocery";
 import { Auth, type AuthedRequest } from "../common/auth";
 import { ApiException } from "../common/errors";
 import { INTEGRATIONS, PRISMA, type PrismaClient } from "../common/infra";
@@ -61,7 +62,7 @@ export class MiscController {
         stock: { not: "out_of_stock" },
         ...(b.allowConditions ? { product: { condition: { in: b.allowConditions } } } : {}),
       },
-      include: { ...offerInclude, retailer: true, product: { select: { slug: true, title: true } } },
+      include: { ...offerInclude, retailer: true, product: { select: { slug: true, title: true, netQuantity: true, netUnit: true, packCount: true, sizeLabel: true } } },
     });
     const policies = new Map<string, RetailerPolicy>();
     for (const o of offers) {
@@ -78,7 +79,7 @@ export class MiscController {
       b.items.map((i) => ({ itemId: i.productId, quantity: i.qty })),
       offers.map((o) => ({ itemId: o.productId, retailerId: o.retailerId, priceCents: o.priceCents, inStock: true, pickupAvailable: o.pickupAvailable })),
       [...policies.values()],
-      { memberships, allowPickup: b.preferPickup ?? false, ...(b.maxStores ? { maxStores: b.maxStores } : {}) },
+      { memberships, allowPickup: (b.preferPickup ?? false) || b.fulfillment === "pickup", ...(b.maxStores ? { maxStores: b.maxStores } : {}) },
     );
 
     const toScenario = (kind: BasketScenario["kind"], s: AlgoScenario): Omit<BasketScenario, "savingsCents"> => {
@@ -93,7 +94,7 @@ export class MiscController {
               offers.find((x) => x.productId === l.itemId && x.retailerId === st.retailerId && x.priceCents === l.unitPriceCents) ??
               offers.find((x) => x.productId === l.itemId && x.retailerId === st.retailerId);
             if (!o) return [];
-            return [{ productId: o.productId, productSlug: o.product.slug, title: o.product.title, qty: l.quantity, offerId: o.id, unitPriceCents: l.unitPriceCents, lineTotalCents: l.lineTotalCents, condition: o.condition, source: o.source }];
+            return [{ productId: o.productId, productSlug: o.product.slug, title: o.product.title, qty: l.quantity, offerId: o.id, unitPriceCents: l.unitPriceCents, lineTotalCents: l.lineTotalCents, condition: o.condition, source: o.source, unitMeasurePrice: unitPriceFor(l.unitPriceCents, netQuantityOf(o.product)), sizeLabel: o.product.sizeLabel }];
           }),
           subtotalCents: st.subtotalCents,
           shippingCents: st.shippingCents,
@@ -101,6 +102,7 @@ export class MiscController {
           totalCents: st.totalCents + (tax ?? 0),
           freeShippingApplied: st.freeShippingReason !== null,
           freeShippingGapCents: threshold !== null && st.subtotalCents < threshold && threshold - st.subtotalCents <= 2500 ? threshold - st.subtotalCents : null,
+          orderMinimum: orderMinimumFor(b.fulfillment, retailer ?? null, st.subtotalCents),
         };
       });
       const taxes = stores.map((x) => x.estimatedTaxCents);
@@ -115,7 +117,7 @@ export class MiscController {
         estimatedTaxCents,
         totalCents: s.totalCents + (estimatedTaxCents ?? 0),
         unavailableProductIds: result.unfulfilledItemIds,
-        assumptions: [...result.assumptions, zip ? `Sales tax estimated for ZIP ${zip} (state base rate).` : "Sales tax not included — set a ZIP for an estimate."],
+        assumptions: [...result.assumptions, ...(b.fulfillment === "pickup" || b.fulfillment === "delivery" ? [`Store ${b.fulfillment} minimums are shown only where the store publishes them.`] : []), zip ? `Sales tax estimated for ZIP ${zip} (state base rate).` : "Sales tax not included — set a ZIP for an estimate."],
         method: s.method,
       };
     };
@@ -152,4 +154,16 @@ export class MiscController {
       reason: flag?.enabled ? "Provider adapter not implemented yet" : "Feature flag assistant.enabled is off",
     });
   }
+}
+
+/** Pickup / delivery order minimum at a store — only when the retailer publishes one (null = unknown, never assumed). */
+function orderMinimumFor(
+  fulfillment: "shipping" | "pickup" | "delivery" | undefined,
+  retailer: { pickupMinimumCents: number | null; deliveryMinimumCents: number | null } | null,
+  subtotalCents: number,
+): { kind: "pickup" | "delivery"; minimumCents: number; met: boolean; gapCents: number } | null {
+  if (!retailer || (fulfillment !== "pickup" && fulfillment !== "delivery")) return null;
+  const min = fulfillment === "pickup" ? retailer.pickupMinimumCents : retailer.deliveryMinimumCents;
+  if (min === null) return null;
+  return { kind: fulfillment, minimumCents: min, met: subtotalCents >= min, gapCents: Math.max(0, min - subtotalCents) };
 }

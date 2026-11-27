@@ -160,6 +160,11 @@ export function OfferList({
                   <AppText variant="caption" color="text-muted">
                     {sort === "price" ? "item price" : "est. total"}
                   </AppText>
+                  {o.unitPrice ? (
+                    <AppText variant="caption" color="text-muted">
+                      {o.unitPrice.label}
+                    </AppText>
+                  ) : null}
                 </View>
               </Row>
               <AppText variant="caption" color="text-muted">

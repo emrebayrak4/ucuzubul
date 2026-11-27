@@ -14,6 +14,7 @@ export interface LocalStore<T> {
 
 export function createLocalStore<T>(key: string, initial: T, parse: (raw: unknown) => T | null): LocalStore<T> {
   let value = initial;
+  let loaded = false;
   const listeners = new Set<(v: T) => void>();
   const ready = AsyncStorage.getItem(key)
     .then((raw) => {
@@ -24,11 +25,19 @@ export function createLocalStore<T>(key: string, initial: T, parse: (raw: unknow
         listeners.forEach((l) => l(value));
       }
     })
-    .catch(() => undefined);
+    .catch(() => undefined)
+    .finally(() => {
+      loaded = true;
+    });
 
-  return {
+  const store: LocalStore<T> = {
     get: () => value,
     set: (next) => {
+      // A write before the persisted value is loaded would overwrite it with `initial`: apply it after loading.
+      if (!loaded) {
+        void ready.then(() => store.set(next));
+        return;
+      }
       value = typeof next === "function" ? (next as (prev: T) => T)(value) : next;
       listeners.forEach((l) => l(value));
       AsyncStorage.setItem(key, JSON.stringify(value)).catch(() => undefined);
@@ -41,6 +50,7 @@ export function createLocalStore<T>(key: string, initial: T, parse: (raw: unknow
     },
     ready,
   };
+  return store;
 }
 
 export function useLocalStore<T>(store: LocalStore<T>): T {

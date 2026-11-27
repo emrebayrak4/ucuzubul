@@ -176,6 +176,11 @@ export function ProductCardTile({
                   <span className="sr-only">Previously </span>
                   {formatPrice(was, { currency })}
                 </s>
+              ) : product.unitPrice ? (
+                <span className="price font-medium text-text" data-testid="tile-unit-price">
+                  {product.unitPrice.label}
+                  {product.sizeLabel && !product.keySpecs?.includes(product.sizeLabel) ? <span className="font-normal text-text-muted"> · {product.sizeLabel}</span> : null}
+                </span>
               ) : null}
             </p>
             <p
@@ -186,6 +191,11 @@ export function ProductCardTile({
               {payIn4 ? (
                 <span data-testid="tile-pay-in-4">
                   or 4 × <span className="font-semibold text-text">{formatPrice(payIn4.installmentCents, { currency })}</span> · {payIn4.provider}
+                </span>
+              ) : null}
+              {!payIn4 && !otherCondition && product.nearest ? (
+                <span data-testid="tile-nearest">
+                  Nearby: <span className="font-semibold text-text">{product.nearest.distanceMi.toFixed(1)} mi</span> · {product.nearest.storeName}
                 </span>
               ) : null}
               {payIn4 && otherCondition ? " · " : null}
@@ -296,6 +306,12 @@ export function ProductListRow({ product }: { product: ProductCard }) {
           {product.lowestPriceCents !== null ? (
             <>
               <span className="price text-xl font-extrabold">{formatPrice(product.lowestPriceCents, { currency: product.currency })}</span>
+              {product.unitPrice ? <span className="price text-xs font-medium text-text">{product.unitPrice.label}</span> : null}
+              {product.nearest ? (
+                <span className="text-xs text-text-muted">
+                  {product.nearest.distanceMi.toFixed(1)} mi · {product.nearest.storeName}
+                </span>
+              ) : null}
               <span className="text-xs text-text-muted">
                 lowest price · <span className="price font-medium text-text">{product.storeCount}</span> {product.storeCount === 1 ? "store" : "stores"}
               </span>

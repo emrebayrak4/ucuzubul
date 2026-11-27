@@ -11,7 +11,7 @@ import { startNavFeedback } from "@/lib/nav-feedback";
 type Hide = Partial<Record<"category" | "brand" | "retailer", boolean>>;
 
 /** Params owned by the filter UI (cleared by "Clear all", respecting fixed params on brand/store pages). */
-const FILTER_PARAMS = ["brand", "retailer", "minPrice", "maxPrice", "condition", "inStock", "freeShipping", "payOverTime", "minDiscount", "spec", "category"] as const;
+const FILTER_PARAMS = ["brand", "retailer", "minPrice", "maxPrice", "condition", "inStock", "freeShipping", "payOverTime", "minDiscount", "spec", "category", "near"] as const;
 
 function useParamUpdater() {
   const router = useRouter();
@@ -327,7 +327,7 @@ function Availability({ facets }: { facets: SearchFacets }) {
   const payParam = payRaw === "true" ? "any" : payRaw;
   const discount = params.get("minDiscount") ?? "";
   return (
-    <Section title="Availability & deals" count={["inStock", "freeShipping", "payOverTime", "minDiscount"].filter((k) => params.get(k)).length}>
+    <Section title="Availability & deals" count={["inStock", "freeShipping", "payOverTime", "minDiscount", "near"].filter((k) => params.get(k)).length}>
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <Label htmlFor="f-instock" className="text-sm font-normal">
@@ -340,6 +340,13 @@ function Availability({ facets }: { facets: SearchFacets }) {
             Free shipping <span className="price text-xs text-text-muted">({facets.freeShippingCount})</span>
           </Label>
           <Switch id="f-freeship" checked={params.get("freeShipping") === "true"} onCheckedChange={(c) => update({ freeShipping: c ? "true" : null })} />
+        </div>
+        <div className="flex items-center justify-between gap-2" data-testid="filter-near-me">
+          <Label htmlFor="f-near" className="text-sm font-normal" title="In stock (or stock unknown) at a store within 25 miles of your ZIP code">
+            Near me (25 mi){" "}
+            {facets.nearbyCount !== undefined ? <span className="price text-xs text-text-muted">({facets.nearbyCount})</span> : <span className="text-xs text-text-muted">· set ZIP</span>}
+          </Label>
+          <Switch id="f-near" disabled={facets.nearbyCount === undefined && params.get("near") !== "true"} checked={params.get("near") === "true"} onCheckedChange={(c) => update({ near: c ? "true" : null })} />
         </div>
         <fieldset data-testid="filter-pay-over-time">
           <legend className="mb-1 text-xs font-semibold text-text-muted" title="Buy now, pay later or financing offered by the store at checkout, subject to approval.">
@@ -487,6 +494,7 @@ function AppliedFiltersInner({ facets, hide = {} }: { facets: SearchFacets; hide
   }
   if (params.get("inStock") === "true") chips.push({ key: "stock", label: "In stock", remove: () => update({ inStock: null }) });
   if (params.get("freeShipping") === "true") chips.push({ key: "ship", label: "Free shipping", remove: () => update({ freeShipping: null }) });
+  if (params.get("near") === "true") chips.push({ key: "near", label: "Near me", remove: () => update({ near: null }) });
   const pay = params.get("payOverTime");
   if (pay) chips.push({ key: "pay", label: pay === "payin4" ? "Interest-free pay in 4" : "Any financing option", remove: () => update({ payOverTime: null }) });
   if (params.get("minDiscount")) chips.push({ key: "disc", label: `${Math.round(Number(params.get("minDiscount")) * 100)}%+ below typical`, remove: () => update({ minDiscount: null }) });
@@ -541,6 +549,8 @@ const sortOptions: Array<{ value: string; label: string }> = [
   { value: "best_deal", label: "Best Deal Score" },
   { value: "biggest_drop", label: "Biggest price drop" },
   { value: "newest", label: "Newly added" },
+  { value: "unit_price", label: "Unit price (¢/oz, ¢/ct…)" },
+  { value: "distance", label: "Distance (nearest store)" },
 ];
 
 function SortSelectInner() {

@@ -380,3 +380,34 @@ WALMART_CONSUMER_ID WALMART_KEY_VERSION WALMART_PRIVATE_KEY WALMART_PUBLISHER_ID
 - Import: `pnpm -C packages/database zip:import [--refresh]` → downloads into `<repo>/.data/zip-cache` (gitignored, refreshed after 30 days), idempotent upsert of ~33.8k ZCTAs, deletes ZCTAs no longer in the source, refuses to import < 30,000 rows. Gazetteer year override: `CENSUS_GAZETTEER_YEAR`.
 - ZCTAs ≠ USPS ZIPs: PO-box-only and single-building ZIPs have no ZCTA; 17 territory ZCTAs (USVI) have no state code.
 - No paid geo API is used. Precise coordinates are never stored (see docs/PRIVACY.md).
+
+## Grocery, local stores and how coverage grows (grocery-local session, 2026-11-27)
+
+### Store-level data (per location)
+- **Model:** `StoreLocation` (chain store or local shop; `geoPrecision` = `zip_centroid` | `provider` | `source`) + `StoreInventory` (price/stock of one product at one store). Kept apart from `Offer`, so store prices never enter national price stats, history or Deal Score.
+- **Kroger** (`KrogerAdapter#locationsNear`, `#fetchProductsAtLocation`): Locations API `filter.zipCode.near` + Products API with `filter.locationId` → per-store price (regular/promo) and stock level. Needs `KROGER_CLIENT_ID`/`KROGER_CLIENT_SECRET`; pending_configuration without them. Ingestion into `StoreInventory` (worker job per active store near demand ZIPs) is the next step — not built yet.
+- **Others:** Walmart/Target/Amazon/Costco/CVS/Walgreens are national/online prices only until a licensed store-level source is configured. The UI shows "Price at <store> · 2.1 mi" only when a source supplies a store row.
+- **Geocoding:** addresses get approximate coordinates from our Census ZCTA centroids (`zip_codes`); the UI says "approx.". A precise geocoding provider is **pending configuration** (no paid API added).
+
+### Merchant store-platform connectors (`packages/retailer-adapters/src/commerce`)
+| Provider | API | Per-location stock | Config (per merchant, secrets AES-GCM encrypted in `CommerceConnection.ciphertext`) |
+|---|---|---|---|
+| Shopify | Admin GraphQL 2025-10 (`productVariants`, `inventoryLevels`, `locations`) + OAuth helpers (authorize URL, HMAC verify, code exchange) | yes | `shopDomain`, `accessToken` (one-click app install needs our Shopify app keys — pending) |
+| WooCommerce | REST v3 `/wp-json/wc/v3/products` (https only, SSRF guard) | no (online) | `storeUrl`, `consumerKey`, `consumerSecret` |
+| Square | Catalog `list?types=ITEM,IMAGE` + Inventory `counts/batch-retrieve` + Locations | yes | `accessToken` (`environment` sandbox optional) |
+| Clover | `/v3/merchants/{mId}/items?expand=itemStock` + merchant address | single location | `merchantId`, `accessToken` |
+| Google Merchant feed | merchant-supplied feed URL (RSS/Atom g: or TSV), scheduled daily (`nextScheduledFetch`) | no | `feedUrl` |
+| CSV/XML upload | existing `AffiliateFeedAdapter.parseFeed` | via `PUT /v1/merchant/locations/:id/inventory` | — |
+Every connector returns `pending_configuration` (no network call) when config is missing; tests use recorded-shape fixtures. Sync = one page per run through the same pipeline as uploads (`processMerchantFeed`: GTIN matching, review queue, URL allow-list); per-location quantities → `StoreInventory`. Scheduled background sync by the worker (looping cursors) is pending.
+
+### Additional seller sources
+- **eBay local pickup:** `EbayBrowseAdapter#searchLocalPickup` (Browse API `deliveryOptions:{SELLER_ARRANGED_LOCAL_PICKUP}`, `pickupPostalCode`, `pickupRadius`). Needs eBay keys.
+- **Etsy:** `EtsyAdapter` (Open API v3 `listings/active`, `x-api-key`; vintage → used). Env `ETSY_API_KEY` (+ optional `ETSY_SHARED_SECRET`). Verify header format against Etsy docs before go-live.
+
+### How coverage grows ("America is huge")
+1. **Affiliate network merchant feeds** (CJ, Impact, Rakuten, Awin, Partnerize — clients already built): each approved advertiser is a full product feed → hundreds of national/regional retailers without bespoke integrations. Biggest lever.
+2. **Retailer APIs** where they exist (Best Buy, Walmart affiliate, Kroger incl. per-store prices, eBay).
+3. **Marketplaces** (eBay incl. local pickup, Etsy) for long-tail and used items.
+4. **Self-serve local sellers** (free listing, `/sell` → merchant portal `/merchant/apply`): connectors above + CSV; admin moderation queue (`/admin/local-merchants`) with data-quality flags before anything is shown.
+5. **Licensed data providers** (optional, paid): store-level grocery pricing / product data aggregators — only under a licence; never scraping that bypasses CAPTCHA/auth/ToS.
+Track it on **Admin → Coverage** (`/admin/coverage`, `GET /v1/admin/coverage`): retailers by kind, offers by source (demo vs live), store locations by source/state, offers by top category with demo share, freshness buckets, connector + adapter status.

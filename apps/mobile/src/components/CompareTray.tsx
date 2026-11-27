@@ -22,7 +22,7 @@ export function CompareTray() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const reduce = useReducedMotion();
-  const hidden = items.length === 0 || pathname === "/compare" || pathname === "/login" || pathname === "/signup" || pathname === "/scan";
+  const hidden = items.length === 0 || pathname === "/compare" || pathname === "/login" || pathname === "/signup" || pathname === "/scan" || pathname === "/assistant" || pathname === "/reset-password";
   if (hidden) return null;
   const bottom = (TAB_ROUTES.has(pathname) ? TAB_BAR_CLEARANCE : 0) + insets.bottom + sp[2];
 

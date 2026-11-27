@@ -2,7 +2,7 @@ import { SearchSort, type SearchQueryInput } from "@pricora/contracts";
 import { first, type SearchParams } from "./nav";
 
 /** URL keys that the search UI owns (prices are integer cents, discount is a 0–1 ratio — same as the API). */
-export const FILTER_KEYS = ["q", "category", "brand", "retailer", "minPrice", "maxPrice", "condition", "inStock", "freeShipping", "minDiscount", "payOverTime", "spec", "sort", "page", "view"] as const;
+export const FILTER_KEYS = ["q", "category", "brand", "retailer", "minPrice", "maxPrice", "condition", "inStock", "freeShipping", "minDiscount", "payOverTime", "spec", "near", "sort", "page", "view"] as const;
 
 /** `spec` items look like `ram.16-gb` (facet key + value slug). */
 const SPEC_ITEM = /^[a-z0-9-]+\.[a-z0-9-]+$/;
@@ -40,6 +40,7 @@ export function parseSearchParams(sp: SearchParams, fixed: Partial<SearchQueryIn
     condition: conditions && (conditions as string[]).length ? conditions : undefined,
     inStock: first(sp.inStock) === "true" ? true : undefined,
     freeShipping: first(sp.freeShipping) === "true" ? true : undefined,
+    near: first(sp.near) === "true" ? true : undefined,
     payOverTime: first(sp.payOverTime) === "payin4" ? "payin4" : first(sp.payOverTime) === "any" || first(sp.payOverTime) === "true" ? "any" : undefined,
     minDiscount: Number.isFinite(minDiscount) && minDiscount > 0 && minDiscount < 1 ? minDiscount : undefined,
     spec: csv(first(sp.spec))?.filter((x) => SPEC_ITEM.test(x)).slice(0, 30),

@@ -24,6 +24,10 @@ import { MeController } from "./controllers/me.controller";
 import { MerchantController } from "./controllers/merchant.controller";
 import { MiscController } from "./controllers/misc.controller";
 import { PrivacyController } from "./controllers/privacy.controller";
+import { AdminLocalController, LocalController, MerchantLocalController } from "./controllers/local.controller";
+import { MerchantConnectionsController } from "./controllers/merchant-connections.controller";
+import { CoverageController } from "./controllers/coverage.controller";
+import { LocalService } from "./services/local.service";
 import { SearchController } from "./controllers/search.controller";
 import { TravelController } from "./controllers/travel.controller";
 import { TravelHotelsController } from "./controllers/travel-hotels.controller";
@@ -64,6 +68,11 @@ void throttleRedis.connect().catch(() => undefined);
     CouponsController,
     GuidesController,
     PrivacyController,
+    LocalController,
+    MerchantLocalController,
+    MerchantConnectionsController,
+    AdminLocalController,
+    CoverageController,
   ],
   providers: [
     ...infraProviders,
@@ -73,6 +82,7 @@ void throttleRedis.connect().catch(() => undefined);
     CatalogService,
     ProductService,
     SearchService,
+    LocalService,
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: ApiExceptionFilter },

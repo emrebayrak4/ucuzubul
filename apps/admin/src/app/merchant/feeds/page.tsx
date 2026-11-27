@@ -56,6 +56,10 @@ export default function FeedsPage() {
     refetchInterval: (q) => (q.state.data?.items.some((f) => f.status === "queued" || f.status === "processing") ? 5000 : false),
   });
 
+  // Local stores (no website needed): url may be empty → in-store-only listing under "Available nearby".
+  const local = useQuery({ queryKey: ["merchant", "local", "status"], queryFn: ({ signal }) => getApi().merchant.local.status({ signal }), retry: false });
+  const urlOptional = local.data?.merchant.isLocalSeller === true;
+
   const upload = useApiMutation(
     (v: { file: File; name: string }) => {
       const form = new FormData();
@@ -93,7 +97,7 @@ export default function FeedsPage() {
     }
     setName((n) => n || f.name.replace(/\.[^.]+$/, ""));
     const text = await f.text();
-    setCheck(checkFeed(text));
+    setCheck(checkFeed(text, { urlOptional }));
   }
 
   const summary = useMemo(() => {
@@ -200,6 +204,7 @@ export default function FeedsPage() {
             ))}
           </ul>
           <p className="mt-3">Bold = required. Prices as decimals in USD (“19.99”). Google attribute names (id, link, image_link, availability) are accepted.</p>
+          {urlOptional ? <p className="mt-1">Local store: <span className="font-mono">url</span> is optional — items without a product link are listed in-store only (store price, stock and pickup under “Available nearby”). Add a UPC/GTIN so we can match items to our catalog.</p> : null}
         </aside>
       </section>
 

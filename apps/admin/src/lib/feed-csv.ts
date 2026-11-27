@@ -95,7 +95,8 @@ export interface FeedCheck {
 const REQUIRED: FeedColumn[] = ["sku", "title", "price", "url"];
 
 /** Client-side pre-check against the same Zod schema the API uses (`MerchantFeedRow`). The API remains the source of truth. */
-export function checkFeed(text: string): FeedCheck {
+/** `urlOptional`: local stores may leave `url` empty — those items are listed in-store only (never linked out). */
+export function checkFeed(text: string, opts: { urlOptional?: boolean } = {}): FeedCheck {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
   const delimiter = firstLine.includes("\t") && !firstLine.includes(",") ? "\t" : ",";
   const all = parseCsv(text, delimiter);
@@ -108,7 +109,7 @@ export function checkFeed(text: string): FeedCheck {
     if (col && mapped[col] === undefined) mapped[col] = idx;
     else unknownColumns.push(h);
   });
-  const missingRequired = REQUIRED.filter((c) => mapped[c] === undefined);
+  const missingRequired = REQUIRED.filter((c) => mapped[c] === undefined && !(c === "url" && opts.urlOptional));
 
   const rows: RowResult[] = all.slice(1).map((cells, i) => {
     const get = (c: FeedColumn) => {
@@ -154,6 +155,7 @@ export function checkFeed(text: string): FeedCheck {
       for (const issue of parsed.error.issues) {
         const field = String(issue.path[0] ?? "row");
         if (field === "priceCents" && errors.some((e) => e.field === "price")) continue;
+        if (field === "url" && opts.urlOptional && !candidate.url) continue;
         errors.push({ field, message: issue.message });
       }
     }
