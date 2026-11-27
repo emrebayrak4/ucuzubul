@@ -106,7 +106,7 @@ export default function AccountScreen() {
         <Divider />
         <ListRow icon="grid-outline" title="All categories" onPress={() => router.push("/categories")} />
         <Divider />
-        <ListRow icon="basket-outline" title="Smart Basket" subtitle={basket.length ? `${basket.length} items` : "Cheapest way to buy several items"} onPress={() => router.push("/basket")} />
+        <ListRow icon="basket-outline" title="Smart Basket" subtitle={basket.length ? `${basket.length} ${basket.length === 1 ? "item" : "items"}` : "Cheapest way to buy several items"} onPress={() => router.push("/basket")} />
         <Divider />
         <ListRow icon="chatbubbles-outline" title="Shopping assistant" subtitle="Experimental" onPress={() => router.push("/assistant")} />
         <Divider />
