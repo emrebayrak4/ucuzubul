@@ -26,6 +26,41 @@ Each client's header comment lists the verified endpoints, auth, paging and rate
 
 Signup and credential steps: [AFFILIATE_ONBOARDING.md](AFFILIATE_ONBOARDING.md).
 
+## Multi-retailer search and product content (2026-11-27)
+Code: `packages/retailer-adapters/src/sources/` (registry `PRODUCT_SOURCE_REGISTRY`). Neither source is a single retailer or an
+affiliate network, so they have their own registry. Ingestion, enrichment and Admin → Integrations wiring are A04 work (see TASKS.md Requests).
+
+### Channel3 — product search across many US stores (`channel3`)
+- **API: Verified** against the live API on 2026-11-27 with a free developer account (afterwishinc@gmail.com).
+  - `POST https://api.trychannel3.com/v1/search` `{query, limit?, page_token?, filters?}` with header `x-api-key` ([search](https://docs.trychannel3.com/guides/search)).
+  - `GET /v1/products/{id}` is free; use it to refresh offers before display ([product detail](https://docs.trychannel3.com/guides/product-detail)).
+  - `GET /v1/websites/search?query=` is free; the client uses it as the health check.
+- **Response:** canonical products, each with `offers[]` from many stores. An offer has `domain`, `url` (Channel3-attributed buy link),
+  `price`, `availability`, `condition` and `max_commission_rate` ([offer](https://docs.trychannel3.com/guides/offer)).
+  - The price object observed live is `{price, compare_at_price, currency}`; doc examples show `{amount, currency}`. The client accepts both.
+  - **No GTINs.** Matching has to rely on brand and title.
+- **Filters used:** `price` (major units), `website_ids` (store domains or ids), `availability`.
+- **Pricing:** 1,000 searches/month free, then $0.007/search; detail and website search are free ([pricing](https://docs.trychannel3.com/pricing)).
+- **Commission:** buy links pay through Channel3. The dashboard warns that brands may deny commissions until the publisher profile is complete.
+- **Mapping:** `channel3RetailerId(domain)` maps known store domains to our retailer ids (macys.com → `macys`, bestbuy.com → `bestbuy`, …).
+  `toListings()` returns one `NormalizedListing` per offer, `source: "affiliate"`, `retailerSku = c3:<productId>` (suffixed with the
+  condition for non-new offers), `productUrl: null` and `affiliateUrl` = the Channel3 link. Untracked stores keep their domain as `retailerId`.
+- **Env:** `CHANNEL3_API_KEY`.
+
+### Open Icecat — specs and licensed product images (`icecat`)
+- **API: Verified** live on 2026-11-27 with a free Open Icecat account (user `afterwishinc`).
+  - `GET https://live.icecat.biz/api?lang=&shopname=&GTIN=` (or `Brand=&ProductCode=`, or `icecat_id=`) ([JSON manual](https://iceclog.com/manual-for-icecat-json-product-requests/)).
+  - Auth is the Icecat user name (`shopname`); there is no secret.
+- **Content only:** title, brand, MPN, GTINs, category, summary, description, gallery images (up to 4500 px) and specs. No prices.
+- **Not available → null:**
+  - 400 `StatusCode 16` "The GTIN can not be found"
+  - 400 "Products datasheet is not yet released"
+  - 403 "To access Full Icecat content, an app_key is required" (the product exists only in paid Full Icecat)
+- **Bad credentials:** 404 `StatusCode 3` "<user> the Icecat user is unknown".
+- **Coverage:** Open Icecat covers sponsoring brands only. In the live test a Samsung phone returned 6 images and 134 specs; an HP product was "not yet released".
+- **Terms:** the Open Icecat Fair Use Policy applies.
+- **Env:** `ICECAT_SHOPNAME`.
+
 ## ToS baseline (all retailers)
 Do not scrape. Every retailer ToS we could read prohibits robots, scraping or data mining without consent:
 - Amazon Conditions of Use ([summary](https://conductatlas.com/platform/amazon/amazon-conditions-of-use/provision/CA-P-018441/prohibition-on-data-mining-and-scraping-tools/))

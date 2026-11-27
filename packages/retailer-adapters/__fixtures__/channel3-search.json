@@ -1,0 +1,67 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response (POST /v1/search, observed 2026-11-27); all values are synthetic and must never be shown as real data.",
+  "response": {
+    "products": [
+      {
+        "id": "TstA001",
+        "title": "Acme NC-500 Wireless Noise Cancelling Headphones",
+        "description": "Synthetic over-ear headphones used only in tests.",
+        "brands": [{ "id": "BR01", "name": "Acme" }],
+        "images": [
+          { "url": "https://cdn.example.test/a-side.jpg", "cleaned_url": null, "is_main_image": false, "shot_type": "side", "alt_text": null },
+          { "url": "https://cdn.example.test/a-hero.jpg", "cleaned_url": "https://cdn.example.test/cleaned/a-hero.jpg", "is_main_image": true, "shot_type": "hero", "alt_text": "Acme NC-500" }
+        ],
+        "category": { "slug": "headphones", "title": "Headphones", "path": ["Electronics", "Audio", "Headphones"], "has_children": false },
+        "gender": null,
+        "age": null,
+        "materials": null,
+        "key_features": ["30 h battery", "Multipoint"],
+        "structured_attributes": { "color": "black", "connectivity": "bluetooth" },
+        "offers": [
+          {
+            "url": "https://buy.example.test/c3/aaa111",
+            "domain": "macys.com",
+            "price": { "price": 300.41, "compare_at_price": 398.0, "currency": "USD" },
+            "availability": "InStock",
+            "condition": "new",
+            "max_commission_rate": 0.04
+          },
+          {
+            "url": "https://buy.example.test/c3/aaa222",
+            "domain": "smallshop.example",
+            "price": { "price": 249.5, "compare_at_price": null, "currency": "USD" },
+            "availability": "OutOfStock",
+            "condition": "used",
+            "max_commission_rate": 0
+          },
+          {
+            "url": "https://buy.example.test/c3/aaa333",
+            "domain": "www.bestbuy.com",
+            "price": { "amount": 329.99, "currency": "USD" },
+            "availability": "LimitedAvailability",
+            "condition": null,
+            "max_commission_rate": 0.01
+          },
+          {
+            "url": "https://buy.example.test/c3/aaa444",
+            "domain": "broken.example",
+            "price": { "price": 0, "compare_at_price": null, "currency": "USD" },
+            "availability": "InStock",
+            "condition": "new",
+            "max_commission_rate": 0
+          }
+        ]
+      },
+      {
+        "id": "TstB002",
+        "title": "x",
+        "description": null,
+        "brands": [],
+        "images": [],
+        "category": null,
+        "offers": []
+      }
+    ],
+    "next_page_token": "tok_page_2"
+  }
+}
