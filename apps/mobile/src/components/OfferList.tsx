@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
-import type { Offer, StockStatus } from "@pricora/contracts";
+import { conditionGroupOf, type Offer, type StockStatus } from "@pricora/contracts";
 import { track } from "@/lib/analytics";
-import { conditionLabel, haptic, money, relative, stockLabel } from "@/lib/format";
+import { conditionGradeLabel, haptic, money, relative, stockLabel } from "@/lib/format";
 import { openOffer } from "@/lib/links";
 import { tokens } from "@/lib/theme";
 import { StoreMark } from "./common";
 import { PAY_DISCLAIMER, PayIn4Line, PaymentOptionsList } from "./payments";
-import { AppText, Button, Chip, DemoBadge, Divider, Row, SponsoredBadge } from "./ui";
+import { AppText, Badge, Button, Chip, DemoBadge, Divider, Row, SponsoredBadge } from "./ui";
 
 const sp = tokens.spacing;
 
@@ -21,6 +21,21 @@ const SORTS: { value: OfferSort; label: string }[] = [
 const STOCK_RANK: Record<StockStatus, number> = { in_stock: 0, low_stock: 1, preorder: 2, unknown: 3, out_of_stock: 4 };
 /** Unknown shipping sorts after known costs. */
 const shipCost = (o: Offer) => (o.shipping.kind === "free" ? 0 : (o.shipping.costCents ?? Number.MAX_SAFE_INTEGER));
+
+/**
+ * Condition badge (web parity): amber "Used · Very good", blue "Refurbished" (+ by whom), gray "Open box".
+ * Nothing for new offers.
+ */
+export function ConditionBadge({ offer: o }: { offer: Offer }) {
+  const g = o.conditionGroup ?? conditionGroupOf(o.condition);
+  if (g === "new") return null;
+  if (g === "used") {
+    const label = o.condition === "for_parts" ? "For parts" : o.conditionGrade ? `Used · ${conditionGradeLabel[o.conditionGrade]}` : o.condition === "unknown" ? "Condition unknown" : "Used";
+    return <Badge label={label} bg="warning-soft" fg="warning" />;
+  }
+  if (g === "refurbished") return <Badge label={o.refurbishedBy ? `Refurbished by ${o.refurbishedBy}` : "Refurbished"} bg="info-soft" fg="info" />;
+  return <Badge label="Open box" bg="surface-2" fg="text-muted" border="border" />;
+}
 
 export function shippingText(o: Offer): string {
   switch (o.shipping.kind) {
@@ -127,9 +142,14 @@ export function OfferList({
                     </Row>
                     <AppText variant="caption" color={o.stock === "out_of_stock" ? "warning" : o.stock === "in_stock" ? "success" : "text-muted"}>
                       {stockLabel[o.stock]}
-                      {o.condition !== "new" ? ` · ${conditionLabel[o.condition]}` : ""}
                     </AppText>
+                    {o.seller?.type === "marketplace" ? (
+                      <AppText variant="caption" color="text-muted" numberOfLines={1}>
+                        Sold by {o.seller.name ?? "a marketplace seller"} (marketplace)
+                      </AppText>
+                    ) : null}
                     <Row gap={1} style={{ flexWrap: "wrap" }}>
+                      <ConditionBadge offer={o} />
                       {o.source === "demo" ? <DemoBadge /> : null}
                       {o.sponsored ? <SponsoredBadge /> : null}
                     </Row>
@@ -147,6 +167,11 @@ export function OfferList({
                 {delivery ? ` (${delivery})` : ""} · {taxText(o)}
                 {o.shipping.pickupAvailable ? " · Pickup" : ""}
               </AppText>
+              {o.returnPolicy ? (
+                <AppText variant="caption" color="text-muted">
+                  Returns: {o.returnPolicy}
+                </AppText>
+              ) : null}
               <PayIn4Line payIn4={o.payIn4} />
               {o.paymentOptions?.length ? (
                 <View style={{ gap: sp[1] }}>

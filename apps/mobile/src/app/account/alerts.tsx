@@ -7,7 +7,7 @@ import { AppText, Button, Divider, EmptyState, ErrorState, IconButton, OfflineBa
 import { track } from "@/lib/analytics";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { money, relative } from "@/lib/format";
+import { conditionGroupLabel, money, relative } from "@/lib/format";
 import { ALERTS_KEY, useAlerts } from "@/lib/saved";
 import { tokens, useTheme } from "@/lib/theme";
 
@@ -74,6 +74,7 @@ export default function AlertsScreen() {
               <View style={{ flex: 1 }}>
                 <AppText variant="label">{alertDescription(a)}</AppText>
                 <AppText variant="caption" color="text-muted">
+                  {a.condition && a.condition !== "new" ? `${conditionGroupLabel[a.condition]} offers · ` : ""}
                   {a.channels.join(", ")}
                   {a.lastTriggeredAt ? ` · last sent ${relative(a.lastTriggeredAt)}` : ""}
                 </AppText>

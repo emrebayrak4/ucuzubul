@@ -2,9 +2,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
-import type { FacetBucket, ProductCondition, SearchFacets, SearchSort } from "@pricora/contracts";
+import type { FacetBucket, SearchFacets, SearchSort } from "@pricora/contracts";
 import { api } from "@/lib/api";
-import { DISCOUNTS, EMPTY_FILTERS, toQuery, type BrowseFilters, type BrowseScope } from "@/lib/browse";
+import { CONDITION_GROUPS, DISCOUNTS, EMPTY_FILTERS, effectiveConditions, toggleCondition, toQuery, type BrowseFilters, type BrowseScope } from "@/lib/browse";
+import { conditionGroupLabel } from "@/lib/format";
 import { useDebounced } from "@/lib/hooks";
 import { tokens, useTheme } from "@/lib/theme";
 import { StoreMark } from "../common";
@@ -232,22 +233,30 @@ export function FilterSheet({
       </Section>
       <Divider />
 
-      {f && f.conditions.length > 1 ? (
-        <>
-          <Section title="Condition" badge={draft.condition.length || undefined}>
-            {f.conditions.map((b) => (
-              <CheckRow
-                key={b.value}
-                label={b.label}
-                count={b.count}
-                selected={draft.condition.includes(b.value as ProductCondition)}
-                onPress={() => setDraft((d) => ({ ...d, condition: toggle(d.condition, b.value as ProductCondition) }))}
-              />
-            ))}
-          </Section>
-          <Divider />
-        </>
-      ) : null}
+      <Section title="Condition" badge={draft.condition.length ? 1 : undefined}>
+        {CONDITION_GROUPS.map((g) => {
+          const b = f?.conditions.find((x) => x.value === g);
+          const on = effectiveConditions(draft.condition).includes(g);
+          return (
+            <CheckRow
+              key={g}
+              label={b?.label ?? conditionGroupLabel[g]}
+              count={b?.count}
+              selected={on}
+              onPress={() => setDraft((d) => ({ ...d, condition: toggleCondition(d.condition, g) }))}
+            />
+          );
+        })}
+        <Chip
+          label="Any condition"
+          selected={draft.condition.includes("all")}
+          onPress={() => setDraft((d) => ({ ...d, condition: d.condition.includes("all") ? [] : ["all"] }))}
+        />
+        <AppText variant="caption" color="text-muted">
+          New only by default, so a used or refurbished offer never shows up as the lowest price unless you include it.
+        </AppText>
+      </Section>
+      <Divider />
 
       {f?.specs.map((s) => (
         <View key={s.key}>

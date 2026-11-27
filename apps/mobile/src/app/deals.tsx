@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import type { DealItem, DealsQuery } from "@pricora/contracts";
-import { FeedList } from "@/components/browse/FeedList";
+import type { DealItem, DealsQuery, ConditionGroup } from "@pricora/contracts";
+
+import { ConditionSwitch, FeedList } from "@/components/browse/FeedList";
 import { AppText, Segmented } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -16,6 +17,7 @@ const SORTS: readonly { value: Sort; label: string }[] = [
 export default function DealsScreen() {
   const [sort, setSort] = useState<Sort>("score");
   const [category, setCategory] = useState<string | undefined>(undefined);
+  const [condition, setCondition] = useState<ConditionGroup>("new");
   const toCard = useCallback(
     (d: DealItem) => ({
       card: { ...d.product, dealScore: d.dealScore.score },
@@ -31,14 +33,15 @@ export default function DealsScreen() {
   );
   return (
     <FeedList
-      queryKey={["deals", sort, category ?? null]}
-      fetchPage={(page, signal) => api.catalog.deals({ sort, category, page, pageSize: 24 }, { signal })}
+      queryKey={["deals", sort, category ?? null, condition]}
+      fetchPage={(page, signal) => api.catalog.deals({ sort, category, condition, page, pageSize: 24 }, { signal })}
       toCard={toCard}
       category={category}
       onCategory={setCategory}
       emptyText="No deals match right now. Deals appear when a price is low against its own history."
       header={
         <>
+          <ConditionSwitch value={condition} onChange={setCondition} />
           <AppText color="text-muted">Ranked by Deal Score — today’s price vs. the product’s own 90-day history and other stores. Sponsored placement can’t change it.</AppText>
           <Segmented options={SORTS} value={sort} onChange={setSort} />
         </>

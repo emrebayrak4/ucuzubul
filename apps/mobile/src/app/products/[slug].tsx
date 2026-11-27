@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from "react-native";
-import type { DealScoreReason, HistoryRange, ProductAttribute, ProductDetailResponse, ProductVariantLink } from "@pricora/contracts";
+import { conditionGroupOf, type ConditionGroup, type DealScoreReason, HistoryRange, ProductAttribute, ProductDetailResponse, ProductVariantLink } from "@pricora/contracts";
 import { PriceWithPrevious } from "@/components/common";
 import { PayIn4Line } from "@/components/payments";
 import { CouponCard, CouponChip } from "@/components/CouponCard";
@@ -32,7 +32,7 @@ import { track } from "@/lib/analytics";
 import { api, errorMessage, isNotFound } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { isInCompare, toggleCompare, useCompare, compareStore, COMPARE_MAX } from "@/lib/compare";
-import { cardFromDetail, haptic, money, relative } from "@/lib/format";
+import { cardFromDetail, conditionGroupLabel, haptic, money, relative } from "@/lib/format";
 import { param } from "@/lib/hooks";
 import { shareProduct } from "@/lib/links";
 import { addRecentlyViewed } from "@/lib/recent";
@@ -58,18 +58,21 @@ export default function ProductScreen() {
   const [alertOpen, setAlertOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [couponsOpen, setCouponsOpen] = useState(false);
+  const [condPick, setCondPick] = useState<ConditionGroup | null>(null);
 
   const product = useQuery({
     queryKey: ["product", slug, zip ?? null],
     queryFn: ({ signal }) => api.catalog.product(slug, zip ? { zip } : undefined, { signal }),
     enabled: !!slug,
   });
-  const history = useQuery({
-    queryKey: ["history", slug, range],
-    queryFn: ({ signal }) => api.catalog.productHistory(slug, { range }, { signal }),
-    enabled: !!slug,
-  });
   const d = product.data;
+  /** Offer tab: defaults to the product's default condition (new whenever a new offer exists). Never mixed. */
+  const cond: ConditionGroup = condPick ?? d?.defaultCondition ?? "new";
+  const history = useQuery({
+    queryKey: ["history", slug, range, cond],
+    queryFn: ({ signal }) => api.catalog.productHistory(slug, { range, condition: cond }, { signal }),
+    enabled: !!slug && !!d,
+  });
   const fav = useFavoriteToggle(d?.product.id);
   const compare = useCompare();
 
@@ -105,9 +108,19 @@ export default function ProductScreen() {
   }
 
   const p = d.product;
-  const lowest = d.offers.find((o) => o.id === d.lowestOfferId) ?? [...d.offers].sort((a, b) => a.estimatedTotalCents - b.estimatedTotalCents)[0];
+  // Everything below (price, stats, Deal Score, offers) refers to ONE condition group.
+  const hasGroups = !!d.conditionSummary?.length;
+  const view = d.byCondition?.[cond];
+  const offers = hasGroups ? d.offers.filter((o) => (o.conditionGroup ?? conditionGroupOf(o.condition)) === cond) : d.offers;
+  const lowestOfferId = view ? view.lowestOfferId : d.lowestOfferId;
+  const priceStats = view?.priceStats ?? d.priceStats;
+  const dealScore = view ? view.dealScore : d.dealScore;
+  const fakeDiscount = view?.fakeDiscount ?? d.fakeDiscount;
+  const prevLowest = view ? view.previousLowestPriceCents : d.previousLowestPriceCents;
+  const condTabs = (d.conditionSummary ?? []).filter((x) => x.offerCount > 0);
+  const lowest = offers.find((o) => o.id === lowestOfferId) ?? [...offers].sort((a, b) => a.estimatedTotalCents - b.estimatedTotalCents)[0];
   const upc = p.identifiers.find((i) => i.type === "UPC" || i.type === "EAN" || i.type === "GTIN");
-  const stats = history.data?.stats ?? d.priceStats;
+  const stats = history.data?.stats ?? priceStats;
   const inCompare = isInCompare(compare, p.id);
   const card = cardFromDetail(d);
 
@@ -178,25 +191,46 @@ export default function ProductScreen() {
           </View>
         ) : null}
 
+        {d.conditionNote ? (
+          <View style={{ marginTop: sp[3] }}>
+            <Notice tone="info">{d.conditionNote}</Notice>
+          </View>
+        ) : null}
+        {condTabs.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: sp[3], marginHorizontal: -GUTTER }} contentContainerStyle={{ gap: sp[2], paddingHorizontal: GUTTER }}>
+            {condTabs.map((t) => (
+              <Chip
+                key={t.condition}
+                label={`${conditionGroupLabel[t.condition]} · ${t.offerCount}${t.lowestPriceCents !== null ? ` · ${money(t.lowestPriceCents, "USD", "auto")}` : ""}`}
+                selected={cond === t.condition}
+                onPress={() => {
+                  haptic.toggle();
+                  setCondPick(t.condition);
+                }}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
         {/* Lowest price block */}
         <Card style={{ marginTop: sp[4], gap: sp[2] }}>
           <AppText variant="overline" color="text-muted">
-            Lowest price
+            {hasGroups && cond !== "new" ? `Lowest ${conditionGroupLabel[cond].toLowerCase()} price` : "Lowest price"}
           </AppText>
           <Row style={{ justifyContent: "space-between", alignItems: "flex-end" }} gap={3}>
             <View style={{ flex: 1 }}>
-              <PriceWithPrevious cents={lowest?.priceCents ?? d.priceStats.currentLowestCents} previousCents={d.previousLowestPriceCents} currency={lowest?.currency} size="priceXl" />
+              <PriceWithPrevious cents={lowest?.priceCents ?? priceStats.currentLowestCents} previousCents={prevLowest} currency={lowest?.currency} size="priceXl" />
               <AppText variant="caption" color="text-muted">
-                {lowest ? `at ${lowest.retailer.name}` : "No offers"} · {d.storeCount} {d.storeCount === 1 ? "store" : "stores"}
+                {lowest ? `at ${lowest.retailer.name}` : "No offers"} · {offers.length} {offers.length === 1 ? "offer" : "offers"}
                 {lowest ? ` · est. total ${money(lowest.estimatedTotalCents, lowest.currency)}` : ""}
               </AppText>
-              {d.previousLowestPriceCents && lowest && d.previousLowestPriceCents > lowest.priceCents ? (
+              {prevLowest && lowest && prevLowest > lowest.priceCents ? (
                 <AppText variant="caption" color="price-drop">
-                  Down {money(d.previousLowestPriceCents - lowest.priceCents, lowest.currency)} at this store in the last 7 days
+                  Down {money(prevLowest - lowest.priceCents, lowest.currency)} at this store in the last 7 days
                 </AppText>
               ) : null}
             </View>
-            {d.dealScore ? <DealScoreBadge score={d.dealScore.score} size="lg" /> : null}
+            {dealScore ? <DealScoreBadge score={dealScore.score} size="lg" /> : null}
           </Row>
           <PayIn4Line payIn4={lowest?.payIn4} />
           {lowest?.tax.status === "unknown_set_zip" ? (
@@ -221,13 +255,13 @@ export default function ProductScreen() {
           </Row>
         </Card>
 
-        {d.dealScore ? <DealScoreCard reasons={d.dealScore.reasons} confidence={d.dealScore.confidence} /> : null}
+        {dealScore ? <DealScoreCard reasons={dealScore.reasons} confidence={dealScore.confidence} /> : null}
 
-        {d.fakeDiscount.flag && d.fakeDiscount.message ? (
+        {fakeDiscount.flag && fakeDiscount.message ? (
           <View style={{ marginTop: sp[3] }}>
             <Notice tone="warning">
               <AppText variant="label">Check that discount</AppText>
-              <AppText variant="caption">{d.fakeDiscount.message}</AppText>
+              <AppText variant="caption">{fakeDiscount.message}</AppText>
             </Notice>
           </View>
         ) : null}
@@ -244,9 +278,9 @@ export default function ProductScreen() {
         ) : null}
 
         {/* Store table */}
-        <SectionHeader title={`Compare ${d.offers.length} ${d.offers.length === 1 ? "store" : "stores"}`} />
-        {d.offers.length ? (
-          <OfferList offers={d.offers} productId={p.id} lowestOfferId={d.lowestOfferId} limit={6} />
+        <SectionHeader title={`Compare ${offers.length} ${offers.length === 1 ? "offer" : "offers"}${hasGroups ? ` · ${conditionGroupLabel[cond]}` : ""}`} />
+        {offers.length ? (
+          <OfferList key={cond} offers={offers} productId={p.id} lowestOfferId={lowestOfferId} limit={6} />
         ) : (
           <AppText color="text-muted">No stores currently list this product.</AppText>
         )}
@@ -322,7 +356,7 @@ export default function ProductScreen() {
         ) : null}
       </ScrollView>
 
-      <AlertSheet visible={alertOpen} onClose={() => setAlertOpen(false)} productId={p.id} currentCents={lowest?.priceCents ?? null} />
+      <AlertSheet visible={alertOpen} onClose={() => setAlertOpen(false)} productId={p.id} currentCents={lowest?.priceCents ?? null} condition={cond} />
       <ListSheet visible={listOpen} onClose={() => setListOpen(false)} productId={p.id} />
       <Sheet visible={couponsOpen} onClose={() => setCouponsOpen(false)} title="Coupons for this product">
         {d.coupons.map((cp) => (
@@ -566,7 +600,19 @@ function ListSheet({ visible, onClose, productId }: { visible: boolean; onClose:
   );
 }
 
-function AlertSheet({ visible, onClose, productId, currentCents }: { visible: boolean; onClose: () => void; productId: string; currentCents: number | null }) {
+function AlertSheet({
+  visible,
+  onClose,
+  productId,
+  currentCents,
+  condition,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  productId: string;
+  currentCents: number | null;
+  condition: ConditionGroup;
+}) {
   const create = useCreateAlert();
   const suggested = currentCents ? Math.floor((currentCents * 0.9) / 100) : null;
   const [target, setTarget] = useState(suggested ? String(suggested) : "");
@@ -592,6 +638,7 @@ function AlertSheet({ visible, onClose, productId, currentCents }: { visible: bo
               type: kind,
               targetPriceCents: kind === "below_price" ? cents : undefined,
               dropPercentBp: kind === "drop_percent" ? pct * 100 : undefined,
+              condition,
               channels: push ? ["in_app", "email", "push"] : ["in_app", "email"],
             },
             {

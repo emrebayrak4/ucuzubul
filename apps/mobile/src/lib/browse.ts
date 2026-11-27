@@ -1,5 +1,5 @@
-import type { ProductCondition, SearchFacets, SearchQueryInput, SearchSort } from "@pricora/contracts";
-import { conditionLabel, money } from "./format";
+import type { ConditionGroup, SearchFacets, SearchQueryInput, SearchSort } from "@pricora/contracts";
+import { conditionGroupLabel, money } from "./format";
 
 /** All filter state of a product listing (search, category, brand, store, popular, new…). Prices in cents. */
 export interface BrowseFilters {
@@ -7,13 +7,35 @@ export interface BrowseFilters {
   maxPrice?: number;
   brand: string[];
   retailer: string[];
-  condition: ProductCondition[];
+  /**
+   * Condition groups. [] = API default (New only, so second-hand never wins the lowest price);
+   * ["all"] = every condition.
+   */
+  condition: ConditionFilter[];
   spec: string[];
   inStock: boolean;
   freeShipping: boolean;
   /** Store offers pay-over-time (BNPL / financing) at checkout. */
   payOverTime: boolean;
   minDiscount?: number;
+}
+
+export type ConditionFilter = ConditionGroup | "all";
+export const CONDITION_GROUPS: ConditionGroup[] = ["new", "open_box", "refurbished", "used"];
+
+/** Groups in effect for a filter value ([] → New). */
+export function effectiveConditions(c: ConditionFilter[]): ConditionGroup[] {
+  if (c.includes("all")) return [...CONDITION_GROUPS];
+  return c.length ? (c as ConditionGroup[]) : ["new"];
+}
+
+/** Toggle one group; clearing everything means "all", and New alone collapses back to the default []. */
+export function toggleCondition(c: ConditionFilter[], g: ConditionGroup): ConditionFilter[] {
+  const cur = effectiveConditions(c);
+  const next = cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g];
+  if (next.length === 0 || next.length === CONDITION_GROUPS.length) return ["all"];
+  if (next.length === 1 && next[0] === "new") return [];
+  return CONDITION_GROUPS.filter((x) => next.includes(x));
 }
 
 export const EMPTY_FILTERS: BrowseFilters = { brand: [], retailer: [], condition: [], spec: [], inStock: false, freeShipping: false, payOverTime: false };
@@ -65,7 +87,7 @@ export function filterCount(f: BrowseFilters): number {
     (f.minPrice !== undefined || f.maxPrice !== undefined ? 1 : 0) +
     f.brand.length +
     f.retailer.length +
-    f.condition.length +
+    (f.condition.length ? 1 : 0) +
     f.spec.length +
     (f.inStock ? 1 : 0) +
     (f.freeShipping ? 1 : 0) +
@@ -94,8 +116,12 @@ export function appliedChips(f: BrowseFilters, facets: SearchFacets | undefined)
   for (const b of f.brand) chips.push({ key: `b:${b}`, label: label(facets?.brands, b), remove: (x) => ({ ...x, brand: without(x.brand, b) }) });
   for (const r of f.retailer)
     chips.push({ key: `r:${r}`, label: label(facets?.retailers, r), remove: (x) => ({ ...x, retailer: without(x.retailer, r) }) });
-  for (const c of f.condition)
-    chips.push({ key: `c:${c}`, label: conditionLabel[c] ?? c, remove: (x) => ({ ...x, condition: without(x.condition, c) }) });
+  if (f.condition.length)
+    chips.push({
+      key: "cond",
+      label: f.condition.includes("all") ? "Any condition" : effectiveConditions(f.condition).map((g) => conditionGroupLabel[g]).join(" + "),
+      remove: (x) => ({ ...x, condition: [] }),
+    });
   for (const s of f.spec) {
     const [key] = s.split(".");
     const facet = facets?.specs.find((sf) => sf.key === key);
@@ -127,7 +153,7 @@ export function filtersFromParams(p: Record<string, string | undefined>): Browse
     maxPrice: num(p.maxPrice),
     brand: list(p.brand),
     retailer: list(p.retailer),
-    condition: list(p.condition) as ProductCondition[],
+    condition: list(p.condition).filter((v): v is ConditionFilter => v === "all" || (CONDITION_GROUPS as string[]).includes(v)),
     spec: list(p.spec),
     inStock: p.inStock === "true",
     freeShipping: p.freeShipping === "true",

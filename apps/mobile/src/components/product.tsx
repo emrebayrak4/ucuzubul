@@ -5,7 +5,7 @@ import { memo, type ReactNode } from "react";
 import { FlatList, Pressable, View, useWindowDimensions } from "react-native";
 import type { ProductCard } from "@pricora/contracts";
 import { isInCompare, toggleCompare, useCompare } from "@/lib/compare";
-import { conditionLabel, money } from "@/lib/format";
+import { conditionGroupLabel, conditionLabel, money } from "@/lib/format";
 import { tokens, useTheme } from "@/lib/theme";
 import { PriceWithPrevious } from "./common";
 import { PayIn4Line } from "./payments";
@@ -79,7 +79,25 @@ function PriceLine({ p, x }: { p: ProductCard; x?: CardExtras }) {
       </AppText>
       {/* payIn4 is computed at the lowest-price store, so only next to that price. */}
       {x?.priceCents === undefined ? <PayIn4Line payIn4={p.payIn4} compact /> : null}
+      <OtherConditionsLine p={p} />
     </View>
+  );
+}
+
+/**
+ * Muted "Used from $X" line for cheaper second-hand groups. It is never the headline price. When the headline itself
+ * isn't new (no new offers), it is labeled.
+ */
+function OtherConditionsLine({ p }: { p: ProductCard }) {
+  const cheapest = [...(p.otherConditions ?? [])].sort((a, b) => a.lowestPriceCents - b.lowestPriceCents)[0];
+  const headlineNotNew = p.priceCondition && p.priceCondition !== "new";
+  if (!cheapest && !headlineNotNew) return null;
+  return (
+    <AppText variant="caption" color="text-muted" numberOfLines={1}>
+      {headlineNotNew ? `${conditionGroupLabel[p.priceCondition!]} price` : ""}
+      {headlineNotNew && cheapest ? " · " : ""}
+      {cheapest ? `${conditionGroupLabel[cheapest.condition]} from ${money(cheapest.lowestPriceCents, p.currency)}` : ""}
+    </AppText>
   );
 }
 

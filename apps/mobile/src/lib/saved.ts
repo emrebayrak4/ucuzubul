@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Alert } from "react-native";
-import type { AlertChannel, AlertType } from "@pricora/contracts";
+import type { AlertChannel, AlertType, ConditionGroup } from "@pricora/contracts";
 import { track } from "./analytics";
 import { api, errorMessage } from "./api";
 import { useAuth } from "./auth";
@@ -75,7 +75,7 @@ export function useFavoriteToggle(productId: string | undefined) {
 export function useCreateAlert() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { productId: string; type: AlertType; targetPriceCents?: number; dropPercentBp?: number; channels: AlertChannel[] }) =>
+    mutationFn: (input: { productId: string; type: AlertType; targetPriceCents?: number; dropPercentBp?: number; condition?: ConditionGroup; channels: AlertChannel[] }) =>
       api.me.alerts.create({ ...input }),
     onMutate: () => haptic.toggle(),
     onSuccess: (a) => {

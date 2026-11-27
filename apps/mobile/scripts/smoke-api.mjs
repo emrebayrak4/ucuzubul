@@ -141,6 +141,22 @@ await step("pay over time: filter + facet count + offer/store options", async ()
   const r = await api.catalog.retailer(ctx.store ?? "amazon");
   return `${s.total} results, facet ${s.facets.payOverTimeCount}; offer options ${opts}, payIn4 ${in4}; store options ${r.paymentOptions.length}`;
 });
+await step("conditions: default new vs all, used deals, per-condition product + history", async () => {
+  const dflt = await api.search.search({ q: "iphone", pageSize: 3 });
+  const all = await api.search.search({ q: "iphone", condition: "all", pageSize: 3 });
+  const groups = all.facets.conditions.map((b) => `${b.value}:${b.count}`).join(",");
+  const used = await api.catalog.deals({ condition: "used", pageSize: 3 });
+  const drops = await api.catalog.priceDrops({ condition: "refurbished", pageSize: 3 });
+  const withOther = all.items.find((p) => p.otherConditions?.length) ?? all.items[0];
+  let detail = "n/a";
+  if (withOther) {
+    const d = await api.catalog.product(withOther.slug);
+    const g = d.conditionSummary?.find((x) => x.condition !== "new" && x.offerCount > 0)?.condition;
+    if (g) await api.catalog.productHistory(withOther.slug, { range: "90d", condition: g });
+    detail = `default ${d.defaultCondition}, summary ${(d.conditionSummary ?? []).map((x) => `${x.condition}:${x.offerCount}`).join(",")}${g ? `, ${g} history ok` : ""}`;
+  }
+  return `default ${dflt.total} vs all ${all.total} [${groups}]; used deals ${used.total}; refurb drops ${drops.total}; ${detail}`;
+});
 await step("popular / new (search sorts)", async () => {
   const p = await api.search.search({ sort: "popular", pageSize: 6 });
   const n = await api.search.search({ sort: "newest", pageSize: 6 });

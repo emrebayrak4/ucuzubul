@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
@@ -14,6 +15,8 @@ import { EAS_PROJECT_ID } from "./config";
  * - Payloads carry `data.url` (an app path, PushPayloadData in @pricora/contracts) which we route to on tap.
  */
 const TOKEN_KEY = "pricora.push.token";
+/** Expo Go has no remote push on Android (SDK 53+) — skip token work there; a dev build is needed. */
+export const IN_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -55,7 +58,7 @@ export async function unregisterPush(): Promise<void> {
  * Keeps the server's lastSeenAt fresh and re-registers rotated tokens.
  */
 export async function refreshPushRegistration(): Promise<void> {
-  if (!Device.isDevice || !EAS_PROJECT_ID) return;
+  if (IN_EXPO_GO || !Device.isDevice || !EAS_PROJECT_ID) return;
   const perm = await Notifications.getPermissionsAsync().catch(() => null);
   if (!perm?.granted) return;
   try {
@@ -80,6 +83,7 @@ export async function registerForPush(): Promise<PushRegistration> {
       importance: Notifications.AndroidImportance.LOW,
     });
   }
+  if (IN_EXPO_GO) return { status: "unavailable", reason: "Push notifications need the installed app (not available in Expo Go)." };
   if (!Device.isDevice) return { status: "unavailable", reason: "Push notifications need a physical device." };
 
   const current = await Notifications.getPermissionsAsync();

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import type { PriceDropItem, PriceDropsQuery } from "@pricora/contracts";
-import { FeedList } from "@/components/browse/FeedList";
+import type { PriceDropItem, PriceDropsQuery, ConditionGroup } from "@pricora/contracts";
+
+import { ConditionSwitch, FeedList } from "@/components/browse/FeedList";
 import { AppText, Segmented } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -15,6 +16,7 @@ const WINDOWS: readonly { value: Window; label: string }[] = [
 export default function PriceDropsScreen() {
   const [win, setWin] = useState<Window>("7d");
   const [category, setCategory] = useState<string | undefined>(undefined);
+  const [condition, setCondition] = useState<ConditionGroup>("new");
   const toCard = useCallback(
     (d: PriceDropItem) => ({
       card: d.product,
@@ -25,14 +27,15 @@ export default function PriceDropsScreen() {
   );
   return (
     <FeedList
-      queryKey={["price-drops", win, category ?? null]}
-      fetchPage={(page, signal) => api.catalog.priceDrops({ window: win, category, page, pageSize: 24 }, { signal })}
+      queryKey={["price-drops", win, category ?? null, condition]}
+      fetchPage={(page, signal) => api.catalog.priceDrops({ window: win, category, condition, page, pageSize: 24 }, { signal })}
       toCard={toCard}
       category={category}
       onCategory={setCategory}
       emptyText="No price drops in this window yet."
       header={
         <>
+          <ConditionSwitch value={condition} onChange={setCondition} />
           <AppText color="text-muted">Previous vs. current price at the same store — never a list or “was” price.</AppText>
           <Segmented options={WINDOWS} value={win} onChange={setWin} />
         </>

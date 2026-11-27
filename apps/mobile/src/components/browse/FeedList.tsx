@@ -5,10 +5,29 @@ import { api, errorMessage } from "@/lib/api";
 import { tokens, useTheme } from "@/lib/theme";
 import { GridSkeleton, ProductTile, useGridTileWidth, type CardExtras } from "../product";
 import { Chip, EmptyState, ErrorState, Notice, OfflineBanner } from "../ui";
-import type { ProductCard } from "@pricora/contracts";
+import type { ConditionGroup, ProductCard } from "@pricora/contracts";
+import { conditionGroupLabel } from "@/lib/format";
 
 const sp = tokens.spacing;
 const GUTTER = tokens.layout.gutter.base;
+
+const CONDITIONS: ConditionGroup[] = ["new", "refurbished", "used", "open_box"];
+
+/** New by default; refurbished / used / open-box deals are a separate, clearly labeled view. */
+export function ConditionSwitch({ value, onChange }: { value: ConditionGroup; onChange: (c: ConditionGroup) => void }) {
+  return (
+    <View style={{ gap: sp[2] }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -GUTTER }} contentContainerStyle={{ gap: sp[2], paddingHorizontal: GUTTER }}>
+        {CONDITIONS.map((c) => (
+          <Chip key={c} label={conditionGroupLabel[c]} selected={value === c} onPress={() => onChange(c)} />
+        ))}
+      </ScrollView>
+      {value !== "new" ? (
+        <Notice tone="info">{`Showing ${conditionGroupLabel[value].toLowerCase()} offers only. Prices and Deal Scores compare ${conditionGroupLabel[value].toLowerCase()} offers with each other, never with new.`}</Notice>
+      ) : null}
+    </View>
+  );
+}
 
 export interface FeedPage<T> {
   items: T[];
