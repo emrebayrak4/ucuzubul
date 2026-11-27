@@ -12,7 +12,7 @@ const props = [
 /** Split layout (DESIGN_SYSTEM §13.6): form panel left, brand panel right on lg+. */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-dvh lg:grid-cols-12">
+    <div className="grid min-h-dvh grid-cols-[minmax(0,1fr)] lg:grid-cols-12">
       <main className="flex flex-col bg-surface-2 px-4 py-8 sm:px-8 lg:col-span-5">
         <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center">
           <Logo className="mb-6 self-center" height={44} />

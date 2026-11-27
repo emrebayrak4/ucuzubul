@@ -9,16 +9,16 @@ export type Scheme = "light" | "dark";
 const STORAGE_KEY = "pricora.theme";
 
 /**
- * Brand font: Nunito Sans. React Native needs one family name per weight (custom fonts + fontWeight break on
+ * Brand font: Plus Jakarta Sans. React Native needs one family name per weight (custom fonts + fontWeight break on
  * Android), so each loaded weight is registered under its own family name and selected here. Never set fontWeight.
  * Loaded in app/_layout.tsx (useFonts) before the splash hides.
  */
 export type FontWeight = 400 | 500 | 600 | 700 | 800;
 export const FONTS = {
-  regular: "NunitoSans-Regular",
-  semibold: "NunitoSans-SemiBold",
-  bold: "NunitoSans-Bold",
-  extrabold: "NunitoSans-ExtraBold",
+  regular: "PlusJakartaSans-Regular",
+  semibold: "PlusJakartaSans-SemiBold",
+  bold: "PlusJakartaSans-Bold",
+  extrabold: "PlusJakartaSans-ExtraBold",
 } as const;
 
 /** 500 is not loaded → SemiBold. */

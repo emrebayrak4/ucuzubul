@@ -1,0 +1,3 @@
+"Advertiser ID","Advertiser Name","Primary Region","Membership Status","Feed ID","Feed Name","Language","Vertical","Last Imported","Last Checked","No of products","URL"
+"7001","Test Awin Advertiser","US","active","40001","Main feed","en","retail","2026-11-26 03:00:00","2026-11-26 04:00:00","2","https://productdata.awin.com/datafeed/download/apikey/TESTKEY/language/en/fid/40001/columns/aw_deep_link,product_name/format/csv/delimiter/%2C/compression/gzip/"
+"7002","Not Joined Advertiser","US","notjoined","40002","Feed","en","retail","","","10","https://productdata.awin.com/datafeed/download/apikey/TESTKEY/fid/40002/"

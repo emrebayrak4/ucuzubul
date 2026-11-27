@@ -2,7 +2,15 @@ import { SearchSort, type SearchQueryInput } from "@pricora/contracts";
 import { first, type SearchParams } from "./nav";
 
 /** URL keys that the search UI owns (prices are integer cents, discount is a 0–1 ratio — same as the API). */
-export const FILTER_KEYS = ["q", "category", "brand", "retailer", "minPrice", "maxPrice", "condition", "inStock", "freeShipping", "minDiscount", "sort", "page"] as const;
+export const FILTER_KEYS = ["q", "category", "brand", "retailer", "minPrice", "maxPrice", "condition", "inStock", "freeShipping", "minDiscount", "payOverTime", "spec", "sort", "page", "view"] as const;
+
+/** `spec` items look like `ram.16-gb` (facet key + value slug). */
+const SPEC_ITEM = /^[a-z0-9-]+\.[a-z0-9-]+$/;
+
+/** Grid/list toggle (UI only, never sent to the API). */
+export function viewMode(sp: SearchParams): "grid" | "list" {
+  return first(sp.view) === "list" ? "list" : "grid";
+}
 
 const CONDITIONS = new Set(["new", "refurbished", "used", "open_box"]);
 
@@ -32,7 +40,9 @@ export function parseSearchParams(sp: SearchParams, fixed: Partial<SearchQueryIn
     condition: conditions && (conditions as string[]).length ? conditions : undefined,
     inStock: first(sp.inStock) === "true" ? true : undefined,
     freeShipping: first(sp.freeShipping) === "true" ? true : undefined,
+    payOverTime: first(sp.payOverTime) === "payin4" ? "payin4" : first(sp.payOverTime) === "any" || first(sp.payOverTime) === "true" ? "any" : undefined,
     minDiscount: Number.isFinite(minDiscount) && minDiscount > 0 && minDiscount < 1 ? minDiscount : undefined,
+    spec: csv(first(sp.spec))?.filter((x) => SPEC_ITEM.test(x)).slice(0, 30),
     sort: sort.success ? sort.data : undefined,
     page: Math.max(1, Math.min(500, int(first(sp.page)) ?? 1)),
     pageSize: 24,
@@ -42,7 +52,7 @@ export function parseSearchParams(sp: SearchParams, fixed: Partial<SearchQueryIn
 
 /** True when the URL has any filter/sort beyond pagination → facet page, keep out of the index. */
 export function hasFacetParams(sp: SearchParams): boolean {
-  return FILTER_KEYS.some((k) => k !== "page" && first(sp[k]) !== undefined && first(sp[k]) !== "");
+  return FILTER_KEYS.some((k) => k !== "page" && k !== "view" && first(sp[k]) !== undefined && first(sp[k]) !== "");
 }
 
 export function hrefWith(base: string, sp: SearchParams, overrides: Record<string, string | number | undefined | null>): string {

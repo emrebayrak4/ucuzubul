@@ -246,35 +246,56 @@ async function main(): Promise<void> {
     const prev = picked.get(iata);
     if (!prev || score(r) > score(prev)) picked.set(iata, r);
   }
+  /**
+   * The city an airport SERVES (not merely the nearest settlement): 1) its metro-code city (JFK → New York City,
+   * SAW → Istanbul); 2) the most populous city within 50 km whose name appears as a word in the airport name or the
+   * OurAirports municipality (OAK → Oakland, BJV → Bodrum); a match yields to a ≥10× larger city (≥100k) within
+   * 40 km (ADB "Gaziemir" → İzmir); 3) the most populous city ≥100k within 40 km; 4) the nearest city within 25 km.
+   * The raw municipality stays in airports.city and is indexed as an alias for search.
+   */
+  const metroOf = new Map<string, { city: string; country: string }>();
+  for (const m of METRO_CODES) for (const a of m.airports) metroOf.set(a, { city: m.city, country: m.country });
+  const words = (s: string) => ` ${norm(s)} `;
+  const cityNames = (c: CityRow) => [c.name, c.ascii, ...c.alt].map(norm).filter((n) => n.length >= 3);
+  function servedCity(iata: string, airportName: string, muni: string, cc: string, lat: number, lng: number): CityRow | null {
+    const list = byCountry.get(cc) ?? [];
+    const near = (km: number) => list.filter((c) => haversineKm(lat, lng, c.lat, c.lng) <= km);
+    const metro = metroOf.get(iata);
+    if (metro && metro.country === cc) {
+      const target = norm(metro.city);
+      const hit = list.filter((c) => cityNames(c).includes(target)).sort((x, y) => y.pop - x.pop)[0];
+      if (hit) return hit;
+    }
+    // Municipality first — every part counts: "Köln (Cologne)", "Kuopio / Siilinjärvi", "Pendik, Istanbul" — then the airport's own name.
+    const muniKeys = muni.split(/[,/()]/).map(norm).filter((k) => k.length >= 3);
+    const byMuni = muniKeys.length ? near(50).filter((c) => cityNames(c).some((n) => muniKeys.includes(n))) : [];
+    const airportText = words(airportName);
+    const byName = near(50).filter((c) => [c.name, c.ascii].map(norm).some((n) => n.length >= 3 && airportText.includes(` ${n} `)));
+    const named = (byMuni.length ? byMuni : byName).sort((x, y) => y.pop - x.pop)[0];
+    const big = near(40)
+      .filter((c) => c.pop >= 100_000)
+      .sort((x, y) => y.pop - x.pop)[0];
+    // A district/suburb name yields to the metropolis it belongs to (Gaziemir → İzmir), not a neighbouring city (Oakland ≠ San Francisco).
+    if (named) return big && big.pop >= named.pop * 10 ? big : named;
+    if (big) return big;
+    let best: CityRow | null = null;
+    let bestD = 25;
+    for (const c of list) {
+      const d = haversineKm(lat, lng, c.lat, c.lng);
+      if (d < bestD) {
+        best = c;
+        bestD = d;
+      }
+    }
+    return best;
+  }
   const existing = new Map((await prisma.airport.findMany({ select: { iata: true, searchRank: true } })).map((a) => [a.iata, a.searchRank]));
   const airports = [...picked.entries()].map(([iata, r]) => {
     const lat = Number(r["latitude_deg"]);
     const lng = Number(r["longitude_deg"]);
     const cc = r["iso_country"] ?? "";
     const muni = r["municipality"] ?? "";
-    const list = byCountry.get(cc) ?? [];
-    const m = norm(muni);
-    let best: CityRow | null = null;
-    let bestD = Infinity;
-    if (m) {
-      for (const c of list) {
-        if (norm(c.ascii) !== m && norm(c.name) !== m && !c.alt.some((a) => norm(a) === m)) continue;
-        const d = haversineKm(lat, lng, c.lat, c.lng);
-        if (d < 80 && (d < bestD || (best && c.pop > best.pop * 5 && d < bestD + 20))) {
-          best = c;
-          bestD = d;
-        }
-      }
-    }
-    if (!best) {
-      for (const c of list) {
-        const d = haversineKm(lat, lng, c.lat, c.lng);
-        if (d < 25 && d < bestD) {
-          best = c;
-          bestD = d;
-        }
-      }
-    }
+    const best = servedCity(iata, r["name"] ?? "", muni, cc, lat, lng);
     const type = TYPES[r["type"] ?? ""] ?? "small";
     const sched = r["scheduled_service"] === "yes";
     const rank = Math.max(existing.get(iata) ?? 0, (type === "large" ? 70 : type === "medium" ? 45 : 20) + (sched ? 5 : 0));

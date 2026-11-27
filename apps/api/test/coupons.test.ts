@@ -147,7 +147,9 @@ describe("coupons", () => {
       expect(await expireCoupons(prisma)).toBeGreaterThanOrEqual(1);
       expect((await prisma.coupon.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("expired");
       const feeds = await pullCouponFeeds(prisma, {});
-      expect(feeds.every((f) => f.status === "pending_configuration" && f.created === 0)).toBe(true);
+      // Networks without credentials are pending; sources with no coupon API (eBay, Amazon) say so honestly.
+      expect(feeds.every((f) => (f.status === "pending_configuration" || f.status === "unsupported") && f.created === 0)).toBe(true);
+      expect(feeds.filter((f) => f.status === "pending_configuration").map((f) => f.id)).toEqual(["cj", "impact", "rakuten", "awin"]);
     } finally {
       await prisma.coupon.delete({ where: { id: c.id } });
     }

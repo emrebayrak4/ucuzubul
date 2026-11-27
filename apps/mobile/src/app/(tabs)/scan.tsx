@@ -1,23 +1,28 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { Linking, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { ScanResponse } from "@pricora/contracts";
+import type { Offer, ScanResponse } from "@pricora/contracts";
+import { StoreMark } from "@/components/common";
+import { CouponCard, CouponChip } from "@/components/CouponCard";
+import { Sheet } from "@/components/Sheet";
 import { ProductImage } from "@/components/product";
-import { AppText, Button, Card, DealScoreBadge, DemoBadge, EmptyState, Field, Notice, OfflineBanner, Row } from "@/components/ui";
+import { AppText, Button, Card, DealScoreBadge, DemoBadge, EmptyState, Field, Notice, OfflineBanner, PressableRow, Row } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { api, errorMessage } from "@/lib/api";
 import { analyticsCodeType, isValidGtin, normalizeScannedCode } from "@/lib/barcode";
 import { haptic, money } from "@/lib/format";
 import { openOffer } from "@/lib/links";
+import { useTabBarSpace } from "@/lib/tabBar";
 import { tokens, useTheme } from "@/lib/theme";
 
 const sp = tokens.spacing;
 
 export default function ScanScreen() {
+  const tabSpace = useTabBarSpace();
   const { c } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [active, setActive] = useState(false);
@@ -74,7 +79,7 @@ export default function ScanScreen() {
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.bg }}>
       <OfflineBanner />
-      <ScrollView contentContainerStyle={{ padding: tokens.layout.gutter.base, gap: sp[4], paddingBottom: sp[12] }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: tokens.layout.gutter.base, gap: sp[4], paddingBottom: tabSpace }} keyboardShouldPersistTaps="handled">
         <AppText variant="h2" accessibilityRole="header">
           Scan a barcode
         </AppText>
@@ -250,6 +255,9 @@ function Found({
       ) : null}
 
       {best ? <Button title={`Visit ${best.retailer.name}`} icon="open-outline" onPress={() => void openOffer(best.id, best.retailer.name, "app_scan")} /> : null}
+
+      <CheaperStores offers={offers} shelfCents={Number.isFinite(shelfCents) && shelfCents > 0 ? shelfCents : null} />
+      <ScanCoupons slug={card.slug} />
       <Row gap={3}>
         <Button
           title="All offers"
@@ -260,5 +268,69 @@ function Found({
         <Button title="Scan another" variant="secondary" style={{ flex: 1 }} onPress={onReset} />
       </Row>
     </Card>
+  );
+}
+
+/** Up to 4 cheapest stores; with a shelf price, only stores that beat it (with the saving). */
+function CheaperStores({ offers, shelfCents }: { offers: Offer[]; shelfCents: number | null }) {
+  const sorted = [...offers].sort((a, b) => a.estimatedTotalCents - b.estimatedTotalCents);
+  const list = (shelfCents !== null ? sorted.filter((o) => o.estimatedTotalCents < shelfCents) : sorted).slice(0, 4);
+  if (offers.length < 2 && shelfCents === null) return null;
+  return (
+    <View style={{ gap: sp[1] }}>
+      <AppText variant="overline" color="text-muted">
+        {shelfCents !== null ? `Cheaper than the shelf (${list.length})` : "Cheapest stores"}
+      </AppText>
+      {list.length === 0 ? (
+        <AppText variant="caption" color="text-muted">
+          No store beats the shelf price right now.
+        </AppText>
+      ) : (
+        list.map((o) => (
+          <PressableRow key={o.id} onPress={() => void openOffer(o.id, o.retailer.name, "app_scan_list")} accessibilityLabel={`${o.retailer.name}, ${money(o.estimatedTotalCents, o.currency)}`}>
+            <Row gap={2} style={{ paddingVertical: sp[1.5] }}>
+              <StoreMark name={o.retailer.name} logoUrl={o.retailer.logoUrl} brandColor={o.retailer.brandColor} size={28} />
+              <AppText style={{ flex: 1 }} numberOfLines={1}>
+                {o.retailer.name}
+              </AppText>
+              {o.source === "demo" ? <DemoBadge /> : null}
+              <View style={{ alignItems: "flex-end" }}>
+                <AppText variant="priceSm">{money(o.estimatedTotalCents, o.currency)}</AppText>
+                {shelfCents !== null ? (
+                  <AppText variant="caption" color="price-drop">
+                    save {money(shelfCents - o.estimatedTotalCents, o.currency)}
+                  </AppText>
+                ) : null}
+              </View>
+            </Row>
+          </PressableRow>
+        ))
+      )}
+    </View>
+  );
+}
+
+/** Coupons that apply to the scanned product (from the product detail endpoint). */
+function ScanCoupons({ slug }: { slug: string }) {
+  const [open, setOpen] = useState(false);
+  const q = useQuery({ queryKey: ["product", slug, null], queryFn: ({ signal }) => api.catalog.product(slug, undefined, { signal }) });
+  const coupons = q.data?.coupons ?? [];
+  if (!coupons.length) return null;
+  return (
+    <View style={{ gap: sp[2] }}>
+      <AppText variant="overline" color="text-muted">
+        Coupons ({coupons.length})
+      </AppText>
+      <Row gap={2} style={{ flexWrap: "wrap" }}>
+        {coupons.slice(0, 4).map((cp) => (
+          <CouponChip key={cp.id} coupon={cp} onPress={() => setOpen(true)} />
+        ))}
+      </Row>
+      <Sheet visible={open} onClose={() => setOpen(false)} title="Coupons for this product">
+        {coupons.map((cp) => (
+          <CouponCard key={cp.id} coupon={cp} />
+        ))}
+      </Sheet>
+    </View>
   );
 }

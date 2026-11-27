@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TEST-ONLY recorded-shape fixture (Rakuten Coupon 1.0). Synthetic values. -->
+<couponfeed>
+  <TotalMatches>2</TotalMatches>
+  <TotalPages>1</TotalPages>
+  <PageNumberRequested>1</PageNumberRequested>
+  <link type="TEXT">
+    <categories><category id="1">Electronics</category></categories>
+    <promotiontypes><promotiontype id="2">Percentage off</promotiontype></promotiontypes>
+    <offerdescription>Take 10% off headphones</offerdescription>
+    <offerstartdate>2026-11-01</offerstartdate>
+    <offerenddate>2026-11-30</offerenddate>
+    <couponcode>HEAD10</couponcode>
+    <couponrestriction>Online only</couponrestriction>
+    <clickurl>https://click.linksynergy.com/fs-bin/click?id=ENCID&amp;offerid=999.111&amp;type=3&amp;subid=0</clickurl>
+    <advertiserid>44583</advertiserid>
+    <advertisername>Test Merchant R</advertisername>
+    <network id="1">US Network</network>
+  </link>
+  <link type="TEXT">
+    <promotiontypes><promotiontype id="9">Free Shipping</promotiontype></promotiontypes>
+    <offerdescription>Shipping deal this week</offerdescription>
+    <offerstartdate>2026-11-01</offerstartdate>
+    <offerenddate>2026-11-08</offerenddate>
+    <clickurl>https://click.linksynergy.com/fs-bin/click?id=ENCID&amp;type=3</clickurl>
+    <advertiserid>44583</advertiserid>
+    <advertisername>Test Merchant R</advertisername>
+  </link>
+</couponfeed>

@@ -4,13 +4,27 @@ import "@/lib/zod-csp";
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { Toaster, TooltipProvider } from "@pricora/ui";
+import { MotionGovernor, Toaster, TooltipProvider } from "@pricora/ui";
 import { ApiError } from "@/lib/api-browser";
 import { SessionProvider } from "@/lib/session";
-import { ZipProvider } from "@/components/zip-provider";
+import type { ConsentState } from "@pricora/contracts";
+import { ZipProvider, type EdgeZipGuess } from "@/components/zip-provider";
+import { ConsentProvider } from "@/components/privacy/consent-provider";
 import { NavProgress } from "@/components/nav-progress";
 
-export function Providers({ children, nonce }: { children: React.ReactNode; nonce?: string }) {
+export function Providers({
+  children,
+  nonce,
+  consent = null,
+  gpc = false,
+  edgeZip = null,
+}: {
+  children: React.ReactNode;
+  nonce?: string;
+  consent?: ConsentState | null;
+  gpc?: boolean;
+  edgeZip?: EdgeZipGuess | null;
+}) {
   const [queryClient] = React.useState(
     () =>
       new QueryClient({
@@ -29,13 +43,16 @@ export function Providers({ children, nonce }: { children: React.ReactNode; nonc
     <ThemeProvider nonce={nonce} attribute="class" defaultTheme="light" enableSystem={false} storageKey="pc-theme" disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
         <SessionProvider>
-          <ZipProvider>
-            <TooltipProvider>
-              <NavProgress />
-              {children}
-              <Toaster />
-            </TooltipProvider>
-          </ZipProvider>
+          <ConsentProvider initial={consent} gpcHeader={gpc}>
+            <ZipProvider edgeGuess={edgeZip}>
+              <TooltipProvider>
+                <NavProgress />
+              <MotionGovernor />
+                {children}
+                <Toaster />
+              </TooltipProvider>
+            </ZipProvider>
+          </ConsentProvider>
         </SessionProvider>
       </QueryClientProvider>
     </ThemeProvider>

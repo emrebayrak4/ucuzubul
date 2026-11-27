@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Controller, Get, Inject, Param, Query, Req, Res } from "@nestjs/common";
 import type { ServerEnv } from "@pricora/config/env";
+import { applySubId } from "@pricora/retailer-adapters";
 import type { Response } from "express";
 import { Auth, type AuthedRequest, randomToken } from "../common/auth";
 import { ApiException, notFound } from "../common/errors";
@@ -43,10 +44,12 @@ export class GoController {
     if (!offer || !offer.isActive) throw notFound("Offer");
     const url = isAllowedRedirect(offer.affiliateUrl ?? offer.url, offer.retailer.domain, offer.retailer.allowedRedirectHosts);
     if (!url) throw new ApiException(400, "bad_request", "Outbound link is not on the retailer allow-list");
+    // Our click id goes into the network's sub-ID parameter (CJ sid, Impact subId1, Rakuten u1, Awin clickref, EPN customid, Amazon ascsubtag…).
+    const subId = randomToken(12);
     await this.prisma.affiliateClick.create({
       data: {
         kind: "product",
-        subId: randomToken(12),
+        subId,
         offerId: offer.id,
         productId: offer.productId,
         retailerId: offer.retailerId,
@@ -60,7 +63,7 @@ export class GoController {
     });
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
-    res.redirect(302, url.toString());
+    res.redirect(302, applySubId(url.toString(), subId));
   }
 
   @Get("travel/go/:type/:id")
@@ -87,10 +90,11 @@ export class GoController {
       throw new ApiException(400, "bad_request", "Invalid booking link");
     }
     if (url.protocol !== "https:") throw new ApiException(400, "bad_request", "Invalid booking link");
+    const subId = randomToken(12);
     await this.prisma.affiliateClick.create({
       data: {
         kind: type,
-        subId: randomToken(12),
+        subId,
         travelRefId: id,
         userId: req.user?.id ?? null,
         targetHost: url.hostname,
@@ -99,6 +103,6 @@ export class GoController {
       },
     });
     res.setHeader("Cache-Control", "no-store");
-    res.redirect(302, url.toString());
+    res.redirect(302, applySubId(url.toString(), subId));
   }
 }

@@ -11,7 +11,7 @@ import { tokens, useTheme } from "@/lib/theme";
 
 type NotifKey = keyof UserPreferences["notifications"];
 const ROWS: { key: NotifKey; title: string; subtitle: string }[] = [
-  { key: "push", title: "Push notifications", subtitle: "Price alerts on this device" },
+  { key: "push", title: "Push notifications", subtitle: "Price alerts and followed-store coupons on this device" },
   { key: "email", title: "Email", subtitle: "Price alerts by email" },
   { key: "priceDrops", title: "Price drops", subtitle: "Drops on favorites" },
   { key: "weeklyDigest", title: "Weekly digest", subtitle: "A summary of your saved items" },
@@ -47,7 +47,7 @@ export default function NotificationsScreen() {
         reg.status === "registered"
           ? reg.sentToApi
             ? null
-            : "Push is enabled on this device. Server delivery activates once device registration ships."
+            : "Push is enabled on this device, but we couldn't register it with your account. Try again later."
           : reg.reason,
       );
     }

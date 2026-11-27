@@ -12,9 +12,12 @@ import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { useRecentlyViewed } from "@/lib/recent";
 import { ALERTS_KEY, FAVORITES_KEY, LISTS_KEY, useAlerts, useFavorites, useLists } from "@/lib/saved";
+import { TAB_BAR_CLEARANCE } from "@/lib/tabBar";
 import { tokens, useTheme } from "@/lib/theme";
 
 const sp = tokens.spacing;
+/** Clears the floating tab bar (+ typical home-indicator inset). */
+const TAB_SPACE = TAB_BAR_CLEARANCE + 58;
 type Tab = "favorites" | "alerts" | "lists";
 
 export default function SavedScreen() {
@@ -32,6 +35,7 @@ export default function SavedScreen() {
           <RowSkeleton count={3} />
         ) : (
           <FlatList
+            contentContainerStyle={{ paddingBottom: TAB_SPACE }}
             data={recent.items}
             keyExtractor={(p) => p.id}
             ItemSeparatorComponent={Divider}
@@ -91,6 +95,7 @@ function Favorites() {
   if (q.isError) return <ErrorState message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
   return (
     <FlatList
+            contentContainerStyle={{ paddingBottom: TAB_SPACE }}
       data={q.data.items}
       keyExtractor={(f) => f.id}
       ItemSeparatorComponent={Divider}
@@ -142,6 +147,7 @@ function Alerts() {
   if (q.isError) return <ErrorState message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
   return (
     <FlatList
+            contentContainerStyle={{ paddingBottom: TAB_SPACE }}
       data={q.data.items}
       keyExtractor={(a) => a.id}
       ItemSeparatorComponent={Divider}
@@ -202,6 +208,7 @@ function Lists() {
   return (
     <>
       <FlatList
+            contentContainerStyle={{ paddingBottom: TAB_SPACE }}
         data={q.data.items}
         keyExtractor={(l) => l.id}
         ItemSeparatorComponent={Divider}

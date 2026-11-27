@@ -96,12 +96,17 @@ export class ApiExceptionFilter implements ExceptionFilter {
       status = 409;
       body = { error: { code: "conflict", message: "Resource already exists" } };
     } else {
-      this.logger.error(`${req.method} ${req.url} failed`, exception instanceof Error ? exception.stack : String(exception));
+      this.logger.error(`${req.method} ${redactUrl(req.url)} failed`, exception instanceof Error ? exception.stack : String(exception));
       body = { error: { code: "internal_error", message: "Something went wrong" } };
     }
     if (status >= 500 && !(exception instanceof ApiException)) {
-      this.logger.error(`${req.method} ${req.url} → ${status}`);
+      this.logger.error(`${req.method} ${redactUrl(req.url)} → ${status}`);
     }
     if (!res.headersSent) res.status(status).json(body);
   }
+}
+
+/** Never log precise coordinates: lat/lng query params are rounded to 2 decimals (~1 km) in log lines. */
+export function redactUrl(url: string): string {
+  return url.replace(/([?&](?:lat|lng|latitude|longitude|lon)=)(-?\d+(?:\.\d+)?)/gi, (_m, k: string, v: string) => `${k}${Number(v).toFixed(2)}`);
 }

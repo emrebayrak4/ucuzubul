@@ -7,7 +7,10 @@ import { CategoryIcon } from "@pricora/ui";
 import { BrandMark } from "@/components/brand-mark";
 import { cn, formatCount } from "@pricora/ui/utils";
 import { load, serverApi } from "@/lib/api-server";
-import { absoluteUrl } from "@/lib/env";
+import { organizationJsonLd, websiteJsonLd } from "@/lib/seo";
+import promoRaw from "@pricora/content/promo-photos.json";
+import { CategoryCircle } from "@/components/catalog/category-circle";
+import { PhotoCredit } from "@/components/photo-credit";
 import { ApiErrorPanel } from "@/components/api-error";
 import { JsonLd } from "@/components/json-ld";
 import { DemoNotice } from "@/components/notices";
@@ -18,7 +21,7 @@ import { PersonalBand } from "@/components/recently-viewed";
 const SHOP_DESCRIPTION = "Compare prices across US stores with shipping and estimated tax, real price history, honest Deal Scores, coupons and price alerts.";
 
 export const metadata: Metadata = {
-  title: { absolute: `${brand.name} — Compare prices across US stores, track price drops, find coupons` },
+  title: { absolute: `${brand.name} — Compare US store prices & track price drops` },
   description: SHOP_DESCRIPTION,
   alternates: { canonical: "/" },
   openGraph: { title: brand.name, description: SHOP_DESCRIPTION, url: "/" },
@@ -36,12 +39,15 @@ const circleTones = [
   "bg-sponsored",
 ];
 
+type PromoPhoto = { url: string; color?: string; alt?: string; photographer: string; photographerUrl: string; unsplashUrl: string };
+const PROMO_PHOTOS = promoRaw as unknown as Record<string, PromoPhoto | undefined>;
+
 const promoTiles = [
-  { href: "/deals", title: "Today's best deals", sub: "Ranked by real price history, not hype", cta: "Shop deals", cls: "bg-primary text-primary-fg", ctaCls: "bg-accent text-accent-fg" },
-  { href: "/price-drops", title: "Biggest price drops", sub: "Prices that actually fell this week", cta: "See drops", cls: "bg-accent text-accent-fg", ctaCls: "bg-primary text-primary-fg" },
-  { href: "/search?maxPrice=2500&sort=best_deal", title: "Under $25", sub: "Small prices, compared across stores", cta: "Browse", cls: "bg-warning-soft text-text", ctaCls: "bg-warning text-warning-fg" },
-  { href: "/coupons", title: "Coupons", sub: "Promo codes with real success reports", cta: "Get codes", cls: "bg-success-soft text-text", ctaCls: "bg-success text-success-fg" },
-  { href: "/basket", title: "Smart Basket", sub: "Cheapest way to buy several items", cta: "Try it", cls: "bg-primary-soft text-primary-soft-fg", ctaCls: "bg-primary text-primary-fg" },
+  { photo: "deals", href: "/deals", title: "Today's best deals", sub: "Ranked by real price history, not hype", cta: "Shop deals", cls: "bg-primary text-primary-fg", ctaCls: "bg-accent text-accent-fg" },
+  { photo: "price-drops", href: "/price-drops", title: "Biggest price drops", sub: "Prices that actually fell this week", cta: "See drops", cls: "bg-accent text-accent-fg", ctaCls: "bg-primary text-primary-fg" },
+  { photo: "under-25", href: "/search?maxPrice=2500&sort=best_deal", title: "Under $25", sub: "Small prices, compared across stores", cta: "Browse", cls: "bg-warning-soft text-text", ctaCls: "bg-warning text-warning-fg" },
+  { photo: "coupons", href: "/coupons", title: "Coupons", sub: "Promo codes with real success reports", cta: "Get codes", cls: "bg-success-soft text-text", ctaCls: "bg-success text-success-fg" },
+  { photo: "smart-basket", href: "/basket", title: "Smart Basket", sub: "Cheapest way to buy several items", cta: "Try it", cls: "bg-primary-soft text-primary-soft-fg", ctaCls: "bg-primary text-primary-fg" },
 ];
 
 const discountTiles = [
@@ -70,33 +76,18 @@ export default async function HomePage() {
   const categories = cats.ok ? cats.data.items : [];
   const lowestAll = home.ok ? home.data.bestDeals.filter(nearLow) : [];
   // Show the "near lowest" band only when it has enough items, and never repeat them in "Today's best deals".
-  const lowest = lowestAll.length >= 4 ? lowestAll : [];
+  // Cap it so "Today's best deals" (backfilled from the rest of the ranked list) keeps 10–20 items.
+  const allDeals = home.ok ? home.data.bestDeals : [];
+  const lowestCap = Math.max(0, Math.min(16, allDeals.length - 10));
+  const lowest = lowestAll.length >= 4 ? lowestAll.slice(0, Math.max(4, lowestCap)) : [];
   const lowestIds = new Set(lowest.map((d) => d.product.id));
-  const bestDeals = home.ok ? home.data.bestDeals.filter((d) => !lowestIds.has(d.product.id)) : [];
-  // Popular brands: top brands by product count (global search facet), logos from the brand endpoint.
-  const facet = await load(() => api.search.search({ pageSize: 1 }));
-  const topBrandSlugs = facet.ok ? facet.data.facets.brands.slice(0, 12) : [];
-  const brandDetails = await Promise.all(topBrandSlugs.map((b) => load(() => api.catalog.brand(b.value))));
-  const brands = topBrandSlugs.map((b, i) => {
-    const d = brandDetails[i];
-    return { slug: b.value, name: d?.ok ? d.data.brand.name : b.label, logoUrl: d?.ok ? d.data.brand.logoUrl : null, count: b.count };
-  });
+  const bestRest = allDeals.filter((d) => !lowestIds.has(d.product.id)).slice(0, 20);
+  const bestDeals = bestRest.length >= 4 ? bestRest : [];
 
   return (
-    <div className="flex flex-col gap-8 pb-4 pt-5">
-      <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "WebSite",
-          name: brand.name,
-          url: absoluteUrl("/"),
-          potentialAction: {
-            "@type": "SearchAction",
-            target: { "@type": "EntryPoint", urlTemplate: absoluteUrl("/search?q={search_term_string}") },
-            "query-input": "required name=search_term_string",
-          },
-        }}
-      />
+    <div className="section-stack pb-4 pt-6">
+      <JsonLd data={organizationJsonLd()} />
+      <JsonLd data={websiteJsonLd()} />
       {home.ok && home.data.hasDemoData ? (
         <div className="container-content -mb-3">
           <DemoNotice />
@@ -106,33 +97,53 @@ export default async function HomePage() {
       {/* Promo tiles */}
       <section aria-label="Featured" className="container-content">
         <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-          {promoTiles.map((t, i) => (
-            <li key={t.href} className={i === 0 ? "col-span-2 md:col-span-1" : undefined}>
-              <Link href={t.href} className={cn("group flex h-full min-h-40 flex-col justify-between gap-4 rounded-lg p-4 transition-shadow hover:shadow-md", t.cls)} data-testid="promo-tile">
-                <span>
-                  <span className="block text-lg font-bold leading-tight tracking-tight lg:text-xl">{t.title}</span>
-                  <span className="mt-1 block text-sm opacity-90">{t.sub}</span>
-                </span>
-                <span className={cn("inline-flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold", t.ctaCls)}>
-                  {t.cta} <ArrowRight aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </Link>
-            </li>
-          ))}
+          {promoTiles.map((t, i) => {
+            const photo = PROMO_PHOTOS[t.photo];
+            return (
+              <li key={t.href} className={cn("relative", i === 0 && "col-span-2 md:col-span-1")}>
+                <Link
+                  href={t.href}
+                  className={cn("hover-tilt group flex h-full min-h-40 flex-col overflow-hidden rounded-lg transition-shadow hover:shadow-md lg:flex-row", t.cls)}
+                  data-testid="promo-tile"
+                >
+                  {photo ? (
+                    <span className="relative order-first block h-24 shrink-0 overflow-hidden lg:order-last lg:my-2 lg:mr-2 lg:h-auto lg:w-[36%] lg:rounded-md" style={{ backgroundColor: photo.color }}>
+                      <img
+                        src={`${photo.url}&w=360&h=320&fit=crop&auto=format&q=70`}
+                        alt={photo.alt ?? ""}
+                        loading={i < 2 ? "eager" : "lazy"}
+                        fetchPriority={i === 0 ? "high" : undefined}
+                        decoding="async"
+                        className="group-hover-zoom size-full object-cover"
+                      />
+                    </span>
+                  ) : null}
+                  <span className="flex min-w-0 flex-1 flex-col justify-between gap-3 p-4 lg:pr-2">
+                    <span>
+                      <span className="block text-lg font-bold leading-tight tracking-tight lg:text-xl">{t.title}</span>
+                      <span className="mt-1 block text-sm opacity-90">{t.sub}</span>
+                    </span>
+                    <span className={cn("inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold lg:px-2.5", t.ctaCls)}>
+                      {t.cta} <ArrowRight aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </span>
+                </Link>
+                {photo ? <PhotoCredit photo={photo} side="bottom-end" className="right-2 top-2" /> : null}
+              </li>
+            );
+          })}
         </ul>
       </section>
 
       {/* Category icon circles */}
       {categories.length ? (
         <nav aria-label="Shop by category" className="container-content">
-          <ul className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:grid md:grid-cols-8 md:gap-y-4 md:px-0" data-testid="category-circles">
+          <ul className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 py-1 md:mx-0 md:grid md:grid-cols-8 md:gap-y-4 md:px-0" data-testid="category-circles">
             {categories.slice(0, 16).map((c, i) => (
-              <li key={c.id} className="w-20 shrink-0 md:w-auto">
-                <Link href={`/categories/${c.slug}`} className="group flex flex-col items-center gap-1.5 text-center">
-                  <span className={cn("flex size-16 items-center justify-center rounded-full transition-transform group-hover:scale-105", circleTones[i % circleTones.length])}>
-                    <CategoryIcon category={c.slug} size={28} className="text-text opacity-100" />
-                  </span>
-                  <span className="line-clamp-2 text-xs font-medium leading-tight text-text group-hover:text-primary">{c.name}</span>
+              <li key={c.id} className="w-24 shrink-0 md:w-auto">
+                <Link href={`/categories/${c.slug}`} className="hover-bounce-icon group flex flex-col items-center gap-2 text-center">
+                  <CategoryCircle slug={c.slug} size={76} className={circleTones[i % circleTones.length]} />
+                  <span className="line-clamp-2 text-sm font-medium leading-tight text-text group-hover:text-primary">{c.name}</span>
                 </Link>
               </li>
             ))}
@@ -158,7 +169,7 @@ export default async function HomePage() {
 
           {bestDeals.length ? (
             <Band tone="bg-success-soft" testId="band-best-deals">
-              <Rail title="Today's best deals" description="Ranked by Deal Score — price vs. its own history and other stores" seeAllHref="/deals" testId="rail-best-deals">
+              <Rail title="Today's best deals" description="Ranked by Deal Score — price vs. its own history and other stores" seeAllHref="/deals" testId="rail-best-deals" autoAdvance>
                 {bestDeals.map((d) => (
                   <ProductCardTile key={d.product.id} product={{ ...d.product, dealScore: d.dealScore.score }} storeName={d.offer.retailer.name} storeLogoUrl={d.offer.retailer.logoUrl} />
                 ))}
@@ -216,7 +227,7 @@ export default async function HomePage() {
             </Band>
           ) : null}
 
-          <div className="container-content flex flex-col gap-8">
+          <div className="container-content section-stack">
             <ProductCardRail title="Trending now" description="Most viewed and searched this week" seeAllHref="/search?sort=popular" products={home.data.trending} testId="rail-trending" />
             <UnderPriceRail
               groups={[
@@ -231,7 +242,7 @@ export default async function HomePage() {
 
           {home.data.topCategories.length ? (
             <section aria-labelledby="popular-cats" className="container-content">
-              <h2 id="popular-cats" className="mb-3 text-xl font-semibold tracking-tight">
+              <h2 id="popular-cats" className="section-head text-xl font-semibold tracking-tight">
                 Popular categories
               </h2>
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8">
@@ -250,27 +261,9 @@ export default async function HomePage() {
             </section>
           ) : null}
 
-          {brands.length ? (
-            <section aria-labelledby="popular-brands" className="container-content">
-              <h2 id="popular-brands" className="mb-3 text-xl font-semibold tracking-tight">
-                Popular brands
-              </h2>
-              <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6" data-testid="brand-row">
-                {brands.map((b) => (
-                  <li key={b.slug}>
-                    <Link href={`/brands/${b.slug}`} className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md border border-border bg-surface p-3 text-center transition-shadow hover:shadow-md">
-                      <BrandMark name={b.name} logoUrl={b.logoUrl} size="md" />
-                      <span className="w-full truncate text-xs font-medium">{b.name}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
           {home.data.retailers.length ? (
             <Band tone="bg-surface-2">
-              <div className="mb-3 flex items-baseline justify-between">
+              <div className="section-head flex items-baseline justify-between gap-4">
                 <h2 id="popular-stores" className="text-xl font-semibold tracking-tight">
                   Popular stores
                 </h2>

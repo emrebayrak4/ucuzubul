@@ -1,0 +1,36 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "@page": "1",
+    "@numpages": "2",
+    "@pagesize": "1000",
+    "@total": "2",
+    "@nextpageuri": "/Mediapartners/IRTEST123/Catalogs/555/Items?PageSize=1000&Page=2",
+    "Items": [
+      {
+        "CatalogItemId": "IMP-1",
+        "Name": "Acme X100 Headphones Black",
+        "Description": "Synthetic",
+        "Manufacturer": "Acme",
+        "Mpn": "X100-BLK",
+        "Gtin": "012345678905",
+        "Url": "https://goto.example-retailer.test/c/1111/2222/3333?u=https%3A%2F%2Fwww.example-retailer.test%2Fp%2Fx100",
+        "ImageUrl": "https://www.example-retailer.test/i/x100.jpg",
+        "CurrentPrice": "169.00",
+        "OriginalPrice": "199.00",
+        "Currency": "USD",
+        "StockAvailability": "InStock",
+        "Condition": "New",
+        "Category": "Audio",
+        "CampaignId": "3333",
+        "CampaignName": "Test Campaign"
+      },
+      {
+        "CatalogItemId": "IMP-2",
+        "Name": "No price item",
+        "Url": "https://www.example-retailer.test/p/2",
+        "CampaignId": "3333"
+      }
+    ]
+  }
+}

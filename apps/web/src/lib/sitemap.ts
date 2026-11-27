@@ -20,14 +20,42 @@ export function xmlEscape(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-export function urlset(entries: Array<{ path: string; lastmod?: string; changefreq?: string; priority?: number }>): string {
+export interface SitemapEntry {
+  path: string;
+  /** Real last-modified time from data (never "now"). Omitted when we don't have one. */
+  lastmod?: string;
+  changefreq?: string;
+  priority?: number;
+  /** Image sitemap extension: absolute image URLs + captions (alt text). */
+  images?: Array<{ loc: string; title?: string }>;
+}
+
+export function urlset(entries: SitemapEntry[]): string {
+  const hasImages = entries.some((e) => e.images?.length);
   const body = entries
     .map(
       (e) =>
-        `<url><loc>${xmlEscape(SITE_URL + e.path)}</loc>${e.lastmod ? `<lastmod>${xmlEscape(e.lastmod)}</lastmod>` : ""}${e.changefreq ? `<changefreq>${e.changefreq}</changefreq>` : ""}${e.priority !== undefined ? `<priority>${e.priority.toFixed(1)}</priority>` : ""}</url>`,
+        `<url><loc>${xmlEscape(SITE_URL + e.path)}</loc>${e.lastmod ? `<lastmod>${xmlEscape(e.lastmod)}</lastmod>` : ""}${e.changefreq ? `<changefreq>${e.changefreq}</changefreq>` : ""}${e.priority !== undefined ? `<priority>${e.priority.toFixed(1)}</priority>` : ""}${(e.images ?? [])
+          .map((i) => `<image:image><image:loc>${xmlEscape(i.loc)}</image:loc>${i.title ? `<image:title>${xmlEscape(i.title)}</image:title>` : ""}</image:image>`)
+          .join("")}</url>`,
     )
     .join("");
-  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</urlset>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${hasImages ? ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"' : ""}>${body}</urlset>`;
+}
+
+/** Runs async jobs with bounded concurrency (sitemap builders fan out over categories/brands). */
+export async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]!);
+      }
+    }),
+  );
+  return out;
 }
 
 export function flattenCategories(nodes: CategoryNode[]): CategoryNode[] {

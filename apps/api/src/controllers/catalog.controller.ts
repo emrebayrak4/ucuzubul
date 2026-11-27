@@ -1,6 +1,7 @@
 import { Controller, Get, Inject, Param, Query, Req } from "@nestjs/common";
 import type {
   BrandDetailResponse,
+  CategoryCount,
   CategoryDetailResponse,
   CategoryNode,
   CategorySummary,
@@ -21,6 +22,8 @@ import { notFound } from "../common/errors";
 import { PRISMA, type PrismaClient } from "../common/infra";
 import { input } from "../common/validate";
 import { dailyLowest, emptyStats, type ProductMetrics } from "../core/metrics";
+import { effectiveFacets, parseFacetJson } from "../core/search-index";
+import type { Prisma } from "@pricora/database";
 import { CatalogService } from "../services/catalog.service";
 import { ProductService } from "../services/product.service";
 
@@ -79,25 +82,46 @@ export class CatalogController {
     const summary = all.find((c) => c.id === cat.id);
     if (!summary) throw notFound("Category");
     const pathSlugs = cat.path.split("/");
-    const crumbs = await this.prisma.category.findMany({ where: { slug: { in: pathSlugs } }, select: { slug: true, name: true } });
+    const crumbs = await this.prisma.category.findMany({ where: { slug: { in: pathSlugs } }, select: { slug: true, name: true, facets: true } });
     const ids = (await this.catalog.categorySubtreeIds(slug)) ?? [];
     const brands = await this.prisma.product.groupBy({
       by: ["brandId"],
       where: { status: "active", categoryId: { in: ids }, brandId: { not: null } },
       _count: { _all: true },
       orderBy: { _count: { brandId: "desc" } },
-      take: 12,
+      take: 16,
     });
     const brandRows = await this.prisma.brand.findMany({ where: { id: { in: brands.map((b) => b.brandId).filter((x): x is string => Boolean(x)) } } });
+    const facetsBySlug = new Map(crumbs.map((c) => [c.slug, parseFacetJson(c.facets)]));
     return {
-      category: { ...summary, description: cat.description },
-      breadcrumbs: pathSlugs.map((s) => crumbs.find((c) => c.slug === s)).filter((c): c is { slug: string; name: string } => Boolean(c)),
-      children: all.filter((c) => c.parentId === cat.id),
+      category: { ...summary, description: cat.description, depth: cat.depth },
+      breadcrumbs: pathSlugs.map((s) => crumbs.find((c) => c.slug === s)).filter((c): c is (typeof crumbs)[number] => Boolean(c)).map((c) => ({ slug: c.slug, name: c.name })),
+      children: all.filter((c) => c.parentId === cat.id && c.productCount > 0),
+      siblings: cat.parentId ? all.filter((c) => c.parentId === cat.parentId && c.productCount > 0) : [],
       topBrands: brands.flatMap((b) => {
         const row = brandRows.find((x) => x.id === b.brandId);
-        return row ? [{ slug: row.slug, name: row.name, productCount: b._count._all }] : [];
+        return row ? [{ slug: row.slug, name: row.name, productCount: b._count._all, logoUrl: row.logoUrl }] : [];
       }),
+      facets: effectiveFacets(pathSlugs, facetsBySlug),
+      seoText: cat.seoText,
     };
+  }
+
+  /** Product counts per category (with parent) for a product filter — brand/store breakdowns. */
+  private async categoryBreakdown(where: Prisma.ProductWhereInput): Promise<CategoryCount[]> {
+    const [groups, cats] = await Promise.all([
+      this.prisma.product.groupBy({ by: ["categoryId"], where: { status: "active", ...where }, _count: { _all: true } }),
+      this.prisma.category.findMany({ select: { id: true, slug: true, name: true, parentId: true } }),
+    ]);
+    const byId = new Map(cats.map((c) => [c.id, c]));
+    return groups
+      .flatMap((g): CategoryCount[] => {
+        const c = g.categoryId ? byId.get(g.categoryId) : undefined;
+        if (!c) return [];
+        const parent = c.parentId ? byId.get(c.parentId) : undefined;
+        return [{ slug: c.slug, name: c.name, parent: parent ? { slug: parent.slug, name: parent.name } : null, count: g._count._all }];
+      })
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }
 
   @Get("brands/:slug")
@@ -113,6 +137,7 @@ export class CatalogController {
     return {
       brand: { id: brand.id, slug: brand.slug, name: brand.name, logoUrl: brand.logoUrl, productCount: count, description: brand.description, website: brand.website },
       categories: all.filter((c) => catIds.some((x) => x.categoryId === c.id)),
+      categoryBreakdown: await this.categoryBreakdown({ brandId: brand.id }),
     };
   }
 
@@ -160,6 +185,8 @@ export class CatalogController {
     return {
       retailer: { ...summary, websiteUrl: _row.websiteUrl, returnPolicyUrl: _row.returnPolicyUrl, affiliateDisclosure: _row.affiliateDisclosure },
       topCategories: cats.map((c) => all.find((x) => x.id === c.categoryId)).filter((x): x is CategorySummary => Boolean(x)),
+      categoryBreakdown: await this.categoryBreakdown({ offers: { some: { retailerId: _row.id, isActive: true } } }),
+      paymentOptions: (await this.catalog.paymentIndex()).get(_row.id) ?? [],
     };
   }
 
@@ -267,7 +294,7 @@ export class CatalogController {
       list
         .filter((m) => m.lowestPriceCents !== null && m.lowestPriceCents < max && m.inStock)
         .sort((a, b) => (b.dealScore?.score ?? 0) - (a.dealScore?.score ?? 0))
-        .slice(0, 12)
+        .slice(0, 20)
         .map((m) => m.productId);
 
     const since = new Date(Date.now() - 7 * DAY_MS);
@@ -276,18 +303,19 @@ export class CatalogController {
       where: { createdAt: { gte: since }, productId: { not: null } },
       _count: { _all: true },
       orderBy: { _count: { productId: "desc" } },
-      take: 12,
+      take: 20,
     });
     const trendingIds = clicks.map((c) => c.productId).filter((x): x is string => Boolean(x));
     for (const m of [...list].sort((a, b) => b.storeCount - a.storeCount || (b.dealScore?.score ?? 0) - (a.dealScore?.score ?? 0))) {
-      if (trendingIds.length >= 12) break;
+      if (trendingIds.length >= 20) break;
       if (!trendingIds.includes(m.productId)) trendingIds.push(m.productId);
     }
 
     const [trending, bestDeals, priceDrops, u25, u50, u100, cats, retailers, recent] = await Promise.all([
       this.catalog.cards(trendingIds, metrics),
-      this.catalog.dealItems(byScore.slice(0, 8).map((m) => m.productId), metrics),
-      this.toDropItems(this.priceDropItems(metrics, 7 * DAY_MS).slice(0, 8), metrics),
+      // Enough candidates for two deal rails on the home page (near-lowest + best deals) after de-duplication.
+      this.catalog.dealItems(byScore.slice(0, 40).map((m) => m.productId), metrics),
+      this.toDropItems(this.priceDropItems(metrics, 7 * DAY_MS).slice(0, 20), metrics),
       this.catalog.cards(under(2500), metrics),
       this.catalog.cards(under(5000), metrics),
       this.catalog.cards(under(10000), metrics),

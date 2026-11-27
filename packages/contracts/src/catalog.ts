@@ -38,11 +38,42 @@ export type CategoryTreeResponse = z.infer<typeof CategoryTreeResponse>;
 export const Breadcrumb = z.object({ name: z.string(), slug: Slug });
 export type Breadcrumb = z.infer<typeof Breadcrumb>;
 
+/**
+ * Spec filter definition stored on Category.facets (inherited by descendants; deeper keys override).
+ * Values come from ProductAttribute rows whose `name` equals `attribute`.
+ */
+export const CategoryFacetDef = z.object({
+  /** URL key, e.g. "ram" → `spec=ram.16-gb`. */
+  key: z.string().regex(/^[a-z0-9-]+$/),
+  label: z.string(),
+  /** ProductAttribute.name to read values from. */
+  attribute: z.string(),
+  /** Bucket order: by count, alphabetical, numeric (leading number), or the explicit `order` list. */
+  sort: z.enum(["count", "alpha", "numeric", "custom"]).default("count"),
+  order: z.array(z.string()).optional(),
+});
+export type CategoryFacetDef = z.infer<typeof CategoryFacetDef>;
+
+/** Category with a product count scoped to a brand/store (breakdown lists). */
+export const CategoryCount = z.object({
+  slug: Slug,
+  name: z.string(),
+  parent: z.object({ slug: Slug, name: z.string() }).nullable(),
+  count: z.number().int().nonnegative(),
+});
+export type CategoryCount = z.infer<typeof CategoryCount>;
+
 export const CategoryDetailResponse = z.object({
-  category: CategorySummary.extend({ description: z.string().nullable() }),
+  category: CategorySummary.extend({ description: z.string().nullable(), depth: z.number().int().nonnegative() }),
   breadcrumbs: z.array(Breadcrumb),
   children: z.array(CategorySummary),
-  topBrands: z.array(z.object({ slug: Slug, name: z.string(), productCount: z.number().int() })),
+  /** Siblings (same parent) — shown when the category is a leaf. */
+  siblings: z.array(CategorySummary),
+  topBrands: z.array(z.object({ slug: Slug, name: z.string(), productCount: z.number().int(), logoUrl: z.string().url().nullable() })),
+  /** Effective spec filters for this category (own + inherited). */
+  facets: z.array(CategoryFacetDef),
+  /** Longer SEO / buying-guide text (plain paragraphs separated by blank lines). */
+  seoText: z.string().nullable(),
 });
 export type CategoryDetailResponse = z.infer<typeof CategoryDetailResponse>;
 
@@ -58,8 +89,41 @@ export type BrandSummary = z.infer<typeof BrandSummary>;
 export const BrandDetailResponse = z.object({
   brand: BrandSummary.extend({ description: z.string().nullable(), website: z.string().url().nullable() }),
   categories: z.array(CategorySummary),
+  /** Product counts for this brand per leaf category, largest first. */
+  categoryBreakdown: z.array(CategoryCount),
 });
 export type BrandDetailResponse = z.infer<typeof BrandDetailResponse>;
+
+/* ------------------------------------------------------------------ */
+/* Pay over time (BNPL / promotional financing)                        */
+/* ------------------------------------------------------------------ */
+
+export const PaymentPlanType = z.enum(["pay_in_4", "monthly_financing", "store_card_promo"]);
+export type PaymentPlanType = z.infer<typeof PaymentPlanType>;
+
+/** A pay-over-time option the store offers at its own checkout (from its public help pages, or a feed/API). */
+export const PaymentOption = z.object({
+  provider: z.string(),
+  planType: PaymentPlanType,
+  installments: z.number().int().nullable(),
+  /** False when the provider charges installment fees (e.g. Zip). "Interest-free" copy only when true. */
+  interestFree: z.boolean(),
+  minOrderCents: Cents.nullable(),
+  maxOrderCents: Cents.nullable(),
+  /** "retailer" | "provider_general" — whose published limits min/max are. */
+  limitsScope: z.string().nullable(),
+  /** Monthly financing APR range in basis points when published; never used to compute payments. */
+  aprMinBp: z.number().int().nullable(),
+  aprMaxBp: z.number().int().nullable(),
+  promoDescription: z.string().nullable(),
+  sourceUrl: z.string().url(),
+  lastVerifiedAt: IsoDateTime,
+});
+export type PaymentOption = z.infer<typeof PaymentOption>;
+
+/** Interest-free pay-in-4 estimate: ceil(total / 4), only when the total is inside the provider's published limits. */
+export const PayIn4 = z.object({ provider: z.string(), installmentCents: Cents, installments: z.literal(4), basisTotalCents: Cents });
+export type PayIn4 = z.infer<typeof PayIn4>;
 
 export const RetailerSummary = z.object({
   id: Id,
@@ -88,6 +152,10 @@ export const RetailerDetailResponse = z.object({
     affiliateDisclosure: z.string().nullable(),
   }),
   topCategories: z.array(CategorySummary),
+  /** Products carried by this store per leaf category, largest first. */
+  categoryBreakdown: z.array(CategoryCount),
+  /** Pay-over-time options at this store's checkout (public help pages; empty when unverified). */
+  paymentOptions: z.array(PaymentOption),
 });
 export type RetailerDetailResponse = z.infer<typeof RetailerDetailResponse>;
 
@@ -149,6 +217,17 @@ export const ProductCard = z.object({
   /** True if any offer is demo data → UI must label "Demo data". */
   hasDemoData: z.boolean(),
   sponsored: z.boolean().default(false),
+  /**
+   * Real previous price (cents) of the store now holding the lowest price, when that store cut its price in the
+   * last 7 days. null/absent when there was no such drop. Never a list/"was" price.
+   */
+  previousPriceCents: Cents.nullable().optional(),
+  /** Pay-in-4 estimate at the lowest-price store, when available (see PayIn4). */
+  payIn4: PayIn4.nullable().optional(),
+  /** Any store carrying it offers a pay-over-time option for its price. */
+  payOverTime: z.boolean().optional(),
+  /** Up to 4 short spec values for tiles / list rows, e.g. ["16 GB RAM", "512 GB SSD"]. */
+  keySpecs: z.array(z.string()).optional(),
   updatedAt: IsoDateTime,
 });
 export type ProductCard = z.infer<typeof ProductCard>;
@@ -198,6 +277,10 @@ export const Offer = z.object({
   source: DataSource,
   sponsored: z.boolean(),
   lastCheckedAt: IsoDateTime,
+  /** Pay-over-time options at this store applicable to this order amount (unknown limits included, marked by nulls). */
+  paymentOptions: z.array(PaymentOption).optional(),
+  /** Interest-free pay-in-4 estimate for this offer, or null. */
+  payIn4: PayIn4.nullable().optional(),
 });
 export type Offer = z.infer<typeof Offer>;
 
@@ -295,7 +378,12 @@ export const ProductDetailResponse = z.object({
   hasDemoData: z.boolean(),
   /** Active coupons that apply (store-wide, or scoped to this product/category) at the stores carrying it. */
   coupons: z.array(Coupon),
+  /** Real previous price at the lowest-price store if it dropped in the last 7 days (see ProductCard.previousPriceCents). */
+  previousLowestPriceCents: Cents.nullable().optional(),
+  /** Same category, closest specs/price. */
   related: z.array(ProductCard),
+  /** Alternatives from other brands in the same category and price band (one-click compare). */
+  alternatives: z.array(ProductCard),
   lastUpdatedAt: IsoDateTime,
 });
 export type ProductDetailResponse = z.infer<typeof ProductDetailResponse>;
@@ -341,7 +429,7 @@ export const CompareQuery = z.object({
   ids: z
     .string()
     .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
-    .pipe(z.array(Id).min(2).max(4)),
+    .pipe(z.array(Id).min(2).max(5)),
 });
 export type CompareQuery = z.infer<typeof CompareQuery>;
 

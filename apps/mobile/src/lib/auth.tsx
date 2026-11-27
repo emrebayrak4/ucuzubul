@@ -5,6 +5,7 @@ import { AppState } from "react-native";
 import type { LoginRequest, PublicUser, RegisterRequest } from "@pricora/contracts";
 import { api, setUnauthorizedHandler } from "./api";
 import { brand } from "./config";
+import { refreshPushRegistration, unregisterPush } from "./notifications";
 import { clearUserQueries } from "./query";
 import {
   extractSessionToken,
@@ -72,6 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [qc, signOutLocally]);
 
+  // Keep this device's push token registered with the signed-in account (never prompts for permission).
+  const userId = user?.id;
+  useEffect(() => {
+    if (userId) void refreshPushRegistration();
+  }, [userId]);
+
   // Biometric lock: once per cold start, and again when the app returns from background.
   useEffect(() => {
     if (!user || !biometricEnabled || bioChecked.current) return;
@@ -120,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (body: LoginRequest) => onSession(await api.auth.login(body)), [onSession]);
   const register = useCallback(async (body: RegisterRequest) => onSession(await api.auth.register(body)), [onSession]);
   const logout = useCallback(async () => {
+    await unregisterPush();
     try {
       await api.auth.logout();
     } catch {

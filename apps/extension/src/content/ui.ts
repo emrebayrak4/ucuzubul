@@ -5,8 +5,8 @@
  */
 import tokensCss from "@pricora/design-tokens/tokens.css?raw";
 
-export const FONT_FAMILY = "Nunito Sans (extension)";
-const FONT_FILE = "fonts/nunito-sans-latin-wght-normal.woff2";
+export const FONT_FAMILY = "Plus Jakarta Sans (extension)";
+const FONT_FILE = "fonts/plus-jakarta-sans-latin-wght-normal.woff2";
 
 /** tokens.css targets :root / .dark; inside a shadow root those must apply to :host and our wrapper. */
 export function scopeTokensToShadow(css: string): string {
@@ -17,13 +17,13 @@ export function scopeTokensToShadow(css: string): string {
 }
 
 let fontRequested = false;
-/** Registers the bundled Nunito Sans with the page's FontFaceSet under a private family name (no network beyond the extension). */
+/** Registers the bundled Plus Jakarta Sans with the page's FontFaceSet under a private family name (no network beyond the extension). */
 export function ensureFont(): void {
   if (fontRequested || typeof FontFace === "undefined") return;
   fontRequested = true;
   try {
     const face = new FontFace(FONT_FAMILY, `url("${chrome.runtime.getURL(FONT_FILE)}") format("woff2")`, {
-      weight: "200 1000",
+      weight: "200 800",
       style: "normal",
       display: "swap",
     });
@@ -37,7 +37,7 @@ export function ensureFont(): void {
 export const BASE_CSS = `
 :host { all: initial; }
 .pc-root {
-  --font-nunito-sans: "${FONT_FAMILY}";
+  --font-plus-jakarta-sans: "${FONT_FAMILY}";
   font-family: "${FONT_FAMILY}", var(--pc-font-sans, ui-sans-serif, system-ui, sans-serif);
   font-size: 14px; line-height: 20px; color: var(--pc-color-text);
   -webkit-font-smoothing: antialiased;

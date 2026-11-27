@@ -41,11 +41,14 @@ export function Screen({
   edges = ["top"],
   padded = true,
   style,
+  bottomSpace = sp[12],
 }: {
   children: ReactNode;
   scroll?: boolean;
   edges?: Edge[];
   padded?: boolean;
+  /** Bottom scroll padding (tab screens pass useTabBarSpace()). */
+  bottomSpace?: number;
   style?: StyleProp<ViewStyle>;
 }) {
   const { c } = useTheme();
@@ -55,7 +58,7 @@ export function Screen({
       <OfflineBanner />
       {scroll ? (
         <ScrollView
-          contentContainerStyle={[inner, { paddingBottom: sp[12] }]}
+          contentContainerStyle={[inner, { paddingBottom: bottomSpace }]}
           keyboardShouldPersistTaps="handled"
           contentInsetAdjustmentBehavior="automatic"
         >

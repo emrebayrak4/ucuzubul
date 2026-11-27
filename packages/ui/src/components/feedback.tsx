@@ -6,7 +6,7 @@ import { Button } from "./button";
 /* --------------------------------------------------------------- Skeleton */
 
 export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div aria-hidden className={cn("animate-skeleton rounded-sm bg-surface-3", className)} {...props} />;
+  return <div aria-hidden className={cn("skeleton-shimmer rounded-sm bg-surface-3", className)} {...props} />;
 }
 
 /** Placeholder that matches ProductTile geometry (prevents layout shift). */

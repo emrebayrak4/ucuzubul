@@ -1,0 +1,18 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "Records": [
+      {
+        "EpnTransactionId": "5100000001",
+        "CampaignId": "5338000000",
+        "CustomId": "clk_epn1",
+        "EventDate": "2026-11-12T16:00:00Z",
+        "Sales": "89.50",
+        "Earnings": "3.58",
+        "ItemId": "110000000003",
+        "Currency": "USD",
+        "Status": "Paid"
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "count": 1,
+    "conversions": [
+      {
+        "conversion_data": {
+          "conversion_id": "1011l123456",
+          "campaign_id": "10l176",
+          "campaign_title": "Test Partnerize Campaign",
+          "publisher_reference": "clk_pz1",
+          "advertiser_reference": "P-ORD-1",
+          "conversion_status": "pending",
+          "conversion_time": "2026-11-15 14:22:10",
+          "currency": "USD",
+          "value": "300.00",
+          "commission": "15.00"
+        }
+      }
+    ]
+  }
+}

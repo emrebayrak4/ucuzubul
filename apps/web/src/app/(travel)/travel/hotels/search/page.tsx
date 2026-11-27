@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
-import { HotelSearchQuery } from "@pricora/contracts";
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
+import { HotelSearchQuery, type HotelSearchQueryInput } from "@pricora/contracts";
 import { load, serverApi } from "@/lib/api-server";
 import { first, toQueryString, type SearchParams } from "@/lib/nav";
 import { ApiErrorPanel } from "@/components/api-error";
-import { LinkPagination } from "@/components/link-pagination";
 import { DemoNotice, Notice } from "@/components/notices";
-import { HotelCard } from "@/components/travel/hotel-card";
 import { PendingProvidersState, ProviderStatusList } from "@/components/travel/provider-status";
-import { HotelSearchForm } from "@/components/travel/search-forms";
 import { guideForCity } from "@/lib/guides";
-import Link from "next/link";
-import { BookOpen } from "lucide-react";
-import { TravelHero } from "@/components/travel/travel-band";
-import { LinkTabs, UrlSelect } from "@/components/url-controls";
+import { HotelResultsView, StickySearchBar, type StaySummary } from "@/components/travel/hotels/results-view";
+import { FILTER_KEYS, STAY_KEYS } from "@/components/travel/hotels/url-keys";
+import { CityPhotoImg, UnsplashCredit } from "@/components/travel/hotels/city-photo";
+import { cityPhoto, cityPhotoBySlug } from "@/lib/city-photos";
 
 type Props = { searchParams: Promise<SearchParams> };
 
@@ -21,113 +20,117 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   return { title: city ? `Hotels in ${city.slice(0, 60)}` : "Hotel search", robots: { index: false, follow: true }, alternates: { canonical: "/travel/hotels" } };
 }
 
-const sorts = [
-  { value: "recommended", label: "Recommended" },
-  { value: "price_asc", label: "Lowest price" },
-  { value: "price_desc", label: "Highest price" },
-  { value: "stars_desc", label: "Star class" },
-] as const;
-
 export default async function HotelSearchPage({ searchParams }: Props) {
   const sp = await searchParams;
+  const pick = (keys: readonly string[]) => Object.fromEntries(keys.map((k) => [k, first(sp[k]) || undefined]));
+  const stayParams = pick(STAY_KEYS) as Record<string, string | undefined>;
+  const filterParams = pick(FILTER_KEYS) as Record<string, string | undefined>;
+  const sort = first(sp.sort) || undefined;
+  const page = first(sp.page) || undefined;
+  const viewRaw = first(sp.view);
+  const view = viewRaw === "map" || viewRaw === "grid" ? viewRaw : "list";
+
   const raw = {
-    city: first(sp.city) ?? "",
-    placeId: first(sp.placeId) || undefined,
-    checkin: first(sp.checkin) ?? "",
-    checkout: first(sp.checkout) ?? "",
-    guests: first(sp.guests),
-    rooms: first(sp.rooms),
-    minStars: first(sp.minStars) || undefined,
-    maxPrice: first(sp.maxPrice) || undefined,
-    sort: first(sp.sort) || undefined,
-    page: first(sp.page),
+    city: stayParams.city ?? "",
+    placeId: stayParams.placeId,
+    checkin: stayParams.checkin ?? "",
+    checkout: stayParams.checkout ?? "",
+    guests: stayParams.guests,
+    rooms: stayParams.rooms,
+    ...filterParams,
+    // Validated by HotelSearchQuery.safeParse below before any API call.
+    sort: sort as HotelSearchQueryInput["sort"],
+    page,
+    pageSize: view === "map" ? "50" : "25",
   };
   const parsed = HotelSearchQuery.safeParse(raw);
-  const base = { city: raw.city, placeId: raw.placeId, checkin: raw.checkin, checkout: raw.checkout, guests: raw.guests, rooms: raw.rooms };
-  const href = (o: Record<string, string | number | undefined>) =>
-    "/travel/hotels/search" + toQueryString({ ...base, minStars: raw.minStars, maxPrice: raw.maxPrice, sort: raw.sort, ...o });
-  const work = first(sp.work) === "1";
-  const adults = Number(first(sp.adults)) || undefined;
-  const childAges = (first(sp.ages) ?? "").split(",").filter((x) => /^\d{1,2}$/.test(x)).map(Number).slice(0, 8);
-  const detailQuery = toQueryString({ checkin: raw.checkin, checkout: raw.checkout, guests: raw.guests, rooms: raw.rooms, work: work ? "1" : undefined });
+  const childAges = (stayParams.ages ?? "").split(",").filter((x) => /^\d{1,2}$/.test(x)).map(Number).slice(0, 8);
+  const stay: StaySummary = {
+    city: raw.city,
+    checkin: raw.checkin,
+    checkout: raw.checkout,
+    guests: parsed.success ? parsed.data.guests : 2,
+    rooms: parsed.success ? parsed.data.rooms : 1,
+    adults: Number(stayParams.adults) || undefined,
+    childAges,
+    work: stayParams.work === "1",
+  };
+  const detailQuery = toQueryString({ checkin: raw.checkin, checkout: raw.checkout, guests: stayParams.guests, rooms: stayParams.rooms });
 
   let guideSlug: string | null = null;
+  let locationName = raw.city;
   let body: React.ReactNode;
   if (!parsed.success) {
-    body = <Notice tone="warning">{parsed.error.issues[0]?.message ?? "Please check your search."} Adjust the search above and try again.</Notice>;
+    const missingDates = !raw.checkin || !raw.checkout;
+    body = (
+      <div className="container-content py-6">
+        <Notice tone="warning">
+          {missingDates ? "Select your check-in and check-out dates to see prices." : (parsed.error.issues[0]?.message ?? "Please check your search.")} Edit the search above and try again.
+        </Notice>
+      </div>
+    );
   } else {
     const api = await serverApi({ revalidate: 300 });
-    const res = await load(() => api.travel.hotels(parsed.data));
-    if (!res.ok) body = <ApiErrorPanel error={res.error} />;
+    const res = await load(() => api.travel.hotels(raw));
+    if (!res.ok) body = <div className="container-content py-6"><ApiErrorPanel error={res.error} /></div>;
     else {
       const d = res.data;
-      guideSlug = d.guideSlug ?? null;
+      guideSlug = d.guideSlug;
+      locationName = d.location?.name ?? raw.city;
       const allPending = d.providers.length > 0 && d.providers.every((p) => p.status !== "live");
-      body = (
-        <div className="flex flex-col gap-4">
-          <ProviderStatusList providers={d.providers} />
-          {d.source === "demo" ? <DemoNotice /> : null}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <LinkTabs label="Sort hotels" items={sorts.map((s) => ({ href: href({ sort: s.value === "recommended" ? undefined : s.value, page: undefined }), label: s.label, active: parsed.data.sort === s.value }))} />
-            <div className="flex flex-wrap gap-2">
-              <UrlSelect name="minStars" label="Minimum star class" allLabel="Any star class" options={[2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n}+ stars` }))} />
-              <UrlSelect name="maxPrice" label="Max nightly price" allLabel="Any price" options={[10000, 15000, 20000, 30000, 50000].map((c) => ({ value: String(c), label: `Up to $${c / 100}/night` }))} />
-            </div>
+      const base = { ...stayParams, ...filterParams, sort, view: view === "list" ? undefined : view };
+      const pageHref: Record<number, string> = {};
+      for (let p = 1; p <= Math.ceil(d.total / d.pageSize); p++) pageHref[p] = "/travel/hotels/search" + toQueryString({ ...base, page: p > 1 ? p : undefined });
+      body =
+        d.unfilteredTotal === 0 ? (
+          <div className="container-content flex flex-col gap-4 py-6">
+            <ProviderStatusList providers={d.providers} />
+            {allPending ? <PendingProvidersState providers={d.providers} kind="hotels" /> : <Notice>No properties found for {raw.city || "this place"} yet. Try a nearby city or one of our guide destinations.</Notice>}
           </div>
-          {d.items.length === 0 ? (
-            allPending ? (
-              <PendingProvidersState providers={d.providers} kind="hotels" />
-            ) : (
-              <Notice>No rates yet for {raw.city} — providers are connecting soon. Try another destination or different dates.</Notice>
-            )
-          ) : (
-            <>
-              <p className="text-sm text-text-muted">
-                <span className="price font-semibold text-text">{d.total}</span> hotels · {d.nights} {d.nights === 1 ? "night" : "nights"}
-              </p>
-              <ul className="flex flex-col gap-3" data-testid="hotel-results">
-                {d.items.map((h) => (
-                  <li key={h.id}>
-                    <HotelCard hotel={h} nights={d.nights} detailQuery={detailQuery} />
-                  </li>
-                ))}
-              </ul>
-              <LinkPagination page={d.page} pageCount={Math.ceil(d.total / Math.max(1, d.items.length > 0 && d.page === 1 ? d.items.length : 20))} hrefFor={(p) => href({ page: p > 1 ? p : undefined })} />
-            </>
-          )}
-        </div>
-      );
+        ) : (
+          <>
+            <div className="container-content flex flex-col gap-3 pt-4">
+              {d.source === "demo" || d.source === "mixed" ? <DemoNotice /> : null}
+              <ProviderStatusList providers={d.providers} />
+            </div>
+            <HotelResultsView data={d} detailQuery={detailQuery} view={view} pageHref={pageHref} />
+          </>
+        );
     }
   }
 
-  // Prefer the API's guideSlug; fall back to a name lookup (e.g. free-text city searches).
   const guide = guideSlug ? { slug: guideSlug, city: raw.city } : raw.city ? await guideForCity(raw.city) : null;
+  const photo = cityPhotoBySlug(guide?.slug) ?? cityPhoto(locationName || raw.city);
 
   return (
     <>
-      <TravelHero vertical="hotels" compact title={raw.city ? `Stays in ${raw.city}` : "Hotel search"}>
-        <HotelSearchForm
-          key={JSON.stringify(base)}
-          initial={{
-            city: raw.city,
-            checkin: raw.checkin,
-            checkout: raw.checkout,
-            guests: parsed.success ? parsed.data.guests : 2,
-            rooms: parsed.success ? parsed.data.rooms : 1,
-            adults,
-            childAges,
-            work,
-          }}
-        />
-      </TravelHero>
-      <div className="container-content py-6">
-        {guide ? (
-          <Link href={`/travel/guides/${guide.slug}`} className="mb-4 inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-bold text-hotels-soft-fg hover:underline" data-testid="city-guide-link">
-            <BookOpen aria-hidden className="size-4" /> Read the {guide.city} guide
+      <StickySearchBar stay={stay} startOpen={!parsed.success} />
+      {photo ? (
+        <section className="relative isolate overflow-hidden bg-hotels text-white" data-testid="city-band">
+          <CityPhotoImg photo={photo} priority className="-z-20" />
+          <UnsplashCredit photo={photo} className="right-3 top-3" />
+          <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/40 to-black/10" />
+          <div className="container-content flex min-h-36 flex-col justify-end gap-1 py-5 lg:min-h-48">
+            <h1 className="text-2xl font-extrabold tracking-tight [text-shadow:0_1px_3px_rgba(0,0,0,.4)] lg:text-3xl">Stays in {locationName}</h1>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              {guide ? (
+                <Link href={`/travel/guides/${guide.slug}`} className="inline-flex items-center gap-2 text-sm font-bold underline-offset-2 hover:underline" data-testid="city-guide-link">
+                  <BookOpen aria-hidden className="size-4" /> Read the {guide.city} travel guide
+                </Link>
+              ) : (
+                <span />
+              )}
+            </div>
+          </div>
+        </section>
+      ) : guide ? (
+        <div className="container-content pt-3">
+          <Link href={`/travel/guides/${guide.slug}`} className="inline-flex items-center gap-2 text-sm font-bold text-hotels-soft-fg hover:underline" data-testid="city-guide-link">
+            <BookOpen aria-hidden className="size-4" /> Read the {guide.city} travel guide
           </Link>
-        ) : null}
-        {body}
-      </div>
+        </div>
+      ) : null}
+      {body}
     </>
   );
 }

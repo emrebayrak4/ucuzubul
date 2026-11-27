@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../helpers/fixtures";
 import { ADMIN_URL, SEED, SEED_PASSWORD, authFile } from "../helpers/env";
 
 const FIXTURE = fileURLToPath(new URL("../fixtures/merchant-feed-small.csv", import.meta.url));

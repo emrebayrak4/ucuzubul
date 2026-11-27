@@ -26,7 +26,14 @@ export const SearchQuery = z.object({
   inStock: QueryBoolean.optional(),
   freeShipping: QueryBoolean.optional(),
   pickup: QueryBoolean.optional(),
+  /**
+   * Pay over time: "payin4" = some store offers interest-free pay-in-4 for its total (computed estimate);
+   * "any" = any BNPL / financing option. Legacy "true" means "any".
+   */
+  payOverTime: z.preprocess((v) => (v === "true" || v === true ? "any" : v), z.enum(["payin4", "any"])).optional(),
   minDiscount: z.coerce.number().min(0).max(1).optional(),
+  /** Spec filters as `key.value-slug` items, e.g. `ram.16-gb,ram.32-gb,cpu-brand.intel` (OR within a key, AND across keys). */
+  spec: CsvList.optional(),
   sort: SearchSort.default("relevance"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(24),
@@ -40,8 +47,18 @@ export const FacetBucket = z.object({
   label: z.string(),
   count: z.number().int().nonnegative(),
   selected: z.boolean(),
+  /** Brand/store logo when stored (trademark of its owner, used nominatively). */
+  logoUrl: z.string().nullable().optional(),
+  /** Store brand color for text tiles. */
+  color: z.string().nullable().optional(),
 });
 export type FacetBucket = z.infer<typeof FacetBucket>;
+
+export const SpecFacet = z.object({ key: z.string(), label: z.string(), buckets: z.array(FacetBucket) });
+export type SpecFacet = z.infer<typeof SpecFacet>;
+
+export const PriceHistogramBin = z.object({ fromCents: z.number().int(), toCents: z.number().int(), count: z.number().int().nonnegative() });
+export type PriceHistogramBin = z.infer<typeof PriceHistogramBin>;
 
 export const SearchFacets = z.object({
   categories: z.array(FacetBucket),
@@ -54,8 +71,17 @@ export const SearchFacets = z.object({
     buckets: z.array(
       z.object({ fromCents: z.number().int(), toCents: z.number().int().nullable(), count: z.number().int() }),
     ),
+    /** Equal-width bins over the result set ignoring the price filter (slider histogram). */
+    histogram: z.array(PriceHistogramBin),
   }),
   inStockCount: z.number().int().nonnegative(),
+  freeShippingCount: z.number().int().nonnegative(),
+  /** Products with any pay-over-time option at some store. */
+  payOverTimeCount: z.number().int().nonnegative(),
+  /** Products with an interest-free pay-in-4 estimate at some store. */
+  payIn4Count: z.number().int().nonnegative(),
+  /** Category spec filters (only when a category with facet definitions is selected). */
+  specs: z.array(SpecFacet),
 });
 export type SearchFacets = z.infer<typeof SearchFacets>;
 
@@ -81,6 +107,8 @@ export const SearchResponse = z.object({
   /** true when Meilisearch is unreachable and Postgres fallback served the results. */
   degraded: z.boolean(),
   parsed: ParsedQuery.nullable(),
+  /** Spelling suggestion when the query looks misspelled (or returned nothing). */
+  didYouMean: z.string().nullable(),
   tookMs: z.number().nonnegative(),
 });
 export type SearchResponse = z.infer<typeof SearchResponse>;
@@ -96,9 +124,12 @@ export const Suggestion = z.discriminatedUnion("type", [
     slug: Slug,
     imageUrl: z.string().url().nullable(),
     lowestPriceCents: z.number().int().nullable(),
+    storeCount: z.number().int().nonnegative().optional(),
+    category: z.string().nullable().optional(),
+    hasDemoData: z.boolean().optional(),
   }),
-  z.object({ type: z.literal("category"), text: z.string(), slug: Slug }),
-  z.object({ type: z.literal("brand"), text: z.string(), slug: Slug }),
+  z.object({ type: z.literal("category"), text: z.string(), slug: Slug, parent: z.string().nullable().optional(), count: z.number().int().optional() }),
+  z.object({ type: z.literal("brand"), text: z.string(), slug: Slug, count: z.number().int().optional() }),
 ]);
 export type Suggestion = z.infer<typeof Suggestion>;
 

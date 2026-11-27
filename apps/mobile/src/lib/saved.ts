@@ -75,7 +75,7 @@ export function useFavoriteToggle(productId: string | undefined) {
 export function useCreateAlert() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { productId: string; type: AlertType; targetPriceCents?: number; channels: AlertChannel[] }) =>
+    mutationFn: (input: { productId: string; type: AlertType; targetPriceCents?: number; dropPercentBp?: number; channels: AlertChannel[] }) =>
       api.me.alerts.create({ ...input }),
     onMutate: () => haptic.toggle(),
     onSuccess: (a) => {

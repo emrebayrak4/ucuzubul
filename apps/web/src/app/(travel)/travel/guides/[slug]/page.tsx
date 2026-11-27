@@ -4,12 +4,15 @@ import { notFound } from "next/navigation";
 import { BedDouble, CalendarCheck, Plane, Sun } from "lucide-react";
 import { brand } from "@pricora/config/brand";
 import { absoluteUrl } from "@/lib/env";
+import { metaDescription } from "@/lib/seo";
 import { getGuide, listGuides, splitFaq } from "@/lib/guides";
 import { Crumbs } from "@/components/crumbs";
 import { JsonLd, breadcrumbJsonLd } from "@/components/json-ld";
 import { Markdown } from "@/components/markdown";
 import { GuideTile } from "@/components/travel/guide-card";
 import { HotelSearchForm } from "@/components/travel/search-forms";
+import { CityPhotoImg, UnsplashCredit } from "@/components/travel/hotels/city-photo";
+import { cityPhotoBySlug } from "@/lib/city-photos";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -24,8 +27,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const g = await fetchGuide(slug);
   return {
     title: g.title,
-    description: g.description.slice(0, 160),
-    alternates: { canonical: `/travel/guides/${g.slug}` },
+    description: metaDescription(g.description),
+    alternates: { canonical: `/travel/guides/${g.slug}`, types: { "text/markdown": `/md/travel/guides/${g.slug}` } },
     openGraph: { type: "article", title: g.title, description: g.description, url: `/travel/guides/${g.slug}` },
   };
 }
@@ -35,6 +38,7 @@ const longDate = (d: string) => new Date(d.length === 10 ? d + "T12:00:00" : d).
 export default async function GuidePage({ params }: Props) {
   const { slug } = await params;
   const g = await fetchGuide(slug);
+  const photo = cityPhotoBySlug(g.slug);
   const { body, faq } = splitFaq(g.bodyMarkdown);
   const headingIds = Object.fromEntries(g.headings.map((h) => [h.text, h.id]));
   const toc = g.headings.filter((h) => !/^frequently asked questions|^faqs?\b/i.test(h.text) && !(faq.some((f) => f.q === h.text) && h.level === 3));
@@ -77,7 +81,14 @@ export default async function GuidePage({ params }: Props) {
         />
       ) : null}
 
-      <section className="bg-hotels pb-8 pt-4 text-hotels-fg" data-testid="guide-hero">
+      <section className={photo ? "relative isolate overflow-hidden bg-hotels pb-10 pt-16 text-white lg:pt-28" : "bg-hotels pb-8 pt-4 text-hotels-fg"} data-testid="guide-hero">
+        {photo ? (
+          <>
+            <CityPhotoImg photo={photo} priority className="-z-20" />
+            <UnsplashCredit photo={photo} className="bottom-3 right-3" side="top-end" />
+            <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/45 to-black/10" />
+          </>
+        ) : null}
         <div className="container-content">
           <p className="text-sm font-semibold opacity-90">
             {g.country} · <span className="font-mono">{g.iataCityCode ?? g.countryIso2}</span>

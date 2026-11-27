@@ -5,18 +5,18 @@
 
 export const fontFamily = {
   /**
-   * Sans = Nunito Sans (founder decision 2026-11-26, variable 400–800), loaded by web/admin with
-   * next/font/google as `--font-nunito-sans`. Mono stays Geist Mono (codes/IDs only).
+   * Sans = Plus Jakarta Sans (founder decision 2026-11-27, variable 200–800, replacing Nunito Sans), loaded by web/admin with
+   * next/font/google as `--font-plus-jakarta-sans`. Mono stays Geist Mono (codes/IDs only).
    */
-  sans: 'var(--font-nunito-sans), "Nunito Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  sans: 'var(--font-plus-jakarta-sans), "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   mono: 'var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
 } as const;
 
-/** Native font family names (expo-font). Mobile registers Nunito Sans under these names. */
+/** Native font family names (expo-font). Mobile registers Plus Jakarta Sans under these names (see apps/mobile/src/lib/theme.tsx FONTS). */
 export const nativeFontFamily = {
-  sans: "NunitoSans",
-  sansMedium: "NunitoSans-SemiBold",
-  sansSemibold: "NunitoSans-Bold",
+  sans: "PlusJakartaSans-Regular",
+  sansMedium: "PlusJakartaSans-SemiBold",
+  sansSemibold: "PlusJakartaSans-Bold",
   mono: "GeistMono",
 } as const;
 
@@ -34,20 +34,21 @@ export interface TypeStep {
 }
 
 /**
- * Type scale. Web base UI text is 14px (dense price layouts); long-form reading uses `md` (16px).
+ * Type scale. Base UI text is 14.5px / 1.4 (founder decision 2026-11-27: a hair above the original 14px);
+ * `sm` 13px is the dense/secondary step, long-form reading uses `md` (15.5px).
  * Inputs must render at >=16px below `sm` to avoid iOS focus zoom.
  */
 export const fontSize = {
   "2xs": { size: 11, lineHeight: 14, letterSpacing: 0.01 },
   xs: { size: 12, lineHeight: 16, letterSpacing: 0.005 },
   sm: { size: 13, lineHeight: 18, letterSpacing: 0 },
-  base: { size: 14, lineHeight: 20, letterSpacing: 0 },
-  md: { size: 16, lineHeight: 24, letterSpacing: -0.005 },
-  lg: { size: 18, lineHeight: 26, letterSpacing: -0.01 },
+  base: { size: 14.5, lineHeight: 20.3, letterSpacing: 0 },
+  md: { size: 15.5, lineHeight: 22, letterSpacing: -0.005 },
+  lg: { size: 17, lineHeight: 24, letterSpacing: -0.01 },
   xl: { size: 20, lineHeight: 28, letterSpacing: -0.012 },
   "2xl": { size: 24, lineHeight: 30, letterSpacing: -0.015 },
   "3xl": { size: 30, lineHeight: 36, letterSpacing: -0.02 },
-  "4xl": { size: 36, lineHeight: 42, letterSpacing: -0.022 },
+  "4xl": { size: 38, lineHeight: 44, letterSpacing: -0.022 },
   "5xl": { size: 48, lineHeight: 52, letterSpacing: -0.025 },
 } as const satisfies Record<string, TypeStep>;
 
@@ -165,17 +166,29 @@ export const breakpoints = {
   lg: 1024,
   xl: 1280,
   "2xl": 1536,
+  "3xl": 1920,
 } as const;
 
 export const layout = {
-  /** Max content width on web. */
+  /** Max content width on web: 1280 from lg (also at 2xl), 1360 from 3xl (1920). Below lg it is 100% + gutter. */
   contentMaxWidth: 1280,
+  contentMaxWidth2xl: 1280,
+  contentMaxWidth3xl: 1360,
   /** Page gutter by breakpoint (px). */
   gutter: { base: 16, md: 24, xl: 32 },
   gridColumns: 12,
   /** Dense product grid column count per breakpoint. */
-  productGrid: { base: 2, sm: 3, md: 4, lg: 5, xl: 6 },
-  headerHeight: { base: 56, lg: 64 },
+  productGrid: { base: 2, sm: 3, lg: 4, xl: 5, "2xl": 6 },
+  /** Product tiles never get narrower than this (px); the grid drops columns instead. */
+  productTileMinWidth: 150,
+  /** Gap between product tiles, shared by `grid-products` and horizontal rails so their columns line up (px). */
+  gridGap: { base: 12, lg: 14 },
+  /** Vertical rhythm: gap between page sections (`section-stack`) and heading → content (`section-head`) (px). */
+  sectionGap: { base: 32, lg: 40 },
+  sectionHeadGap: { base: 12, md: 16 },
+  headerHeight: { base: 64, lg: 66 },
+  /** Control heights (buttons, inputs, selects) in px. */
+  controlHeight: { sm: 32, md: 38, lg: 44 },
   /** Minimum touch target. */
   minTouchTarget: 44,
 } as const;

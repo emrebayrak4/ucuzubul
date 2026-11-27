@@ -3,6 +3,7 @@ import { computeOfferTotal } from "@pricora/algorithms";
 import type { DealItem, Offer, ProductCard } from "@pricora/contracts";
 import type { Prisma } from "@pricora/database";
 import { computeProductMetrics, EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
+import { applicableOptions, loadPaymentIndex, payIn4For, type PaymentIndex } from "../core/payment-options";
 import { PRISMA, type PrismaClient } from "../common/infra";
 
 const CACHE_TTL_MS = 2 * 60_000;
@@ -11,7 +12,22 @@ export const cardInclude = {
   brand: { select: { slug: true, name: true, logoUrl: true } },
   category: { select: { slug: true, name: true } },
   images: { orderBy: { sortOrder: "asc" }, take: 1 },
+  attributes: { where: { OR: [{ group: null }, { group: { not: "General" } }] }, orderBy: { sortOrder: "asc" }, take: 6, select: { name: true, value: true } },
 } satisfies Prisma.ProductInclude;
+
+/** Names whose bare value is ambiguous on a tile ("16 GB") get a short suffix. */
+const SPEC_SUFFIX: Record<string, string> = { RAM: "RAM", Storage: "storage", Capacity: "", "Refresh rate": "", "Video memory": "VRAM", Cores: "cores", "Battery life": "battery" };
+
+/** Short spec strings for tiles/list rows, e.g. ["16 GB RAM", "512 GB storage", "15.6 in"]. */
+export function keySpecs(attrs: { name: string; value: string }[]): string[] {
+  return attrs
+    .filter((a) => a.value.length <= 40 && !/brand$/i.test(a.name))
+    .slice(0, 4)
+    .map((a) => {
+      const suffix = SPEC_SUFFIX[a.name];
+      return suffix ? `${a.value} ${suffix}` : a.value;
+    });
+}
 
 export type CardProduct = Prisma.ProductGetPayload<{ include: typeof cardInclude }>;
 
@@ -54,12 +70,31 @@ export class MetricsService {
   }
 }
 
+const DROP_WINDOW_MS = 7 * 86_400_000;
+
+/** Previous price at the store holding today's lowest price, if it dropped within 7 days (real observations only). */
+export function recentPreviousPrice(m: ProductMetrics | undefined): number | null {
+  const d = m?.recentDrop;
+  if (!d || m.lowestPriceCents === null || d.currentPriceCents !== m.lowestPriceCents) return null;
+  return Date.now() - d.droppedAt.getTime() <= DROP_WINDOW_MS ? d.previousPriceCents : null;
+}
+
 @Injectable()
 export class CatalogService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(MetricsService) readonly metrics: MetricsService,
   ) {}
+
+  private payCache: { at: number; index: PaymentIndex } | null = null;
+
+  /** Retailer pay-over-time options (5-minute cache). */
+  async paymentIndex(): Promise<PaymentIndex> {
+    if (this.payCache && Date.now() - this.payCache.at < 300_000) return this.payCache.index;
+    const index = await loadPaymentIndex(this.prisma).catch((): PaymentIndex => new Map());
+    this.payCache = { at: Date.now(), index };
+    return index;
+  }
 
   toCard(p: CardProduct, m: ProductMetrics | undefined, sponsored = false): ProductCard {
     const img = p.images[0];
@@ -80,11 +115,13 @@ export class CatalogService {
       dealScore: m?.dealScore?.score ?? null,
       hasDemoData: m?.hasDemoData ?? p.isDemo,
       sponsored,
+      previousPriceCents: recentPreviousPrice(m),
+      keySpecs: keySpecs(p.attributes),
       updatedAt: (m?.lastCheckedAt ?? p.updatedAt).toISOString(),
     };
   }
 
-  toOffer(o: OfferWithRetailer, zip?: string | null): Offer {
+  toOffer(o: OfferWithRetailer, zip?: string | null, pay?: PaymentIndex): Offer {
     const total = computeOfferTotal({ priceCents: o.priceCents, quantity: 1, shippingCents: o.shippingCents, zip: zip ?? null });
     const taxKnown = Boolean(zip) && total.taxCents !== null;
     const shippingKind = o.shippingCents === null ? "unknown" : o.shippingCents === 0 ? "free" : "paid";
@@ -117,6 +154,13 @@ export class CatalogService {
       source: o.source,
       sponsored: false,
       lastCheckedAt: o.lastCheckedAt.toISOString(),
+      ...(pay
+        ? {
+            // Basis = price + known shipping (tax excluded; providers finance the checkout total).
+            paymentOptions: applicableOptions(pay.get(o.retailer.id), o.priceCents + (o.shippingCents ?? 0)),
+            payIn4: payIn4For(pay.get(o.retailer.id), o.priceCents + (o.shippingCents ?? 0)),
+          }
+        : {}),
     };
   }
 
@@ -124,11 +168,22 @@ export class CatalogService {
   async cards(ids: string[], metrics?: Map<string, ProductMetrics>): Promise<ProductCard[]> {
     if (ids.length === 0) return [];
     const m = metrics ?? (await this.metrics.all());
-    const products = await this.prisma.product.findMany({ where: { id: { in: ids }, status: "active" }, include: cardInclude });
+    const [products, pay, offers] = await Promise.all([
+      this.prisma.product.findMany({ where: { id: { in: ids }, status: "active" }, include: cardInclude }),
+      this.paymentIndex(),
+      this.prisma.offer.findMany({ where: { productId: { in: ids }, isActive: true }, select: { id: true, productId: true, retailerId: true, priceCents: true, shippingCents: true } }),
+    ]);
     const byId = new Map(products.map((p) => [p.id, p]));
     return ids.flatMap((id) => {
       const p = byId.get(id);
-      return p ? [this.toCard(p, m.get(id))] : [];
+      if (!p) return [];
+      const pm = m.get(id);
+      const own = offers.filter((o) => o.productId === id);
+      const lowest = own.find((o) => o.id === pm?.lowestOfferId);
+      const card = this.toCard(p, pm);
+      card.payIn4 = lowest ? payIn4For(pay.get(lowest.retailerId), lowest.priceCents + (lowest.shippingCents ?? 0)) : null;
+      card.payOverTime = own.some((o) => applicableOptions(pay.get(o.retailerId), o.priceCents + (o.shippingCents ?? 0)).length > 0);
+      return [card];
     });
   }
 
@@ -136,16 +191,17 @@ export class CatalogService {
   async dealItems(ids: string[], metrics?: Map<string, ProductMetrics>): Promise<DealItem[]> {
     const m = metrics ?? (await this.metrics.all());
     const offerIds = ids.map((id) => m.get(id)?.lowestOfferId).filter((x): x is string => Boolean(x));
-    const [cards, offers] = await Promise.all([
+    const [cards, offers, pay] = await Promise.all([
       this.cards(ids, m),
       this.prisma.offer.findMany({ where: { id: { in: offerIds } }, include: offerInclude }),
+      this.paymentIndex(),
     ]);
     const offerById = new Map(offers.map((o) => [o.id, o]));
     return cards.flatMap((card) => {
       const pm = m.get(card.id);
       const offer = pm?.lowestOfferId ? offerById.get(pm.lowestOfferId) : undefined;
       if (!pm?.dealScore || !offer) return [];
-      return [{ product: card, offer: this.toOffer(offer), dealScore: pm.dealScore, fakeDiscount: pm.fakeDiscount }];
+      return [{ product: card, offer: this.toOffer(offer, null, pay), dealScore: pm.dealScore, fakeDiscount: pm.fakeDiscount }];
     });
   }
 

@@ -17,11 +17,19 @@
         "default": "./dist/index.cjs"
       }
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./city-photos.json": "./city-photos.json",
+    "./category-photos.json": "./category-photos.json",
+    "./promo-photos.json": "./promo-photos.json",
+    "./flights-hero-photos.json": "./flights-hero-photos.json"
   },
   "files": [
     "dist",
-    "guides"
+    "guides",
+    "city-photos.json",
+    "category-photos.json",
+    "promo-photos.json",
+    "flights-hero-photos.json"
   ],
   "sideEffects": false,
   "scripts": {

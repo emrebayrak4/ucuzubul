@@ -55,9 +55,11 @@ export interface DealScoreBadgeProps extends Omit<React.HTMLAttributes<HTMLSpanE
   /** Show the tier word next to the number. Default true. */
   showLabel?: boolean;
   size?: "sm" | "md";
+  /** Light sweep on Exceptional/Great tiers (off under prefers-reduced-motion). Default true. */
+  animated?: boolean;
 }
 
-export function DealScoreBadge({ score, tier, showLabel = true, size = "md", className, ...props }: DealScoreBadgeProps) {
+export function DealScoreBadge({ score, tier, showLabel = true, size = "md", animated = true, className, ...props }: DealScoreBadgeProps) {
   const s = Math.max(0, Math.min(100, Math.round(score)));
   const t = tier ?? dealTierFromScore(s);
   const label = dealTierLabel[t];
@@ -71,6 +73,7 @@ export function DealScoreBadge({ score, tier, showLabel = true, size = "md", cla
         "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm font-semibold leading-none",
         size === "sm" ? "h-5 px-1.5 text-2xs" : "h-6 px-2 text-xs",
         tierClass[t],
+        animated && (t === "exceptional" || t === "great") && "animate-shimmer",
         className,
       )}
       {...props}
@@ -89,15 +92,20 @@ export interface PriceDropBadgeProps extends Omit<React.HTMLAttributes<HTMLSpanE
   /** Reference window, e.g. "vs 30-day avg". Shown after the number. */
   context?: string;
   size?: "sm" | "md";
+  /** Light sweep; drops >= 20% also get the red->orange "hot" fill. Off under prefers-reduced-motion. Default true. */
+  animated?: boolean;
 }
 
-export function PriceDropBadge({ percent, context, size = "md", className, ...props }: PriceDropBadgeProps) {
+export function PriceDropBadge({ percent, context, size = "md", animated = true, className, ...props }: PriceDropBadgeProps) {
   const p = Math.round(percent);
   if (!Number.isFinite(p) || p < 1) return null;
+  const hot = animated && p >= 20;
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-sm bg-price-drop-soft font-semibold leading-none text-price-drop",
+        "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-sm font-semibold leading-none",
+        hot ? "animate-hot" : "bg-price-drop-soft text-price-drop",
+        animated && "animate-shimmer",
         size === "sm" ? "h-5 px-1.5 text-2xs [&_svg]:size-3" : "h-6 px-2 text-xs [&_svg]:size-3.5",
         className,
       )}

@@ -44,7 +44,7 @@ describe("pending configuration (no credentials => no data, typed error)", () =>
     const a = new BestBuyAdapter({ env: { BESTBUY_API_KEY: "  " } });
     const err = await a.fetchProducts({ keywords: "x" }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(PendingConfigurationError);
-    expect((err as PendingConfigurationError).missingEnv).toEqual(["BESTBUY_API_KEY"]);
+    expect((err as PendingConfigurationError).missingEnv).toEqual(["BESTBUY_API_KEY", "BESTBUY_LEGAL_APPROVED"]);
     expect((err as PendingConfigurationError).code).toBe("PENDING_CONFIGURATION");
   });
 });
@@ -147,9 +147,19 @@ describe("Walmart Affiliate API", () => {
 });
 
 describe("Best Buy Products API", () => {
+  it("stays pending until the legal flag is exactly \"true\" (even with a key)", async () => {
+    const f = mockFetch([]);
+    for (const flag of [undefined, "", "yes", "false"]) {
+      const a = new BestBuyAdapter({ env: { BESTBUY_API_KEY: "k", ...(flag !== undefined ? { BESTBUY_LEGAL_APPROVED: flag } : {}) }, fetch: f });
+      expect(a.status()).toBe("pending_configuration");
+      expect(a.missingEnv()).toEqual(["BESTBUY_LEGAL_APPROVED"]);
+      await expect(a.fetchProducts({ keywords: "tv" })).rejects.toBeInstanceOf(PendingConfigurationError);
+    }
+    expect(f.calls).toHaveLength(0);
+  });
   it("builds the products() filter and maps fields", async () => {
     const f = mockFetch([{ match: "api.bestbuy.com/v1/products(", body: fixture("bestbuy-products.json") }]);
-    const a = new BestBuyAdapter({ env: { BESTBUY_API_KEY: "k", BESTBUY_AFFILIATE_LINK_TEMPLATE: "https://aff.example/c?u={url}&s={subId}" }, fetch: f, clock: fakeClock(), http: rl });
+    const a = new BestBuyAdapter({ env: { BESTBUY_API_KEY: "k", BESTBUY_LEGAL_APPROVED: "true", BESTBUY_AFFILIATE_LINK_TEMPLATE: "https://aff.example/c?u={url}&s={subId}" }, fetch: f, clock: fakeClock(), http: rl });
     const r = await a.fetchProducts({ keywords: "X100 headphones!", maxPriceCents: 20000 });
     expect(f.calls[0]?.url).toContain("products(search=x100&search=headphones&salePrice<=200.00)");
     expect(f.calls[0]?.url).toContain("format=json");
@@ -162,7 +172,7 @@ describe("Best Buy Products API", () => {
 
   it("looks up by UPC (EAN-13 with leading 0 converted)", async () => {
     const f = mockFetch([{ match: "api.bestbuy.com", body: { products: [] } }]);
-    const a = new BestBuyAdapter({ env: { BESTBUY_API_KEY: "k" }, fetch: f, clock: fakeClock(), http: rl });
+    const a = new BestBuyAdapter({ env: { BESTBUY_API_KEY: "k", BESTBUY_LEGAL_APPROVED: "true" }, fetch: f, clock: fakeClock(), http: rl });
     await a.fetchProducts({ gtin: `0${U1}` });
     expect(f.calls[0]?.url).toContain(`products(upc=${U1})`);
     await expect(a.fetchProducts({ gtin: "123" })).rejects.toBeInstanceOf(RangeError);

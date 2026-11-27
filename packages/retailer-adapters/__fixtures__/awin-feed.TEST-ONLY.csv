@@ -1,0 +1,2 @@
+aw_deep_link,product_name,aw_product_id,merchant_product_id,merchant_image_url,description,merchant_category,search_price,rrp_price,currency,delivery_cost,merchant_deep_link,brand_name,ean,mpn,in_stock
+"https://www.awin1.com/pclick.php?p=1&a=123456&m=7001",Acme X100 Headphones Black,30000001,AW-SKU-1,https://www.example-retailer.test/i/x100.jpg,Synthetic,Audio,159.00,199.00,USD,0.00,https://www.example-retailer.test/p/x100,Acme,0012345678905,X100-BLK,1

@@ -201,8 +201,9 @@ describe("registry", () => {
   });
 
   it("reports statuses without network calls", () => {
-    const statuses = getAdapterStatuses({ BESTBUY_API_KEY: "k" });
+    const statuses = getAdapterStatuses({ BESTBUY_API_KEY: "k", BESTBUY_LEGAL_APPROVED: "true" });
     expect(statuses.find((s) => s.id === "bestbuy")?.status).toBe("live");
+    expect(getAdapterStatuses({ BESTBUY_API_KEY: "k" }).find((s) => s.id === "bestbuy")).toMatchObject({ status: "pending_configuration", missingEnv: ["BESTBUY_LEGAL_APPROVED"] });
     expect(statuses.find((s) => s.id === "amazon")).toMatchObject({ status: "pending_configuration", goLive: "affiliate_approval" });
     expect(statuses.find((s) => s.id === "travelpayouts_hotels")?.status).toBe("error");
     expect(statuses.find((s) => s.id === "merchant_feed")?.status).toBe("live");

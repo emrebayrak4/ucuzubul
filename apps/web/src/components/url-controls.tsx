@@ -48,14 +48,14 @@ export function UrlSelect(props: { name: string; label: string; options: Array<{
 /** Segmented link tabs (server-provided hrefs; crawlable). */
 export function LinkTabs({ items, label }: { items: Array<{ href: string; label: string; active: boolean }>; label: string }) {
   return (
-    <nav aria-label={label} className="inline-flex gap-0.5 rounded-md bg-surface-2 p-0.5">
+    <nav aria-label={label} className="scrollbar-none inline-flex max-w-full gap-0.5 overflow-x-auto rounded-md bg-surface-2 p-0.5">
       {items.map((i) => (
         <Link
           key={i.href}
           href={i.href}
           aria-current={i.active ? "page" : undefined}
           className={cn(
-            "inline-flex h-8 items-center rounded-sm px-3 text-sm font-medium text-text-muted hover:text-text",
+            "inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-sm px-3 text-sm font-medium text-text-muted hover:text-text",
             i.active && "bg-surface text-text shadow-xs",
           )}
         >

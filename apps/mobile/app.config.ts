@@ -35,16 +35,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "com.afterwish.whichless",
     adaptiveIcon: {
-      foregroundImage: "./assets/brand/whichless-mark.png",
-      backgroundColor: "#FFFFFF",
+      // White "w" only, inside the 66% safe zone; the launcher mask supplies the shape on the logo blue.
+      foregroundImage: "./assets/brand/whichless-adaptive-foreground.png",
+      backgroundColor: "#0029F8",
     },
-    permissions: ["android.permission.CAMERA", "android.permission.USE_BIOMETRIC", "android.permission.POST_NOTIFICATIONS"],
+    permissions: ["android.permission.CAMERA", "android.permission.USE_BIOMETRIC", "android.permission.POST_NOTIFICATIONS", "android.permission.ACCESS_COARSE_LOCATION"],
+    blockedPermissions: ["android.permission.ACCESS_BACKGROUND_LOCATION"],
     intentFilters: [
       {
         action: "VIEW",
         autoVerify: true,
         data: [
           { scheme: "https", host: WEB_HOST, pathPrefix: "/products/" },
+          { scheme: "https", host: WEB_HOST, pathPrefix: "/categories/" },
+          { scheme: "https", host: WEB_HOST, pathPrefix: "/brands/" },
+          { scheme: "https", host: WEB_HOST, pathPrefix: "/stores/" },
+          { scheme: "https", host: WEB_HOST, pathPrefix: "/coupons" },
+          { scheme: "https", host: WEB_HOST, pathPrefix: "/deals" },
+          { scheme: "https", host: WEB_HOST, pathPrefix: "/compare" },
           { scheme: "https", host: WEB_HOST, pathPrefix: "/flights" },
           { scheme: "https", host: WEB_HOST, pathPrefix: "/hotels" },
         ],
@@ -60,6 +68,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ["expo-camera", { cameraPermission: cameraCopy, microphonePermission: false, recordAudioAndroid: false }],
     ["expo-local-authentication", { faceIDPermission: faceIdCopy }],
     "expo-notifications",
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission: `${brand.name} uses your location only when you tap “Use my location” to fill in your ZIP code for tax estimates.`,
+        isAndroidBackgroundLocationEnabled: false,
+        isIosBackgroundLocationEnabled: false,
+      },
+    ],
     [
       "expo-splash-screen",
       {

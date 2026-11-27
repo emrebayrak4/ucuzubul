@@ -1,6 +1,6 @@
 /**
  * Coupon tracking core (API + worker): mapping, usage-based verification stats, auto status changes,
- * follow/alert notifications, expiry/re-verification jobs and feed ingestion (adapters pending without keys).
+ * follow/alert notifications, expiry/re-verification jobs and network coupon ingestion (pending without keys).
  * All stats come from real CouponEvent rows only.
  */
 import type { Coupon as CouponDto } from "@pricora/contracts";
@@ -271,34 +271,29 @@ export async function upsertIngestedCoupon(prisma: PrismaClient, n: NormalizedCo
   return "created";
 }
 
-/** Affiliate-network promo/coupon APIs. Each needs credentials (admin → Integrations); none is implemented without them. */
-export const COUPON_FEED_SOURCES: readonly { id: string; name: string; requiredEnv: readonly string[]; docsUrl: string }[] = [
-  { id: "cj", name: "CJ Affiliate — Link/Promotion API", requiredEnv: ["CJ_PERSONAL_ACCESS_TOKEN", "CJ_WEBSITE_ID"], docsUrl: "https://developers.cj.com/" },
-  { id: "impact", name: "Impact — Promo codes (Ads/Deals API)", requiredEnv: ["IMPACT_ACCOUNT_SID", "IMPACT_AUTH_TOKEN"], docsUrl: "https://integrations.impact.com/impact-publisher/reference" },
-  { id: "rakuten", name: "Rakuten Advertising — Coupon Web Service", requiredEnv: ["RAKUTEN_CLIENT_ID", "RAKUTEN_CLIENT_SECRET", "RAKUTEN_SID"], docsUrl: "https://developers.rakutenadvertising.com/" },
-  { id: "awin", name: "Awin — Offers/Promotions API", requiredEnv: ["AWIN_API_TOKEN", "AWIN_PUBLISHER_ID"], docsUrl: "https://wiki.awin.com/index.php/Publisher_API" },
-  { id: "ebay_epn", name: "eBay Partner Network — coupons/deals", requiredEnv: ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "EBAY_EPN_CAMPAIGN_ID"], docsUrl: "https://partnernetwork.ebay.com/" },
-  { id: "amazon", name: "Amazon — promotions via Creators API (where allowed)", requiredEnv: ["AMAZON_CREATORS_CREDENTIAL_ID", "AMAZON_CREATORS_CREDENTIAL_SECRET", "AMAZON_ASSOCIATE_TAG"], docsUrl: "https://affiliate-program.amazon.com/creatorsapi/docs/en-us/introduction" },
+/** Sources without a publisher coupon API (reported honestly as unsupported). Network sources come from NETWORK_REGISTRY. */
+export const COUPON_SOURCES_WITHOUT_API: readonly { id: string; name: string; reason: string }[] = [
+  { id: "ebay_epn", name: "eBay Partner Network", reason: "EPN publishes no coupon/promotions API; eBay coupons appear only in the EPN dashboard" },
+  { id: "amazon", name: "Amazon Associates", reason: "The Creators API exposes offer prices/savings, not promo codes; Amazon coupons are not available via API" },
 ];
 
 export interface FeedPullResult {
   id: string;
-  status: "pending_configuration" | "not_implemented" | "ok" | "error";
+  status: "pending_configuration" | "unsupported" | "ok" | "error";
   message: string;
   created: number;
   updated: number;
 }
 
 /**
- * Pulls coupons from every configured network. Without credentials a source is skipped as
- * pending_configuration; with credentials it reports not_implemented until its client is built —
- * nothing is ever fabricated.
+ * Pulls coupons from every affiliate network with a promotions API (CJ, Impact, Rakuten, Awin).
+ * Without credentials a source is skipped as pending_configuration; nothing is ever fabricated.
  */
-export async function pullCouponFeeds(_prisma: PrismaClient, env: EnvLike): Promise<FeedPullResult[]> {
-  return COUPON_FEED_SOURCES.map((s) => {
-    const missing = s.requiredEnv.filter((k) => !env[k]);
-    return missing.length
-      ? { id: s.id, status: "pending_configuration" as const, message: `Missing ${missing.join(", ")}`, created: 0, updated: 0 }
-      : { id: s.id, status: "not_implemented" as const, message: "Credentials present; network coupon client not implemented yet", created: 0, updated: 0 };
-  });
+export async function pullCouponFeeds(prisma: PrismaClient, env: EnvLike): Promise<FeedPullResult[]> {
+  const { ingestNetworkCoupons } = await import("./integrations-ingest");
+  const { NETWORK_REGISTRY } = await import("@pricora/retailer-adapters");
+  const out: FeedPullResult[] = [];
+  for (const n of NETWORK_REGISTRY.filter((x) => x.capabilities.coupons)) out.push(await ingestNetworkCoupons(prisma, n.id, env));
+  for (const s of COUPON_SOURCES_WITHOUT_API) out.push({ id: s.id, status: "unsupported", message: s.reason, created: 0, updated: 0 });
+  return out;
 }

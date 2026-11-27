@@ -3,8 +3,8 @@
 import { z } from "zod";
 import { createLocalStore } from "./local-store";
 
-/** The compare endpoint accepts 2–4 ids (CompareQuery in @pricora/contracts). */
-export const COMPARE_MAX = 4;
+/** The compare endpoint accepts 2–5 ids (CompareQuery in @pricora/contracts). */
+export const COMPARE_MAX = 5;
 
 const Item = z.object({ id: z.string(), slug: z.string(), title: z.string() });
 export type CompareItem = z.infer<typeof Item>;
@@ -24,6 +24,10 @@ export function toggleCompare(item: CompareItem): "added" | "removed" | "full" {
   if (list.length >= COMPARE_MAX) return "full";
   compareStore.set((prev) => [...prev, item]);
   return "added";
+}
+
+export function clearCompare() {
+  compareStore.set(() => []);
 }
 
 export function removeFromCompare(id: string) {

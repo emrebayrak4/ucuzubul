@@ -18,7 +18,7 @@ const contentClass = cn(
 );
 
 const itemClass = cn(
-  "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none",
+  "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm outline-none",
   "data-[highlighted]:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
   "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-text-muted",
 );

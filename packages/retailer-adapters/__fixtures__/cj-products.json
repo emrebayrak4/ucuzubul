@@ -1,0 +1,61 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "data": {
+      "products": {
+        "totalCount": 3,
+        "count": 2,
+        "resultList": [
+          {
+            "id": "CJ-SKU-1",
+            "catalogId": "cat-1",
+            "advertiserId": "1234567",
+            "advertiserName": "Test Advertiser A",
+            "title": "Acme X100 Headphones Black",
+            "description": "Synthetic test item",
+            "brand": "Acme",
+            "gtin": "012345678905",
+            "mpn": "X100-BLK",
+            "link": "https://www.example-retailer.test/p/x100",
+            "imageLink": "https://www.example-retailer.test/i/x100.jpg",
+            "availability": "in stock",
+            "condition": "new",
+            "productType": "Electronics > Audio",
+            "price": {
+              "amount": "199.99",
+              "currency": "USD"
+            },
+            "salePrice": {
+              "amount": "179.99",
+              "currency": "USD"
+            },
+            "shipping": [
+              {
+                "price": {
+                  "amount": "0.00",
+                  "currency": "USD"
+                }
+              }
+            ],
+            "linkCode": {
+              "clickUrl": "https://www.anrdoezrs.net/click-100000-200000?url=https%3A%2F%2Fwww.example-retailer.test%2Fp%2Fx100"
+            }
+          },
+          {
+            "id": "CJ-SKU-2",
+            "advertiserId": "1234567",
+            "advertiserName": "Test Advertiser A",
+            "title": "Acme Cable",
+            "price": {
+              "amount": "n/a",
+              "currency": "USD"
+            },
+            "salePrice": null,
+            "link": "https://www.example-retailer.test/p/cable",
+            "linkCode": null
+          }
+        ]
+      }
+    }
+  }
+}

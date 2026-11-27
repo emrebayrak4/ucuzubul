@@ -51,8 +51,8 @@ const fieldBase = [
 
 export const fieldSizes = {
   sm: "h-8 px-2.5",
-  md: "h-10 px-3",
-  lg: "h-12 px-4",
+  md: "h-9.5 px-3",
+  lg: "h-11 px-4",
 } as const;
 
 export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {

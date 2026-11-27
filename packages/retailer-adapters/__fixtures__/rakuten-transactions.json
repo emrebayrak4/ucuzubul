@@ -1,0 +1,33 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": [
+    {
+      "etransaction_id": "ET-1",
+      "advertiser_id": 44583,
+      "sid": 3000000,
+      "order_id": "R-ORD-1",
+      "offer_id": "999",
+      "sku_number": "R-SKU-1",
+      "sale_amount": 174.99,
+      "quantity": 1,
+      "commissions": 8.75,
+      "process_date": "Wed Nov 19 2026 10:00:00 GMT+0000",
+      "transaction_date": "2026-11-18 21:00:00",
+      "transaction_type": "realtime",
+      "product_name": "Acme X100",
+      "u1": "clk_rak1",
+      "currency": "USD",
+      "is_event": "N"
+    },
+    {
+      "etransaction_id": "ET-2",
+      "advertiser_id": 44583,
+      "order_id": "R-ORD-1",
+      "sale_amount": -174.99,
+      "commissions": -8.75,
+      "transaction_date": "2026-11-21 09:00:00",
+      "u1": "clk_rak1",
+      "currency": "USD"
+    }
+  ]
+}

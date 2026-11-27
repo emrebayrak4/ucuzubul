@@ -40,7 +40,17 @@ function cssVar(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-function Chart({ data, currency }: { data: Array<[number, number | null]>; currency: string }) {
+interface Line {
+  id: string;
+  name: string;
+  color: string | null;
+  data: Array<[number, number | null]>;
+  primary?: boolean;
+}
+
+const FALLBACK_COLORS = ["#E8590C", "#0CA678", "#7048E8", "#1C7ED6", "#D6336C", "#F59F00", "#495057"];
+
+function Chart({ lines, currency }: { lines: Line[]; currency: string }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
   const [failed, setFailed] = React.useState(false);
@@ -59,7 +69,7 @@ function Chart({ data, currency }: { data: Array<[number, number | null]>; curre
         const text = cssVar("--pc-color-text", "#141816");
         const c = echarts.init(ref.current, undefined, { renderer: "canvas" });
         chart = c;
-        const real = data.filter((d) => d[1] !== null);
+        const realCount = lines.reduce((n, l) => n + l.data.filter((d) => d[1] !== null).length, 0);
         c.setOption({
           animation: false,
           grid: { left: 64, right: 16, top: 16, bottom: 28 },
@@ -82,20 +92,22 @@ function Chart({ data, currency }: { data: Array<[number, number | null]>; curre
             axisLabel: { color: muted, fontSize: 11, formatter: (v: number) => formatPrice(v, { currency, trimZeroCents: true }) },
             splitLine: { lineStyle: { color: border } },
           },
-          series: [
-            {
-              name: "Lowest price",
+          series: lines.map((l, i) => {
+            const color = l.primary ? primary : l.color && l.color.toUpperCase() !== "#000000" && l.color.toUpperCase() !== "#111111" ? l.color : FALLBACK_COLORS[i % FALLBACK_COLORS.length];
+            return {
+              name: l.name,
               type: "line",
-              step: false,
+              step: l.primary ? false : "end",
               smooth: false,
               connectNulls: false,
-              showSymbol: real.length <= 40,
+              showSymbol: l.primary && realCount <= 40,
               symbolSize: 5,
-              lineStyle: { color: primary, width: 2 },
-              itemStyle: { color: primary },
-              data,
-            },
-          ],
+              z: l.primary ? 3 : 2,
+              lineStyle: { color, width: l.primary ? 2.5 : 1.5, opacity: l.primary ? 1 : 0.85 },
+              itemStyle: { color },
+              data: l.data,
+            };
+          }),
         });
         ro = new ResizeObserver(() => c.resize());
         ro.observe(ref.current);
@@ -106,10 +118,10 @@ function Chart({ data, currency }: { data: Array<[number, number | null]>; curre
       ro?.disconnect();
       chart?.dispose();
     };
-  }, [data, currency, resolvedTheme]);
+  }, [lines, currency, resolvedTheme]);
 
   if (failed) return <p className="py-10 text-center text-sm text-text-muted">Chart failed to load.</p>;
-  return <div ref={ref} className="h-64 w-full" role="img" aria-label={`Price history chart with ${data.filter((d) => d[1] !== null).length} real observations`} />;
+  return <div ref={ref} className="h-72 w-full" role="img" aria-label={`Price history chart: ${lines.map((l) => l.name).join(", ")}`} />;
 }
 
 function StatsRow({ stats, currency }: { stats: PriceStats; currency: string }) {
@@ -140,7 +152,25 @@ export function PriceHistory({ slug, initialStats, currency = "USD", hasDemoData
     staleTime: 5 * 60_000,
     placeholderData: (prev) => prev,
   });
-  const data = React.useMemo(() => (q.data ? withGaps(q.data.lowest) : []), [q.data]);
+  const [hidden, setHidden] = React.useState<Set<string> | null>(null);
+  const series = q.data?.series ?? [];
+  // Default: lowest line + up to 4 stores visible; the rest can be toggled on.
+  const off = hidden ?? new Set(series.slice(4).map((s) => s.offerId));
+  const offKey = [...off].sort().join(",");
+  const lines: Line[] = React.useMemo(() => {
+    if (!q.data) return [];
+    const offSet = new Set(offKey.split(",").filter(Boolean));
+    const out: Line[] = [];
+    if (!offSet.has("lowest")) out.push({ id: "lowest", name: "Lowest price", color: null, data: withGaps(q.data.lowest), primary: true });
+    for (const s of q.data.series) if (!offSet.has(s.offerId) && s.points.length) out.push({ id: s.offerId, name: s.retailer.name, color: s.retailer.brandColor, data: withGaps(s.points) });
+    return out;
+  }, [q.data, offKey]);
+  const toggle = (id: string) => {
+    const next = new Set(off);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setHidden(next);
+  };
   const realCount = q.data?.lowest.length ?? 0;
   const anyDemo = hasDemoData || Boolean(q.data?.series.some((s) => s.source === "demo"));
 
@@ -155,7 +185,27 @@ export function PriceHistory({ slug, initialStats, currency = "USD", hasDemoData
         </div>
         <Segmented label="History range" value={range} onChange={setRange} options={ranges} itemClassName="price px-2.5" />
       </div>
-      <p className="mb-2 text-xs text-text-muted">Daily lowest price across stores. Only real observations are plotted — gaps mean no data, never an estimate.</p>
+      <p className="mb-2 text-xs text-text-muted">Daily lowest price across stores, plus each store&apos;s own price. Only real observations are plotted — gaps mean no data, never an estimate.</p>
+      {series.length ? (
+        <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Show price lines" data-testid="history-store-toggles">
+          {[{ id: "lowest", name: "Lowest", color: null as string | null }, ...series.map((s) => ({ id: s.offerId, name: s.retailer.name, color: s.retailer.brandColor }))].map((l, i) => {
+            const on = !off.has(l.id);
+            const color = l.id === "lowest" ? "var(--pc-color-primary)" : l.color && !/^#(000000|111111)$/i.test(l.color) ? l.color : FALLBACK_COLORS[(i - 1) % FALLBACK_COLORS.length];
+            return (
+              <button
+                key={l.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(l.id)}
+                className={"inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium " + (on ? "border-text/20 bg-surface" : "border-border bg-surface-2 text-text-muted line-through")}
+              >
+                <span aria-hidden className="size-2.5 rounded-full" style={{ background: on ? color : "transparent", border: `2px solid ${color}` }} />
+                {l.name}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       {q.isPending ? (
         <Skeleton className="h-64 w-full" />
       ) : q.isError ? (
@@ -163,7 +213,7 @@ export function PriceHistory({ slug, initialStats, currency = "USD", hasDemoData
       ) : realCount < 2 ? (
         <EmptyState size="sm" icon={<LineChartIcon aria-hidden />} title="Not enough history yet" description="We need at least two observations in this range to draw a chart. Try a longer range." />
       ) : (
-        <Chart data={data} currency={q.data?.currency ?? currency} />
+        <Chart lines={lines} currency={q.data?.currency ?? currency} />
       )}
       <div className="mt-4">
         <StatsRow stats={q.data?.stats ?? initialStats} currency={currency} />

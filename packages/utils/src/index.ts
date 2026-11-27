@@ -4,3 +4,4 @@ export * from "./text";
 export * from "./date";
 export * from "./zip";
 export * from "./rng";
+export * from "./edge-geo";

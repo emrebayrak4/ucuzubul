@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { ProductCard } from "@pricora/contracts";
-import { ProductRail, Tabs, TabsContent, TabsList, TabsTrigger } from "@pricora/ui";
+import { ProductRail, SectionHeader, Tabs, TabsContent, TabsList, TabsTrigger, railItemClass, sectionActionLinkClass } from "@pricora/ui";
 import { ProductCardTile } from "./product-card";
 
 export function Rail({
@@ -13,6 +13,7 @@ export function Rail({
   headerExtra,
   children,
   testId,
+  autoAdvance,
 }: {
   title: string;
   description?: React.ReactNode;
@@ -20,10 +21,12 @@ export function Rail({
   headerExtra?: React.ReactNode;
   children: React.ReactNode;
   testId?: string;
+  /** Slowly advance one tile at a time (pauses on hover/focus/touch; off with reduced motion). */
+  autoAdvance?: boolean;
 }) {
   return (
     <div data-testid={testId}>
-      <ProductRail title={title} description={description} seeAllHref={seeAllHref} headerExtra={headerExtra} linkComponent={Link}>
+      <ProductRail title={title} description={description} seeAllHref={seeAllHref} headerExtra={headerExtra} linkComponent={Link} autoAdvance={autoAdvance}>
         {children}
       </ProductRail>
     </div>
@@ -62,11 +65,10 @@ export function UnderPriceRail({ groups }: { groups: Array<{ key: string; label:
   return (
     <section aria-labelledby="under-price-title" data-testid="rail-under-price">
       <Tabs value={tab} onValueChange={setTab}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 id="under-price-title" className="text-xl font-semibold tracking-tight">
-              Great finds under
-            </h2>
+        <SectionHeader
+          titleId="under-price-title"
+          title="Great finds under"
+          extra={
             <TabsList variant="segmented" aria-label="Price cap">
               {available.map((g) => (
                 <TabsTrigger key={g.key} value={g.key} className="price">
@@ -74,20 +76,22 @@ export function UnderPriceRail({ groups }: { groups: Array<{ key: string; label:
                 </TabsTrigger>
               ))}
             </TabsList>
-          </div>
-          {current ? (
-            <Link href={`/search?maxPrice=${current.maxCents}&sort=best_deal`} className="text-sm font-medium text-primary hover:underline">
-              See all {current.label === "$25" ? "under $25" : `under ${current.label}`}
-            </Link>
-          ) : null}
-        </div>
+          }
+          actions={
+            current ? (
+              <Link href={`/search?maxPrice=${current.maxCents}&sort=best_deal`} className={sectionActionLinkClass}>
+                See all {current.label === "$25" ? "under $25" : `under ${current.label}`}
+              </Link>
+            ) : null
+          }
+        />
         {available.map((g) => (
           <TabsContent key={g.key} value={g.key} className="mt-0">
-            <ul className="scrollbar-none -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
+            <ul className="scrollbar-none gap-grid -mx-4 flex snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 pb-1 md:mx-0 md:scroll-px-0 md:px-0">
               {g.products.map((p) => (
                 <li
                   key={p.id}
-                  className="w-[44%] shrink-0 snap-start sm:w-[30.5%] md:w-[calc((100%-3*0.75rem)/4)] lg:w-[calc((100%-4*0.75rem)/5)] xl:w-[calc((100%-5*0.75rem)/6)]"
+                  className={`${railItemClass} shrink-0 snap-start`}
                 >
                   <ProductCardTile product={p} />
                 </li>

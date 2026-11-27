@@ -183,8 +183,9 @@ function FlightCard({ o, adults, cheapest, fastest, position }: { o: FlightOffer
         </View>
       </Row>
       <Button
-        title="View deal"
+        title={o.source === "demo" ? "Demo fare — not bookable" : "View deal"}
         icon="open-outline"
+        disabled={o.source === "demo"}
         onPress={() => {
           track("flight_offer_clicked", { provider: o.provider.name, position, totalCents: o.totalPriceCents, stops: Math.max(...o.slices.map((s) => s.stops)) });
           void openTravelDeal("flight", o.id, o.provider.name);

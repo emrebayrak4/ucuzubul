@@ -1,0 +1,31 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "@nextpageuri": "",
+    "Actions": [
+      {
+        "Id": "1000.2000.3000",
+        "CampaignId": "3333",
+        "CampaignName": "Test Campaign",
+        "State": "APPROVED",
+        "Amount": "250.00",
+        "Payout": "10.00",
+        "Currency": "USD",
+        "EventDate": "2026-11-18T12:00:00-08:00",
+        "CreationDate": "2026-11-18T12:05:00-08:00",
+        "SubId1": "clk_imp1",
+        "Oid": "ORD-9"
+      },
+      {
+        "Id": "1000.2000.3001",
+        "CampaignId": "3333",
+        "State": "REVERSED",
+        "Amount": "40.00",
+        "Payout": "1.60",
+        "Currency": "USD",
+        "EventDate": "2026-11-17T08:00:00-08:00",
+        "SubId1": ""
+      }
+    ]
+  }
+}

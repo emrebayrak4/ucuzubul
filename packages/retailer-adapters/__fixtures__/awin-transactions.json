@@ -1,0 +1,41 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": [
+    {
+      "id": 880001,
+      "url": "https://www.example-retailer.test/",
+      "advertiserId": 7001,
+      "publisherId": 123456,
+      "commissionStatus": "approved",
+      "commissionAmount": {
+        "amount": 4.2,
+        "currency": "USD"
+      },
+      "saleAmount": {
+        "amount": 84.0,
+        "currency": "USD"
+      },
+      "clickRefs": {
+        "clickRef": "clk_awin1"
+      },
+      "clickDate": "2026-11-10T10:00:00",
+      "transactionDate": "2026-11-10T10:30:00",
+      "orderRef": "A-ORD-1"
+    },
+    {
+      "id": 880002,
+      "advertiserId": 7001,
+      "commissionStatus": "declined",
+      "commissionAmount": {
+        "amount": 1.0,
+        "currency": "USD"
+      },
+      "saleAmount": {
+        "amount": 20.0,
+        "currency": "USD"
+      },
+      "clickRefs": null,
+      "transactionDate": "2026-11-11T08:00:00"
+    }
+  ]
+}

@@ -27,7 +27,7 @@ function FollowedStore({ follow }: { follow: CouponFollow }) {
     <section className="rounded-lg border border-border bg-surface p-4" data-testid="followed-store">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <Link href={`/stores/${follow.retailer.slug}`} className="flex items-center gap-2 font-bold hover:underline">
-          <BrandMark name={follow.retailer.name} logoUrl={follow.retailer.logoUrl} brandColor={follow.retailer.brandColor} size="sm" />
+          <BrandMark name={follow.retailer.name} logoUrl={follow.retailer.logoUrl} brandColor={follow.retailer.brandColor} size="tile-sm" />
           {follow.retailer.name}
           <span className="price text-xs font-normal text-text-muted">· {follow.activeCoupons} active</span>
         </Link>

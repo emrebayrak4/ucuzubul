@@ -5,7 +5,7 @@
  */
 import { connect } from "node:net";
 import type { PrismaClient } from "@pricora/database";
-import { createAdapter, getAdapterStatuses, type EnvLike } from "@pricora/retailer-adapters";
+import { createAdapter, createNetworkClient, getAdapterStatuses, type EnvLike, type NetworkId } from "@pricora/retailer-adapters";
 import { Redis } from "ioredis";
 import { decryptJson } from "./crypto";
 import { getIntegration, INTEGRATION_CATALOG, type IntegrationDef } from "./integrations";
@@ -142,6 +142,12 @@ export async function testIntegration(def: IntegrationDef, env: EnvLike, timeout
   const start = Date.now();
   const elapsed = () => Date.now() - start;
   try {
+    if (def.networkId) {
+      // Real authenticated call to the network (never reports live without a 2xx response).
+      const client = createNetworkClient(def.networkId as NetworkId, { env, http: { retry: { retries: 1 } } });
+      const r = await withTimeout(client.healthCheck(), timeoutMs);
+      return { status: r.status === "live" ? "live" : r.status === "pending_configuration" ? "pending_configuration" : "error", message: r.message, latencyMs: r.latencyMs ?? elapsed() };
+    }
     if (def.adapterId) {
       const adapter = createAdapter(def.adapterId, { env });
       const r = await withTimeout(adapter.healthCheck(), timeoutMs);

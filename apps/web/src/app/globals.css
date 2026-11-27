@@ -3,12 +3,14 @@
 @source "../../../../packages/ui/dist";
 
 @layer base {
+  /* Full height of the sticky SiteHeader (use for sticky offsets: top-[calc(var(--pc-header-h)+1rem)]).
+   * < lg: 64 bar + search row + ZIP row = 138. lg+: 66 bar + 1 border + 44 nav = 111. Keep in sync with site-header.tsx. */
   :root {
-    --pc-header-h: 56px;
+    --pc-header-h: 138px;
   }
   @media (width >= 64rem) {
     :root {
-      --pc-header-h: 104px;
+      --pc-header-h: 111px;
     }
   }
   a {

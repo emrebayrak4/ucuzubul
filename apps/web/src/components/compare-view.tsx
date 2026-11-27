@@ -8,7 +8,7 @@ import type { CompareResponse } from "@pricora/contracts";
 import { Button, CategoryIcon, DealScoreBadge, DemoDataBadge, EmptyState, Switch, Label, cn, formatPrice } from "@pricora/ui";
 import { COMPARE_MAX, compareHref, compareStore, removeFromCompare } from "@/lib/compare-store";
 
-type Row = { key: string; label: string; group: string | null; values: string[] };
+type Row = { key: string; label: string; group: string | null; values: string[]; /** Numeric values where lower is better (prices) → best cell marked. */ nums?: (number | null)[] };
 
 export function CompareTable({ data }: { data: CompareResponse }) {
   const router = useRouter();
@@ -17,8 +17,8 @@ export function CompareTable({ data }: { data: CompareResponse }) {
   const money = (c: number | null, cur: string) => (c === null ? "—" : formatPrice(c, { currency: cur }));
 
   const rows: Row[] = [
-    { key: "lowest", label: "Lowest price", group: "Price", values: products.map((p) => money(p.card.lowestPriceCents, p.card.currency)) },
-    { key: "total", label: "Lowest est. total (excl. tax)", group: "Price", values: products.map((p) => money(p.card.lowestTotalCents, p.card.currency)) },
+    { key: "lowest", label: "Lowest price", group: "Price", values: products.map((p) => money(p.card.lowestPriceCents, p.card.currency)), nums: products.map((p) => p.card.lowestPriceCents) },
+    { key: "total", label: "Lowest est. total (excl. tax)", group: "Price", values: products.map((p) => money(p.card.lowestTotalCents, p.card.currency)), nums: products.map((p) => p.card.lowestTotalCents) },
     { key: "stores", label: "Stores", group: "Price", values: products.map((p) => String(p.card.storeCount)) },
     { key: "median", label: "90-day median", group: "Price", values: products.map((p) => money(p.priceStats.median90Cents, p.card.currency)) },
     { key: "atl", label: "Lowest ever", group: "Price", values: products.map((p) => money(p.priceStats.allTimeLowCents, p.card.currency)) },
@@ -46,7 +46,7 @@ export function CompareTable({ data }: { data: CompareResponse }) {
         </Label>
       </div>
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table className="w-full min-w-[640px] border-collapse text-sm" data-testid="compare-table">
+        <table className="w-full min-w-[640px] border-collapse text-sm" data-testid="compare-table" style={{ minWidth: 176 + products.length * 200 }}>
           <thead>
             <tr>
               <th scope="col" className="w-44 p-3 text-left align-bottom text-xs font-medium text-text-muted">
@@ -104,11 +104,16 @@ export function CompareTable({ data }: { data: CompareResponse }) {
                     <th scope="row" className="p-3 text-left font-normal text-text-muted">
                       {r.label}
                     </th>
-                    {r.values.map((v, i) => (
-                      <td key={i} className={cn("price border-l border-border p-3", diff && "font-medium")}>
-                        {v}
-                      </td>
-                    ))}
+                    {r.values.map((v, i) => {
+                      const nums = r.nums?.filter((n): n is number => n !== null) ?? [];
+                      const best = diff && nums.length > 1 && r.nums?.[i] === Math.min(...nums);
+                      return (
+                        <td key={i} className={cn("price border-l border-border p-3", diff && "font-medium", best && "font-bold text-success")}>
+                          {v}
+                          {best ? <span className="ml-1.5 rounded-sm bg-success/10 px-1 text-2xs font-semibold">Lowest</span> : null}
+                        </td>
+                      );
+                    })}
                   </tr>
                 </React.Fragment>
               );

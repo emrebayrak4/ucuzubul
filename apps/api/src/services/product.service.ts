@@ -4,8 +4,8 @@ import type { User } from "@pricora/database";
 import { notFound } from "../common/errors";
 import { PRISMA, type PrismaClient } from "../common/infra";
 import { couponInclude, liveWhere, toCoupon } from "../core/coupons";
-import { EMPTY_FAKE_DISCOUNT, emptyStats } from "../core/metrics";
-import { CatalogService, offerInclude } from "./catalog.service";
+import { EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
+import { CatalogService, offerInclude, recentPreviousPrice } from "./catalog.service";
 
 @Injectable()
 export class ProductService {
@@ -33,7 +33,7 @@ export class ProductService {
     let zip = zipInput?.trim() || null;
     if (!zip && user) zip = (await this.prisma.userPreference.findUnique({ where: { userId: user.id } }))?.zip ?? null;
 
-    const metrics = (await this.catalog.metrics.fresh([p.id])).get(p.id);
+    const [metrics, pay] = await Promise.all([this.catalog.metrics.fresh([p.id]).then((x) => x.get(p.id)), this.catalog.paymentIndex()]);
     const crumbSlugs = p.category ? p.category.path.split("/") : [];
     const [crumbs, siblings, allMetrics] = await Promise.all([
       this.prisma.category.findMany({ where: { slug: { in: crumbSlugs } }, select: { slug: true, name: true } }),
@@ -48,22 +48,10 @@ export class ProductService {
     ]);
 
     const offers = p.offers
-      .map((o) => this.catalog.toOffer(o, zip))
+      .map((o) => this.catalog.toOffer(o, zip, pay))
       .sort((a, b) => Number(a.stock === "out_of_stock") - Number(b.stock === "out_of_stock") || a.estimatedTotalCents - b.estimatedTotalCents);
 
-    const relatedIds = [...allMetrics.values()]
-      .filter((m) => m.productId !== p.id)
-      .map((m) => m.productId);
-    const relatedProducts = p.categoryId
-      ? await this.prisma.product.findMany({ where: { categoryId: p.categoryId, status: "active", id: { in: relatedIds } }, select: { id: true }, take: 24 })
-      : [];
-    const related = await this.catalog.cards(
-      relatedProducts
-        .map((r) => r.id)
-        .sort((a, b) => (allMetrics.get(b)?.dealScore?.score ?? 0) - (allMetrics.get(a)?.dealScore?.score ?? 0))
-        .slice(0, 8),
-      allMetrics,
-    );
+    const { related, alternatives } = await this.similar(p, siblings.map((x) => x.product.id), allMetrics, metrics?.lowestPriceCents ?? null);
 
     const ancestorIds = crumbs.length ? (await this.prisma.category.findMany({ where: { slug: { in: crumbSlugs } }, select: { id: true } })).map((c) => c.id) : [];
     const couponRows = await this.prisma.coupon.findMany({
@@ -123,8 +111,46 @@ export class ProductService {
       fakeDiscount: metrics?.fakeDiscount ?? EMPTY_FAKE_DISCOUNT,
       hasDemoData: offers.some((o) => o.source === "demo") || p.isDemo,
       coupons: couponRows.map(toCoupon),
+      previousLowestPriceCents: recentPreviousPrice(metrics),
       related,
+      alternatives,
       lastUpdatedAt: (metrics?.lastCheckedAt ?? p.updatedAt).toISOString(),
     };
+  }
+
+  /**
+   * "Similar products": same category, most shared spec values, closest price (variant siblings excluded).
+   * "Alternatives": other brands in the same category within ±40% of the price — honest "compare with", no fake popularity.
+   */
+  private async similar(
+    p: { id: string; brandId: string | null; categoryId: string | null; attributes: { name: string; value: string; group: string | null }[] },
+    siblingIds: string[],
+    allMetrics: Map<string, ProductMetrics>,
+    price: number | null,
+  ): Promise<{ related: ProductDetailResponse["related"]; alternatives: ProductDetailResponse["alternatives"] }> {
+    if (!p.categoryId) return { related: [], alternatives: [] };
+    const exclude = new Set([p.id, ...siblingIds]);
+    const candidates = await this.prisma.product.findMany({
+      where: { categoryId: p.categoryId, status: "active", id: { notIn: [...exclude] } },
+      select: { id: true, brandId: true, attributes: { select: { name: true, value: true, group: true } } },
+      take: 400,
+    });
+    const own = new Set(p.attributes.filter((a) => a.group !== "General").map((a) => `${a.name}=${a.value}`));
+    const priceOf = (id: string) => allMetrics.get(id)?.lowestPriceCents ?? null;
+    const closeness = (id: string) => {
+      const c = priceOf(id);
+      return price && c ? Math.abs(c - price) / price : 1;
+    };
+    const scored = candidates
+      .filter((c) => priceOf(c.id) !== null)
+      .map((c) => ({ c, shared: c.attributes.filter((a) => own.has(`${a.name}=${a.value}`)).length, dist: closeness(c.id) }));
+    const relatedIds = [...scored].sort((a, b) => b.shared - a.shared || a.dist - b.dist).slice(0, 10).map((x) => x.c.id);
+    const altIds = scored
+      .filter((x) => x.c.brandId !== p.brandId && x.dist <= 0.4)
+      .sort((a, b) => a.dist - b.dist || b.shared - a.shared)
+      .slice(0, 6)
+      .map((x) => x.c.id);
+    const [related, alternatives] = await Promise.all([this.catalog.cards(relatedIds, allMetrics), this.catalog.cards(altIds, allMetrics)]);
+    return { related, alternatives };
   }
 }

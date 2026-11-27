@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TEST-ONLY recorded-shape fixture (Rakuten Product Search 1.0). Synthetic values. -->
+<result>
+  <TotalMatches>1</TotalMatches>
+  <TotalPages>1</TotalPages>
+  <PageNumber>1</PageNumber>
+  <item>
+    <mid>44583</mid>
+    <merchantname>Test Merchant R</merchantname>
+    <linkid>LNK1</linkid>
+    <sku>R-SKU-1</sku>
+    <productname>Acme X100 Headphones Black</productname>
+    <category><primary>Electronics</primary><secondary>Audio</secondary></category>
+    <price currency="USD">199.99</price>
+    <saleprice currency="USD">174.99</saleprice>
+    <upccode>012345678905</upccode>
+    <description><short>Synthetic</short><long>Synthetic long</long></description>
+    <linkurl>https://click.linksynergy.com/link?id=ENCID&amp;offerid=1.2&amp;type=15&amp;murl=https%3A%2F%2Fwww.example-retailer.test%2Fp%2Fx100</linkurl>
+    <imageurl>https://www.example-retailer.test/i/x100.jpg</imageurl>
+  </item>
+</result>

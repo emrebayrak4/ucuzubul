@@ -149,6 +149,38 @@ export function xmlToRecords(xml: string): Record<string, string>[] {
   return records;
 }
 
+function safeTag(tag: string): string {
+  if (!/^[A-Za-z_][\w.-]*$/.test(tag)) throw new RangeError(`invalid XML tag name: ${tag}`);
+  return tag.replace(/\./g, "\\.");
+}
+
+/** Extract flat records for every `<tag>` element (e.g. CJ `<link>`, Rakuten `<couponitem>`). Keys are normalized (hyphens -> "_"). */
+export function xmlRecordsByTag(xml: string, tag: string): Record<string, string>[] {
+  const body = xml.replace(/<\?xml[^>]*\?>/, "").replace(/<!--[\s\S]*?-->/g, "");
+  const esc = safeTag(tag);
+  const re = new RegExp(`<(?:[\\w-]+:)?${esc}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w-]+:)?${esc}\\s*>`, "gi");
+  const records: Record<string, string>[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const rec: Record<string, string> = {};
+    parseChildren(m[1] as string, "", rec);
+    records.push(rec);
+  }
+  return records;
+}
+
+/** Text of the first `<tag>` element (or attribute `attr` on it); null if absent. */
+export function xmlFirst(xml: string, tag: string, attr?: string): string | null {
+  const esc = safeTag(tag);
+  const m = new RegExp(`<(?:[\\w-]+:)?${esc}((?:\\s[^>]*)?)(?:/>|>([\\s\\S]*?)</(?:[\\w-]+:)?${esc}\\s*>)`, "i").exec(xml);
+  if (!m) return null;
+  if (attr) {
+    const a = new RegExp(`\\b${safeTag(attr)}\\s*=\\s*"([^"]*)"`, "i").exec(m[1] ?? "");
+    return a ? decodeXmlText(a[1] as string) : null;
+  }
+  return m[2] === undefined ? null : decodeXmlText(m[2]);
+}
+
 export type FeedFormat = "csv" | "xml";
 
 export function detectFeedFormat(content: string): FeedFormat {

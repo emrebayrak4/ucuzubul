@@ -24,14 +24,14 @@
   --text-sm: 0.8125rem;
   --text-sm--line-height: 1.125rem;
   --text-sm--letter-spacing: 0em;
-  --text-base: 0.875rem;
-  --text-base--line-height: 1.25rem;
+  --text-base: 0.90625rem;
+  --text-base--line-height: 1.26875rem;
   --text-base--letter-spacing: 0em;
-  --text-md: 1rem;
-  --text-md--line-height: 1.5rem;
+  --text-md: 0.96875rem;
+  --text-md--line-height: 1.375rem;
   --text-md--letter-spacing: -0.005em;
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.625rem;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.5rem;
   --text-lg--letter-spacing: -0.01em;
   --text-xl: 1.25rem;
   --text-xl--line-height: 1.75rem;
@@ -42,8 +42,8 @@
   --text-3xl: 1.875rem;
   --text-3xl--line-height: 2.25rem;
   --text-3xl--letter-spacing: -0.02em;
-  --text-4xl: 2.25rem;
-  --text-4xl--line-height: 2.625rem;
+  --text-4xl: 2.375rem;
+  --text-4xl--line-height: 2.75rem;
   --text-4xl--letter-spacing: -0.022em;
   --text-5xl: 3rem;
   --text-5xl--line-height: 3.25rem;
@@ -60,6 +60,7 @@
   --breakpoint-lg: 64rem;
   --breakpoint-xl: 80rem;
   --breakpoint-2xl: 96rem;
+  --breakpoint-3xl: 120rem;
 
   --container-content: 80rem;
 
@@ -223,6 +224,251 @@
   }
 }
 
+/* Responsive product grid: 2 / 3 (sm) / 4 (lg) / 5 (xl) / 6 (2xl) columns; tiles never shrink below productTileMinWidth. */
+@utility grid-products {
+  display: grid;
+  gap: var(--pc-grid-gap);
+  grid-template-columns: repeat(2, minmax(min(9.375rem, 100%), 1fr));
+  @media (width >= 40rem) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (width >= 64rem) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (width >= 80rem) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  @media (width >= 96rem) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* Shared tile gap for any card grid/rail (same value as grid-products, so rails and grids share columns). */
+@utility gap-grid {
+  gap: var(--pc-grid-gap);
+}
+
+/* Vertical rhythm: stack of page sections (32px, 40px from lg). */
+@utility section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-section-gap);
+}
+
+/* Space between a section heading row and its content (12px, 16px from md). */
+@utility section-head {
+  margin-bottom: var(--pc-section-head-gap);
+}
+
+/* ---------- Motion layer (see docs/DESIGN_SYSTEM.md "Motion") ----------
+ * Composite-only (transform / opacity). Infinite loops run only on screen (MotionGovernor sets data-anim="on"). Everything below is gated on
+ * prefers-reduced-motion: no-preference, so reduced-motion users get the static design with no movement at all.
+ * Infinite animations are allowed only on small elements (badges, dots), never on large areas. */
+@keyframes pc-shimmer-sweep { 0% { transform: translateX(-120%); } 28%, 100% { transform: translateX(120%); } }
+@keyframes pc-hot-drift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-54.5455%); } }
+@keyframes pc-pulse-ring { 0% { transform: scale(1); opacity: 0.55; } 80%, 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes pc-skeleton-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes pc-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes pc-icon-bounce { 0%, 100% { transform: translateY(0); } 35% { transform: translateY(-3px) scale(1.06); } 65% { transform: translateY(1px); } }
+@keyframes pc-check-draw { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+@keyframes pc-pop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+
+/* Diagonal light sweep that passes every ~4s. Small elements only (badges). */
+@utility animate-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.5) 50%, transparent 70%);
+    transform: translateX(-120%);
+  }
+  /* Loops only while on screen: MotionGovernor (@pricora/ui) sets data-anim="on" on visible badges. */
+  @media (prefers-reduced-motion: no-preference) {
+    &[data-anim="on"]::after {
+      animation: pc-shimmer-sweep 4.2s var(--pc-ease-standard) 1.2s infinite;
+    }
+  }
+}
+
+/* Big-drop badge: solid red -> deep orange; colors drift slowly. Text uses the soft token (AA on both ends). */
+@utility animate-hot {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-image: linear-gradient(100deg, var(--pc-color-price-drop), var(--pc-color-warning), var(--pc-color-price-drop));
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  color: var(--pc-color-price-drop-soft);
+  /* The drift moves a 220%-wide copy of the gradient with transform (compositor-only) instead of animating
+   * background-position (repaint every frame). Same look as background-position 0% -> 100% -> 0%. */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 220%;
+    z-index: -1;
+    pointer-events: none;
+    background-image: linear-gradient(100deg, var(--pc-color-price-drop), var(--pc-color-warning), var(--pc-color-price-drop));
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    &[data-anim="on"]::before {
+      opacity: 1;
+      animation: pc-hot-drift 3.6s ease-in-out infinite;
+    }
+  }
+}
+
+/* "Live" dot: a solid dot with an expanding ring. Put on an empty <span> (size via the utility). */
+@utility animate-pulse-dot {
+  position: relative;
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background-color: currentColor;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-color: currentColor;
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    &::after {
+      animation: pc-pulse-ring 2s var(--pc-ease-out) infinite;
+    }
+  }
+}
+
+/* Skeleton: base tint + a soft light band sweeping across (transform on a pseudo element). */
+@utility skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+    transform: translateX(-100%);
+  }
+  .dark &::after,
+  [data-theme="dark"] &::after {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    &::after {
+      animation: pc-skeleton-sweep 1.4s ease-in-out infinite;
+    }
+  }
+}
+
+/* One-shot green flash behind an element (e.g. a price-drop amount). Re-trigger by remounting. */
+@utility animate-flash-success {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -0.125rem -0.25rem;
+    z-index: -1;
+    border-radius: var(--pc-radius-sm);
+    background-color: var(--pc-color-success-soft);
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    &::before {
+      animation: pc-flash 1.4s var(--pc-ease-out) 0.15s 1 both;
+    }
+  }
+}
+
+/* Cards: lift on hover (transform only). */
+@utility hover-lift {
+  transition: transform var(--pc-duration-base) var(--pc-ease-out);
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    &:hover {
+      transform: translateY(-3px);
+    }
+  }
+}
+
+/* Promo tiles / category circles: slight tilt + scale on hover. */
+@utility hover-tilt {
+  transition: transform var(--pc-duration-slow) var(--pc-ease-out);
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    &:hover {
+      transform: rotate(-1.25deg) scale(1.03);
+    }
+  }
+}
+
+/* Image zoom inside a "group" (container must clip: overflow-hidden). */
+@utility group-hover-zoom {
+  transition: transform var(--pc-duration-slow) var(--pc-ease-out);
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    :where(.group):hover & {
+      transform: scale(1.06);
+    }
+  }
+}
+
+/* Icons inside this element bounce once on hover/focus. */
+@utility hover-bounce-icon {
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    &:hover svg,
+    &:focus-visible svg {
+      animation: pc-icon-bounce 520ms var(--pc-ease-out) 1;
+    }
+  }
+}
+
+/* Press feedback for buttons/tiles. */
+@utility press-scale {
+  @media (prefers-reduced-motion: no-preference) {
+    transition-property: transform, background-color, border-color, color, box-shadow;
+    &:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+  }
+}
+
+/* Scroll reveal: <Reveal>/useReveal set data-reveal="pending" only on elements that start off-screen
+ * (server HTML is always visible, so no-JS and above-the-fold content never hide). */
+@utility reveal-on-scroll {
+  @media (prefers-reduced-motion: no-preference) {
+    transition:
+      opacity var(--pc-duration-slow) var(--pc-ease-out) var(--reveal-delay, 0ms),
+      transform 420ms var(--pc-ease-out) var(--reveal-delay, 0ms);
+    &[data-reveal="pending"] {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+}
+
+/* Animated check mark (SVG path with pathLength="24"). */
+@utility animate-check {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: pc-check-draw 360ms var(--pc-ease-out) 120ms both;
+  }
+}
+
+@utility animate-pop {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: pc-pop 320ms var(--pc-ease-out) both;
+  }
+}
+
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -232,6 +478,7 @@
 
 @layer base {
   html {
+    font-size: 100%;
     background-color: var(--color-bg);
     color: var(--color-text);
     font-family: var(--font-sans);

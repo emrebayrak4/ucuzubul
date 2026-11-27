@@ -64,7 +64,7 @@ browser profile to enable "Follow this store's coupons" (the API session cookie 
 - Product URLs are reduced to origin + path (+ `skuId`/`preselect`/`Item` where a store needs it) before lookup.
 - Coupon results are sent without cookies, with a random per-install id (reset by "Clear cached data") so the API can drop
   duplicates. Turning sharing off stops all result reports.
-- Nunito Sans (OFL) and the logo are bundled; no remote fonts, analytics or trackers. Extension pages run under
+- Plus Jakarta Sans (OFL) and the logo are bundled; no remote fonts, analytics or trackers. Extension pages run under
   `script-src 'self'`; Zod runs `jitless` so nothing needs `eval`.
 
 ## Checkout configs (admin)

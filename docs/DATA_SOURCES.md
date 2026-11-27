@@ -16,6 +16,16 @@ Legend:
 Several official pages blocked automated fetching (bot walls or 403s): walmart.io, the eBay developer HTML pages,
 developer.kroger.com, samsclub.com, partners.target.com and amazon.com help. Facts that depend on those pages are marked as secondary or UNVERIFIED.
 
+## Affiliate-network publisher APIs (2026-11-27)
+Clients for CJ, Impact, Rakuten, Awin, Partnerize and eBay Partner Network live in `packages/retailer-adapters/src/networks/`.
+Each client's header comment lists the verified endpoints, auth, paging and rate limits, with source URLs. Unverified points are marked UNVERIFIED, mainly:
+- CJ `&sid=` appended to click URLs
+- the EPN reporting endpoint
+- the Rakuten manual `/deeplink` host
+- the default Awin `aw_*` feed columns
+
+Signup and credential steps: [AFFILIATE_ONBOARDING.md](AFFILIATE_ONBOARDING.md).
+
 ## ToS baseline (all retailers)
 Do not scrape. Every retailer ToS we could read prohibits robots, scraping or data mining without consent:
 - Amazon Conditions of Use ([summary](https://conductatlas.com/platform/amazon/amazon-conditions-of-use/provision/CA-P-018441/prohibition-on-data-mining-and-scraping-tools/))
@@ -312,3 +322,16 @@ WALMART_CONSUMER_ID WALMART_KEY_VERSION WALMART_PRIVATE_KEY WALMART_PUBLISHER_ID
 - Airports are linked to the nearest GeoNames city matching the OurAirports municipality (fallback: nearest city within 25 km).
 - Search: Meilisearch index `places` (rebuilt by the API when its size differs from the DB) with a Postgres pg_trgm + unaccent fallback.
 - **A02/A03:** add the GeoNames attribution line to the footer / about page.
+
+## US ZIP codes (ZCTA) — privacy/ZIP session, 2026-11-27
+| Dataset | Source | License | Used for |
+|---|---|---|---|
+| ZCTA Gazetteer 2025 (`2025_Gaz_zcta_national.zip`) | US Census Bureau — https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html | Public domain (US Government work, 17 U.S.C. §105) | `zip_codes.zip`, `lat`/`lng` (internal point), `landAreaKm2` |
+| ZCTA ↔ county 2020 relationship (`tab20_zcta520_county20_natl.txt`) | US Census Bureau — https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.html | Public domain | `state` (via county FIPS) and `county` — largest land overlap |
+| ZCTA ↔ place 2020 relationship (`tab20_zcta520_place20_natl.txt`) | US Census Bureau (same page) | Public domain | `city` = Census place with the largest land overlap (an approximation of the USPS city name, not the official postal city) |
+| Places Gazetteer 2025 (`2025_Gaz_place_national.zip`) | US Census Bureau | Public domain | FIPS→USPS state map; nearest-place fallback for ZCTAs with no place overlap |
+| 2020 Decennial DHC `P1_001N` by ZCTA | api.census.gov | Public domain | `population` — **only if `CENSUS_API_KEY` is set** (the API redirects unkeyed bulk requests); otherwise null |
+
+- Import: `pnpm -C packages/database zip:import [--refresh]` → downloads into `<repo>/.data/zip-cache` (gitignored, refreshed after 30 days), idempotent upsert of ~33.8k ZCTAs, deletes ZCTAs no longer in the source, refuses to import < 30,000 rows. Gazetteer year override: `CENSUS_GAZETTEER_YEAR`.
+- ZCTAs ≠ USPS ZIPs: PO-box-only and single-building ZIPs have no ZCTA; 17 territory ZCTAs (USVI) have no state code.
+- No paid geo API is used. Precise coordinates are never stored (see docs/PRIVACY.md).

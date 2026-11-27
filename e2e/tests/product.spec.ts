@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "../helpers/fixtures";
 import { API_URL } from "../helpers/env";
 import { isMobile, parseCents, waitForHydration } from "../helpers/ui";
 
@@ -56,7 +56,10 @@ test.describe("product page", () => {
 
     const rowId = isMobile(page) ? "offer-row-mobile" : "offer-row";
     const demoCount = detail.offers.filter((o) => o.source === "demo").length;
-    await expect(page.getByTestId(rowId).filter({ hasText: "Demo data" })).toHaveCount(demoCount);
+    // Offer rows carry a compact "Demo" chip whose accessible name / tooltip spells out "Demo data — not a live price".
+    const demoChip = page.locator('[aria-label="Demo data — not a live price"][title="Demo data — not a live price"]').filter({ hasText: /^\s*Demo\s*$/ });
+    await expect(page.getByTestId(rowId).filter({ has: demoChip })).toHaveCount(demoCount);
+    if (demoCount > 0) await expect(page.getByTestId(rowId).filter({ has: demoChip }).first().locator(demoChip)).toBeVisible();
     if (demoCount > 0) await expect(page.getByTestId("demo-notice").first()).toBeVisible();
     await expect(page.getByTestId("price-history")).toBeVisible();
   });

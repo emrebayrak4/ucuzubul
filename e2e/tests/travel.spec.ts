@@ -1,9 +1,46 @@
-import { expect, test } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
+import { expect, test } from "../helpers/fixtures";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const inDays = (n: number) => iso(new Date(Date.now() + n * 86_400_000));
 
+/**
+ * Travel (flights, hotels, guides) is behind NEXT_PUBLIC_TRAVEL_ENABLED (apps/web/src/lib/features.ts, default off).
+ * When off, the web proxy 307-redirects /travel* to "/". Detect that once per worker instead of guessing from env,
+ * since the flag belongs to the running dev server, not to this process.
+ */
+async function travelEnabled(request: APIRequestContext): Promise<boolean> {
+  const res = await request.get("/travel/flights", { maxRedirects: 0 });
+  if (res.status() >= 300 && res.status() < 400) {
+    const location = res.headers()["location"] ?? "";
+    return new URL(location, "http://placeholder.invalid").pathname !== "/";
+  }
+  return true;
+}
+
+test.describe("travel disabled (feature flag off)", () => {
+  test.beforeAll(async ({ request }) => {
+    test.skip(await travelEnabled(request), "NEXT_PUBLIC_TRAVEL_ENABLED=true on the running web server");
+  });
+
+  test("/travel/flights redirects to / and the header has no vertical switcher", async ({ page, request }) => {
+    const res = await request.get("/travel/flights", { maxRedirects: 0 });
+    expect(res.status()).toBe(307);
+    expect(new URL(res.headers()["location"] ?? "", "http://placeholder.invalid").pathname).toBe("/");
+
+    await page.goto("/travel/flights");
+    await expect(page).toHaveURL((u) => u.pathname === "/");
+    await expect(page.getByRole("banner").first()).toBeVisible();
+    await expect(page.getByTestId("vertical-switcher")).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: /switch between shopping and travel/i })).toHaveCount(0);
+  });
+});
+
 test.describe("travel", () => {
+  test.beforeAll(async ({ request }) => {
+    test.skip(!(await travelEnabled(request)), "travel is disabled (NEXT_PUBLIC_TRAVEL_ENABLED is not true): /travel/flights redirects to /");
+  });
+
   test("flight search shows the honest providers-pending state (no fabricated fares)", async ({ page }) => {
     await page.goto(`/flights/search?from=JFK&to=LAX&depart=${inDays(30)}&adults=1&cabin=economy`);
     await expect(page.getByTestId("providers-pending")).toBeVisible();

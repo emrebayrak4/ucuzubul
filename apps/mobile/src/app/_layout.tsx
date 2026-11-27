@@ -1,7 +1,7 @@
-import { NunitoSans_400Regular } from "@expo-google-fonts/nunito-sans/400Regular";
-import { NunitoSans_600SemiBold } from "@expo-google-fonts/nunito-sans/600SemiBold";
-import { NunitoSans_700Bold } from "@expo-google-fonts/nunito-sans/700Bold";
-import { NunitoSans_800ExtraBold } from "@expo-google-fonts/nunito-sans/800ExtraBold";
+import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
+import { PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans/600SemiBold";
+import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
+import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
 import { useFonts } from "expo-font";
 import { DarkTheme, DefaultTheme, SplashScreen, Stack, ThemeProvider as NavThemeProvider, type Theme as NavTheme } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -10,6 +10,7 @@ import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { tokens } from "@pricora/design-tokens";
+import { CompareTray } from "@/components/CompareTray";
 import { AppText, Button } from "@/components/ui";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { brand } from "@/lib/config";
@@ -23,10 +24,10 @@ export const unstable_settings = { anchor: "(tabs)" };
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    [FONTS.regular]: NunitoSans_400Regular,
-    [FONTS.semibold]: NunitoSans_600SemiBold,
-    [FONTS.bold]: NunitoSans_700Bold,
-    [FONTS.extrabold]: NunitoSans_800ExtraBold,
+    [FONTS.regular]: PlusJakartaSans_400Regular,
+    [FONTS.semibold]: PlusJakartaSans_600SemiBold,
+    [FONTS.bold]: PlusJakartaSans_700Bold,
+    [FONTS.extrabold]: PlusJakartaSans_800ExtraBold,
   });
   const ready = fontsLoaded || !!fontError;
 
@@ -78,6 +79,20 @@ function AppNavigator() {
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Home" }} />
         <Stack.Screen name="products/[slug]" options={{ title: "" }} />
+        <Stack.Screen name="categories/index" options={{ title: "Categories" }} />
+        <Stack.Screen name="categories/[slug]" options={{ title: "" }} />
+        <Stack.Screen name="brands/[slug]" options={{ title: "" }} />
+        <Stack.Screen name="stores/[slug]" options={{ title: "" }} />
+        <Stack.Screen name="browse" options={{ title: "Products" }} />
+        <Stack.Screen name="compare" options={{ title: "Compare" }} />
+        <Stack.Screen name="deals" options={{ title: "Deals" }} />
+        <Stack.Screen name="price-drops" options={{ title: "Price drops" }} />
+        <Stack.Screen name="popular" options={{ title: "Popular" }} />
+        <Stack.Screen name="new" options={{ title: "New products" }} />
+        <Stack.Screen name="coupons" options={{ title: "Coupons" }} />
+        <Stack.Screen name="credits" options={{ title: "Photo credits" }} />
+        <Stack.Screen name="account/alerts" options={{ title: "Price alerts" }} />
+        <Stack.Screen name="account/followed-stores" options={{ title: "Followed stores" }} />
         <Stack.Screen name="login" options={{ title: "Log in", presentation: "modal" }} />
         <Stack.Screen name="signup" options={{ title: "Create account", presentation: "modal" }} />
         <Stack.Screen name="forgot-password" options={{ title: "Reset password", presentation: "modal" }} />
@@ -89,8 +104,9 @@ function AppNavigator() {
         <Stack.Screen name="lists/[id]" options={{ title: "List" }} />
         <Stack.Screen name="account/profile" options={{ title: "Profile & ZIP" }} />
         <Stack.Screen name="account/notifications" options={{ title: "Notifications" }} />
-        <Stack.Screen name="account/privacy" options={{ title: "Privacy & data" }} />
+        <Stack.Screen name="account/privacy" options={{ title: "Privacy choices" }} />
       </Stack>
+      <CompareTray />
       {locked ? <LockScreen /> : null}
     </NavThemeProvider>
   );

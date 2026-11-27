@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { applySubId } from "@pricora/retailer-adapters";
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req, Res } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { parseProductUrl } from "@pricora/algorithms";
@@ -217,10 +218,11 @@ export class CouponsController {
     if (!c || c.status === "pending_approval" || c.status === "rejected") throw notFound("Coupon");
     const url = isAllowedRedirect(c.affiliateUrl ?? c.retailer.websiteUrl, c.retailer.domain, c.retailer.allowedRedirectHosts);
     if (!url) throw new ApiException(400, "bad_request", "Outbound link is not on the retailer allow-list");
+    const subId = randomToken(12);
     await this.prisma.affiliateClick.create({
       data: {
         kind: "coupon",
-        subId: randomToken(12),
+        subId,
         couponId: c.id,
         retailerId: c.retailerId,
         productId: c.productId,
@@ -232,7 +234,7 @@ export class CouponsController {
       },
     });
     res.setHeader("Cache-Control", "no-store");
-    res.redirect(302, url.toString());
+    res.redirect(302, applySubId(url.toString(), subId));
   }
 
   // ───────── follows ─────────

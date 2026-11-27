@@ -4,7 +4,7 @@
 import type { AdapterOptions } from "./base";
 import { AffiliateFeedAdapter } from "./feeds/affiliateFeed";
 import { AmazonCreatorsAdapter } from "./retailers/amazon";
-import { BestBuyAdapter } from "./retailers/bestbuy";
+import { BestBuyAdapter, bestBuyMissingEnv } from "./retailers/bestbuy";
 import { EbayBrowseAdapter } from "./retailers/ebay";
 import { KrogerAdapter } from "./retailers/kroger";
 import { WalmartAffiliateAdapter } from "./retailers/walmart";
@@ -33,6 +33,8 @@ export interface AdapterMetadata {
   optionalEnv: readonly string[];
   goLive: GoLiveRequirement;
   notes: string;
+  /** Custom env validation (flags that must equal a value); defaults to "required keys non-empty". */
+  missingEnv?: (env: EnvLike) => string[];
   create(options?: AdapterOptions): AnyAdapter;
 }
 
@@ -124,10 +126,11 @@ export const ADAPTER_REGISTRY: readonly AdapterMetadata[] = [
     dataAccess: "official_api",
     affiliateNetwork: "Impact",
     docsUrl: "https://bestbuyapis.github.io/api-documentation/",
-    requiredEnv: ["BESTBUY_API_KEY"],
+    requiredEnv: ["BESTBUY_API_KEY", "BESTBUY_LEGAL_APPROVED"],
     optionalEnv: ["BESTBUY_AFFILIATE_LINK_TEMPLATE"],
     goLive: "api_key",
-    notes: "Self-serve key (company email). 5 req/s, 50k/day, 72h cache cap. LEGAL REVIEW: terms restrict using data to analyze Best Buy pricing for third parties.",
+    notes: "Self-serve key (company email). 5 req/s, 50k/day, 72h cache cap. LEGAL REVIEW: terms restrict using data to analyze Best Buy pricing for third parties — set BESTBUY_LEGAL_APPROVED=true only after counsel signs off.",
+    missingEnv: bestBuyMissingEnv,
     create: (o) => new BestBuyAdapter(o),
   },
   {
@@ -297,7 +300,7 @@ export interface AdapterStatusSummary {
 /** Status for every adapter without any network calls (for /v1/health and admin). */
 export function getAdapterStatuses(env: EnvLike = defaultEnv()): AdapterStatusSummary[] {
   return ADAPTER_REGISTRY.map((m) => {
-    const missing = readEnv(env, m.requiredEnv).missing;
+    const missing = m.missingEnv ? m.missingEnv(env) : readEnv(env, m.requiredEnv).missing;
     const status: AdapterStatus = m.goLive === "discontinued" ? "error" : missing.length ? "pending_configuration" : "live";
     return { id: m.id, name: m.name, kind: m.kind, status, missingEnv: missing, goLive: m.goLive };
   });

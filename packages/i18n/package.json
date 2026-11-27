@@ -1,0 +1,44 @@
+{
+  "name": "@pricora/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@formatjs/icu-messageformat-parser": "3.5.23",
+    "@pricora/config": "workspace:*",
+    "intl-messageformat": "12.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.4",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "5.1.2"
+  }
+}

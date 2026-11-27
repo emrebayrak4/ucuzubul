@@ -84,7 +84,8 @@ describe("travel search with places", () => {
     const res = await request(server).get("/v1/travel/flights/search").query({ from: "NYC", to: "LON", depart: "2026-12-20" }).expect(200);
     expect(res.body.query.fromAirports).toEqual(expect.arrayContaining(["JFK", "LGA", "EWR"]));
     expect(res.body.query.toAirports).toEqual(expect.arrayContaining(["LHR", "LGW"]));
-    expect(res.body.offers).toEqual([]);
+    // No live provider in tests → only labeled demo fares (never presented as live).
+    expect((res.body.offers as { source: string }[]).every((o) => o.source === "demo")).toBe(true);
   });
 
   it("returns demo hotels only where they exist; empty elsewhere (never fabricated)", async () => {
@@ -92,8 +93,9 @@ describe("travel search with places", () => {
     const near = await request(server).get("/v1/travel/hotels/search").query({ placeId: `city_${nyc.geonameId}`, checkin: "2026-12-10", checkout: "2026-12-12" }).expect(200);
     expect(near.body.items.length).toBeGreaterThan(0);
     expect((near.body.items as { source: string }[]).every((h) => h.source === "demo")).toBe(true);
-    const ist = await prisma.city.findFirstOrThrow({ where: { iataCityCode: "IST" } });
-    const far = await request(server).get("/v1/travel/hotels/search").query({ placeId: `city_${ist.geonameId}`, checkin: "2026-12-10", checkout: "2026-12-12" }).expect(200);
+    // A city with no guide and therefore no demo inventory (demo hotels exist only for guide cities).
+    const ub = await prisma.city.findFirstOrThrow({ where: { countryIso2: "MN", name: "Ulan Bator" } });
+    const far = await request(server).get("/v1/travel/hotels/search").query({ placeId: `city_${ub.geonameId}`, checkin: "2026-12-10", checkout: "2026-12-12" }).expect(200);
     expect(far.body.items).toEqual([]);
     expect(far.body.source).toBe("none");
     expect((far.body.providers as { status: string }[]).every((p) => p.status !== "live")).toBe(true);

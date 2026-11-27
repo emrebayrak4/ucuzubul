@@ -9,7 +9,7 @@ import { cn, focusRing } from "../lib/cn";
 export const buttonVariants = cva(
   [
     "relative inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium",
-    "transition-[background-color,border-color,color,box-shadow] duration-fast ease-standard",
+    "transition-[background-color,border-color,color,box-shadow,scale] duration-fast ease-standard motion-safe:active:scale-[0.97]",
     "disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
     focusRing,
@@ -27,12 +27,12 @@ export const buttonVariants = cva(
       },
       size: {
         sm: "h-8 px-3 text-sm [&_svg]:size-4",
-        md: "h-10 px-4 text-base [&_svg]:size-4",
-        lg: "h-12 px-5 text-md [&_svg]:size-5",
+        md: "h-9.5 px-4 text-base [&_svg]:size-4",
+        lg: "h-11 px-5 text-md [&_svg]:size-5",
       },
       fullWidth: { true: "w-full" },
     },
-    compoundVariants: [{ variant: "link", className: "h-auto px-0" }],
+    compoundVariants: [{ variant: "link", className: "h-auto px-0 active:scale-100" }],
     defaultVariants: { variant: "primary", size: "md" },
   },
 );
@@ -75,7 +75,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
 
 export const iconButtonVariants = cva(
   [
-    "inline-flex shrink-0 items-center justify-center rounded-md transition-colors duration-fast ease-standard",
+    "inline-flex shrink-0 items-center justify-center rounded-md transition-[color,background-color,border-color,scale] duration-fast ease-standard motion-safe:active:scale-[0.94]",
     "disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     focusRing,
   ],
@@ -88,8 +88,8 @@ export const iconButtonVariants = cva(
       },
       size: {
         sm: "size-8 [&_svg]:size-4",
-        md: "size-10 [&_svg]:size-[18px]",
-        lg: "size-12 [&_svg]:size-5",
+        md: "size-9.5 [&_svg]:size-[18px]",
+        lg: "size-11 [&_svg]:size-5",
       },
       shape: { square: "", circle: "rounded-full" },
     },

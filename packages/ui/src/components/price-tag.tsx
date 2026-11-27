@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "../lib/cn";
 import { formatPrice } from "../lib/format";
+import { PriceRoll, useInViewOnce } from "./motion";
 
 const sizeClass = {
   sm: "text-base",
@@ -33,6 +34,11 @@ export interface PriceTagProps extends Omit<React.HTMLAttributes<HTMLSpanElement
   tone?: "default" | "primary";
   unavailableText?: string;
   trimZeroCents?: boolean;
+  /**
+   * Real previous price (cents), e.g. the last tracked price. When higher than `cents`, the price rolls down from it
+   * on first view and the drop amount ("−$X") is shown with a one-time green flash. Never pass an invented value.
+   */
+  previousCents?: number | null;
 }
 
 /** Always tabular. Always cents in. Never shows a strike-through that is not real. */
@@ -47,6 +53,7 @@ export function PriceTag({
   tone = "default",
   unavailableText = "Price unavailable",
   trimZeroCents = false,
+  previousCents,
   className,
   ...props
 }: PriceTagProps) {
@@ -60,6 +67,7 @@ export function PriceTag({
   const value = formatPrice(cents, { currency, trimZeroCents });
   const showList = typeof listPriceCents === "number" && listPriceCents > cents;
   const list = showList ? formatPrice(listPriceCents, { currency, trimZeroCents }) : null;
+  const dropped = typeof previousCents === "number" && Number.isFinite(previousCents) && previousCents > cents ? previousCents : null;
 
   return (
     <span className={cn("inline-flex flex-wrap items-baseline gap-x-1.5", className)} {...props}>
@@ -73,8 +81,9 @@ export function PriceTag({
         )}
       >
         {showList ? <span className="sr-only">Now </span> : null}
-        {value}
+        {dropped !== null ? <PriceRoll cents={cents} previousCents={dropped} currency={currency} trimZeroCents={trimZeroCents} /> : value}
       </span>
+      {dropped !== null ? <DropAmount cents={dropped - cents} currency={currency} trimZeroCents={trimZeroCents} /> : null}
       {suffix ? <span className="text-xs font-normal text-text-muted">{suffix}</span> : null}
       {list ? (
         <s className={cn("price text-text-muted", listSizeClass[size])}>
@@ -82,6 +91,17 @@ export function PriceTag({
           {list}
         </s>
       ) : null}
+    </span>
+  );
+}
+
+/** "−$X" drop amount; flashes green once when it first scrolls into view. */
+function DropAmount({ cents, currency, trimZeroCents }: { cents: number; currency: string; trimZeroCents: boolean }) {
+  const ref = React.useRef<HTMLSpanElement>(null);
+  const { seen } = useInViewOnce(ref);
+  return (
+    <span ref={ref} className={cn("price text-xs font-semibold text-success", seen && "animate-flash-success")}>
+      <span className="sr-only">Down </span>−{formatPrice(cents, { currency, trimZeroCents })}
     </span>
   );
 }

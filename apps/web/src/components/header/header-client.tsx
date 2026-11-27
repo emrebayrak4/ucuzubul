@@ -28,7 +28,6 @@ import {
 import type { CategoryNode } from "@pricora/contracts";
 import {
   Button,
-  CategoryIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -49,6 +48,7 @@ import {
 import { api } from "@/lib/api-browser";
 import { basketStore } from "@/lib/basket-store";
 import { compareHref, compareStore } from "@/lib/compare-store";
+import { CategoryCircle } from "@/components/catalog/category-circle";
 import { loginHref } from "@/lib/nav";
 import { useSession } from "@/lib/session";
 import { useZip } from "@/components/zip-provider";
@@ -69,7 +69,8 @@ function useCurrentPath(): string {
 /* ---------------------------------------------------------------- ZIP */
 
 export function ZipButton({ className, compact = false }: { className?: string; compact?: boolean }) {
-  const { zip, openZipDialog } = useZip();
+  const { zip, meta, openZipDialog } = useZip();
+  const estimated = meta?.source === "edge" && zip;
   return (
     <button
       type="button"
@@ -80,10 +81,21 @@ export function ZipButton({ className, compact = false }: { className?: string; 
         className,
       )}
       data-testid="zip-button"
-      aria-label={zip ? `Delivery ZIP ${zip}, change` : "Set ZIP code for tax estimates"}
+      aria-label={estimated ? `Estimated ZIP ${zip}, change` : zip ? `Delivery ZIP ${zip}, change` : "Set ZIP code for tax estimates"}
+      title={meta?.confidence ? `ZIP ${meta.confidence === "high" ? "matched" : "estimated"} (${meta.confidence} confidence)` : undefined}
     >
       <MapPin aria-hidden className="size-3.5" />
-      <span className="price">{zip ? `Deliver to ${zip}` : "Set ZIP for tax"}</span>
+      <span className="price">
+        {estimated ? (
+          <>
+            Estimated: {zip} <span className="underline underline-offset-2">· change</span>
+          </>
+        ) : zip ? (
+          `Deliver to ${zip}`
+        ) : (
+          "Set ZIP for tax"
+        )}
+      </span>
     </button>
   );
 }
@@ -109,7 +121,7 @@ function ActionLink({
     <Link
       href={href}
       data-testid={testId}
-      className="group relative flex flex-col items-center gap-0.5 rounded-md px-2 py-1 hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+      className="hover-bounce-icon group relative flex flex-col items-center gap-0.5 rounded-md px-2 py-1 hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
       aria-label={count ? `${label} (${count})` : label}
     >
       <span className="relative">
@@ -125,7 +137,7 @@ function ActionLink({
           </span>
         ) : null}
       </span>
-      <span className="hidden text-xs font-semibold xl:block">{label}</span>
+      <span className="hidden text-sm font-semibold xl:block">{label}</span>
     </Link>
   );
 }
@@ -257,7 +269,7 @@ export function MegaMenu({ categories }: { categories: CategoryNode[] | null }) 
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-11 items-center gap-2 pr-2 text-sm font-semibold text-text hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap pr-2 text-[13.5px] font-semibold text-text hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid="categories-menu"
         >
           <LayoutGrid aria-hidden className="size-4" />
@@ -265,7 +277,7 @@ export function MegaMenu({ categories }: { categories: CategoryNode[] | null }) 
           <ChevronDown aria-hidden className="size-3.5 text-text-muted" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(1000px,calc(100vw-2rem))] p-5" align="start" sideOffset={0}>
+      <PopoverContent className="w-[min(1200px,calc(100vw-2rem))] p-6" align="start" sideOffset={0}>
         {categories === null ? (
           <p className="text-sm text-text-muted">Categories are unavailable right now. Please try again shortly.</p>
         ) : categories.length === 0 ? (
@@ -274,12 +286,12 @@ export function MegaMenu({ categories }: { categories: CategoryNode[] | null }) 
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 md:grid-cols-3 lg:grid-cols-4">
             {categories.map((c) => (
               <div key={c.id} className="min-w-0">
-                <Link href={`/categories/${c.slug}`} className="flex items-center gap-2 text-sm font-semibold text-text hover:text-primary">
-                  <CategoryIcon category={c.slug} size={18} />
+                <Link href={`/categories/${c.slug}`} className="group flex items-center gap-2.5 text-sm font-semibold text-text hover:text-primary">
+                  <CategoryCircle slug={c.slug} size={36} />
                   <span className="truncate">{c.name}</span>
                 </Link>
                 {c.children.length ? (
-                  <ul className="mt-1.5 space-y-1 pl-[26px]">
+                  <ul className="mt-1.5 space-y-1 pl-[46px]">
                     {c.children.slice(0, 5).map((ch) => (
                       <li key={ch.id}>
                         <Link href={`/categories/${ch.slug}`} className="block truncate text-xs text-text-muted hover:text-text hover:underline">
@@ -308,27 +320,100 @@ export function MegaMenu({ categories }: { categories: CategoryNode[] | null }) 
 export function NavLinks({ topCategories }: { topCategories: Array<{ slug: string; name: string }> }) {
   const path = useCurrentPath();
   const links = [...primaryNav.map((l) => ({ href: l.href, label: l.label })), ...topCategories.map((c) => ({ href: `/categories/${c.slug}`, label: c.name }))];
+  // Priority+ nav: show what fits on one line, collapse the rest into "More". SSR renders all items (clipped, never scrolls).
+  const listRef = React.useRef<HTMLUListElement>(null);
+  const widths = React.useRef<number[]>([]);
+  const [visible, setVisible] = React.useState(links.length);
+  const total = links.length;
+
+  const fit = React.useCallback(() => {
+    const ul = listRef.current;
+    if (!ul || widths.current.length !== total) return;
+    const gap = parseFloat(getComputedStyle(ul).columnGap) || 0;
+    const avail = ul.clientWidth;
+    const moreW = 76;
+    const sum = widths.current.reduce((a, w) => a + w + gap, -gap);
+    if (sum <= avail) return setVisible(total);
+    let used = 0;
+    let n = 0;
+    for (const w of widths.current) {
+      const next = used + (n ? gap : 0) + w;
+      if (next + gap + moreW > avail) break;
+      used = next;
+      n++;
+    }
+    setVisible(n);
+  }, [total]);
+
+  const measure = React.useCallback(() => {
+    const ul = listRef.current;
+    if (!ul) return;
+    const items = [...ul.querySelectorAll<HTMLLIElement>("li[data-nav-item]")];
+    if (items.length !== total) return;
+    // Hidden (collapsed) items keep their last measured width.
+    widths.current = items.map((li, i) => (li.classList.contains("hidden") ? (widths.current[i] ?? 0) : li.getBoundingClientRect().width));
+    fit();
+  }, [fit, total]);
+
+  React.useLayoutEffect(() => {
+    measure();
+    void document.fonts?.ready.then(() => requestAnimationFrame(measure));
+  }, [measure, total]);
+
+  React.useEffect(() => {
+    const ul = listRef.current;
+    if (!ul) return;
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(ul);
+    return () => ro.disconnect();
+  }, [fit]);
+
+  const hidden = links.slice(visible);
   return (
-    <ul className="scrollbar-none flex min-w-0 items-center gap-5 overflow-x-auto">
-      {links.map((l) => {
-        const active = path === l.href || path.startsWith(l.href + "/");
-        return (
-          <li key={l.href} className="shrink-0">
-            <Link
-              href={l.href}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex h-11 items-center border-b-2 text-sm font-semibold transition-colors duration-fast",
-                active ? "border-primary text-primary" : "border-transparent text-text hover:text-primary",
-              )}
+    <div className="flex min-w-0 flex-1 items-center gap-5">
+      <ul ref={listRef} className="flex min-w-0 flex-1 items-center gap-5 overflow-hidden">
+        {links.map((l, i) => {
+          const active = path === l.href || path.startsWith(l.href + "/");
+          return (
+            <li key={l.href} data-nav-item className={cn("shrink-0", i >= visible && "hidden")}>
+              <Link
+                href={l.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-11 items-center whitespace-nowrap border-b-2 text-[13.5px] font-medium transition-colors duration-fast",
+                  active ? "border-primary text-primary" : "border-transparent text-text hover:text-primary",
+                )}
+              >
+                {l.href === "/coupons" ? <Ticket aria-hidden className="mr-1 size-4" /> : null}
+                {l.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      {hidden.length ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex h-11 shrink-0 items-center gap-1 whitespace-nowrap text-[13.5px] font-medium text-text hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {l.href === "/coupons" ? <Ticket aria-hidden className="mr-1 size-4" /> : null}
-              {l.label}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+              More
+              <ChevronDown aria-hidden className="size-3.5 text-text-muted" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {hidden.map((l) => (
+              <DropdownMenuItem key={l.href} asChild>
+                <Link href={l.href} aria-current={path === l.href ? "page" : undefined}>
+                  {l.label}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
   );
 }
 
@@ -368,8 +453,8 @@ export function MobileNav({ categories }: { categories: CategoryNode[] | null })
               <ul className="space-y-0.5">
                 {categories.map((c) => (
                   <li key={c.id}>
-                    <Link href={`/categories/${c.slug}`} className="flex h-10 items-center gap-3 rounded-md px-2 text-sm hover:bg-surface-2">
-                      <CategoryIcon category={c.slug} size={18} />
+                    <Link href={`/categories/${c.slug}`} className="group flex h-11 items-center gap-3 rounded-md px-2 text-sm hover:bg-surface-2">
+                      <CategoryCircle slug={c.slug} size={32} />
                       {c.name}
                     </Link>
                   </li>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TEST-ONLY recorded-shape fixture (CJ Link Search v2). Synthetic values. -->
+<cj-api>
+  <links total-matched="1" records-returned="1" page-number="1">
+    <link>
+      <advertiser-id>1234567</advertiser-id>
+      <advertiser-name>Test Advertiser A</advertiser-name>
+      <link-id>13000001</link-id>
+      <link-name>20% off sitewide with code TEST20</link-name>
+      <description>Min. purchase $50. Excludes gift cards.</description>
+      <coupon-code>TEST20</coupon-code>
+      <promotion-type>coupon</promotion-type>
+      <promotion-start-date>2026-11-01</promotion-start-date>
+      <promotion-end-date>2026-12-31</promotion-end-date>
+      <destination>https://www.example-retailer.test/sale</destination>
+      <clickUrl>https://www.anrdoezrs.net/click-100000-13000001</clickUrl>
+    </link>
+  </links>
+</cj-api>

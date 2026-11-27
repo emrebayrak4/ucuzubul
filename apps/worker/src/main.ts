@@ -3,6 +3,11 @@
  *  - price-refresh: scheduled every 30 min; adapters without credentials are skipped (no-op, logged).
  *  - price-events:  evaluates price alerts on price/stock changes → Notification rows (dedupe + cooldown).
  *  - search-index:  full Meilisearch reindex (scheduled every 6 h and on demand).
+ *  - travel-alerts: flight fare alerts (Track prices) every 6 h → Notification rows (dedupe + 24 h cooldown).
+ *  - fx-rates:      ECB reference rates every 6 h (90-day backfill on first run) — only for "≈" cross-market hints.
+ *  - network-ingest: affiliate networks (CJ, Impact, Rakuten, Awin, Partnerize, EPN) — coupons, product
+ *    catalogs → matching → offers/price history, and conversion imports, on per-network schedules from
+ *    NETWORK_REGISTRY. Networks without credentials finish immediately as pending_configuration.
  */
 import { existsSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
@@ -24,6 +29,16 @@ import {
   processPriceEvent,
   reindexProducts,
   type PriceEventJob,
+  FlightFareService,
+  TRAVEL_ALERTS_QUEUE,
+  evaluateFlightAlerts,
+  NETWORK_INGEST_QUEUE,
+  networkSchedules,
+  runNetworkJob,
+  hideDemoOffers,
+  FX_QUEUE,
+  refreshFxRates,
+  type NetworkIngestJob,
 } from "@pricora/api/core";
 import { parseServerEnv } from "@pricora/config/env";
 import { disconnectPrisma, getPrisma, type PrismaClient } from "@pricora/database";
@@ -91,6 +106,9 @@ async function refreshAdapter(adapter: RetailerAdapter, priceEvents: Queue): Pro
       await priceEvents.add("price-change", job, { removeOnComplete: 1000, removeOnFail: 1000 });
     }
   }
+  // A live adapter returning real prices for this retailer hides its demo offers automatically.
+  const refreshed = offers.length > 0 ? await prisma.offer.count({ where: { retailerId: retailer.id, source: { in: ["api", "feed"] }, isActive: true } }) : 0;
+  if (refreshed > 0) await hideDemoOffers(prisma, retailer.id);
   return { checked: offers.length, changed };
 }
 
@@ -99,11 +117,24 @@ async function main(): Promise<void> {
   const searchIndex = new Queue(SEARCH_INDEX_QUEUE, { connection });
   const priceRefresh = new Queue(PRICE_REFRESH_QUEUE, { connection });
   const coupons = new Queue(COUPONS_QUEUE, { connection });
+  const travelAlerts = new Queue(TRAVEL_ALERTS_QUEUE, { connection });
+  const networkIngest = new Queue(NETWORK_INGEST_QUEUE, { connection });
+  const fxRates = new Queue(FX_QUEUE, { connection });
+  const flightFares = new FlightFareService(prisma, () => integrations.env());
 
   await priceRefresh.upsertJobScheduler("price-refresh-30m", { every: 30 * 60_000 }, { name: "refresh-all" });
   await coupons.upsertJobScheduler("coupons-maintain-daily", { every: 24 * 60 * 60_000 }, { name: "maintain" });
   await coupons.upsertJobScheduler("coupons-ingest-6h", { every: 6 * 60 * 60_000 }, { name: "ingest" });
+  await travelAlerts.upsertJobScheduler("travel-alerts-6h", { every: 6 * 60 * 60_000 }, { name: "evaluate" });
+  // ECB publishes once per working day ~16:00 CET; 6-hourly polling is cheap and catches it the same day.
+  // Multi-market is dormant (US only, founder 2026-11-27): only schedule ECB FX refresh when MARKETS_ENABLED=true.
+  if (process.env.MARKETS_ENABLED === "true") await fxRates.upsertJobScheduler("fx-ecb-6h", { every: 6 * 60 * 60_000 }, { name: "refresh" });
+  else await fxRates.removeJobScheduler("fx-ecb-6h").catch(() => undefined);
   await searchIndex.upsertJobScheduler("search-reindex-6h", { every: 6 * 60 * 60_000 }, { name: "reindex" });
+  // Coupons for CJ/Impact/Rakuten/Awin run inside the coupons queue ("ingest"); here: products + conversions.
+  for (const s of networkSchedules().filter((x) => x.job.kind !== "coupons")) {
+    await networkIngest.upsertJobScheduler(s.id, { every: s.everyMs }, { name: s.job.kind, data: s.job, opts: { removeOnComplete: 200, removeOnFail: 200 } });
+  }
 
   const workers = [
     new Worker(
@@ -192,6 +223,39 @@ async function main(): Promise<void> {
       { connection, concurrency: 1 },
     ),
     new Worker(
+      TRAVEL_ALERTS_QUEUE,
+      async () => {
+        const r = await evaluateFlightAlerts(prisma, flightFares);
+        log("travel-alerts", `evaluated ${r.evaluated}, notified ${r.notified}, expired ${r.expired}, cooldown ${r.skippedCooldown}`);
+        return r;
+      },
+      { connection, concurrency: 1 },
+    ),
+    new Worker(
+      NETWORK_INGEST_QUEUE,
+      async (job: Job<NetworkIngestJob>) => {
+        const r = await runNetworkJob(prisma, job.data, await integrations.env(), async (ev) => {
+          await priceEvents.add("price-change", ev, { removeOnComplete: 1000, removeOnFail: 1000 });
+        });
+        log("network-ingest", `${job.data.network}/${job.data.kind}: ${String(r.status)} — ${String(r.message)}`);
+        if (job.data.kind === "products" && r.status === "ok") await searchIndex.add("reindex", {}, { removeOnComplete: 100, removeOnFail: 100 });
+        return r;
+      },
+      // One network call stream at a time keeps us inside every network's per-minute limits.
+      { connection, concurrency: 1 },
+    ),
+    new Worker(
+      FX_QUEUE,
+      async () => {
+        // First run backfills 90 days so "≈" hints work immediately; later runs fetch the daily file.
+        const history = (await prisma.fxRate.count()) === 0;
+        const r = await refreshFxRates(prisma, { history });
+        log("fx-rates", `ECB ${r.latest ?? "?"}: ${r.rows} rates over ${r.days} day(s)`);
+        return r;
+      },
+      { connection, concurrency: 1 },
+    ),
+    new Worker(
       SEARCH_INDEX_QUEUE,
       async () => {
         const n = await reindexProducts(prisma, meili);
@@ -208,11 +272,11 @@ async function main(): Promise<void> {
 
   // Job schedulers fire immediately on first registration; add an initial reindex so a fresh environment is usable.
   await searchIndex.add("reindex", {}, { removeOnComplete: 100, removeOnFail: 100 });
-  log("worker", `started (queues: ${PRICE_REFRESH_QUEUE}, ${PRICE_EVENTS_QUEUE}, ${SEARCH_INDEX_QUEUE}, ${MERCHANT_FEEDS_QUEUE}, ${COUPONS_QUEUE})`);
+  log("worker", `started (queues: ${PRICE_REFRESH_QUEUE}, ${PRICE_EVENTS_QUEUE}, ${SEARCH_INDEX_QUEUE}, ${MERCHANT_FEEDS_QUEUE}, ${COUPONS_QUEUE}, ${TRAVEL_ALERTS_QUEUE}, ${NETWORK_INGEST_QUEUE}, ${FX_QUEUE})`);
 
   const shutdown = async () => {
     log("worker", "shutting down");
-    await Promise.allSettled([...workers.map((w) => w.close()), priceEvents.close(), searchIndex.close(), priceRefresh.close(), coupons.close()]);
+    await Promise.allSettled([...workers.map((w) => w.close()), priceEvents.close(), searchIndex.close(), priceRefresh.close(), coupons.close(), travelAlerts.close(), networkIngest.close(), fxRates.close()]);
     await integrations.close();
     await disconnectPrisma();
     process.exit(0);

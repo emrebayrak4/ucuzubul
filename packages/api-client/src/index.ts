@@ -148,6 +148,18 @@ export function createApiClient(options: ApiClientOptions) {
       updatePreferences: withBody("me.preferences.update"),
       exportData: noArgs("me.export"),
       deleteAccount: withBody("me.delete"),
+      consent: noArgs("privacy.consent.get"),
+      updateConsent: withBody("privacy.consent.update"),
+    },
+
+    geo: {
+      zipNear: (lat: number, lng: number, o?: Opts) => withQuery("geo.zip.nearest")({ lat, lng }, o),
+      zipResolve: noArgs("geo.zip.resolve"),
+    },
+
+    privacy: {
+      createRequest: withBody("privacy.requests.create"),
+      verifyRequest: (token: string, o?: Opts) => withQuery("privacy.requests.verify")({ token }, o),
     },
 
     basket: {
@@ -160,9 +172,18 @@ export function createApiClient(options: ApiClientOptions) {
       places: (q: string, opts?: { types?: string; limit?: number }, o?: Opts) => withQuery("travel.places")({ q, ...opts }, o),
       airports: (q: string, o?: Opts) => withQuery("travel.airports")({ q }, o),
       flights: (query: EndpointQuery<"travel.flights">, o?: Opts) => withQuery("travel.flights")(query, o),
+      flightCalendar: (query: EndpointQuery<"travel.flightCalendar">, o?: Opts) => withQuery("travel.flightCalendar")(query, o),
+      flightExplore: (query: EndpointQuery<"travel.flightExplore">, o?: Opts) => withQuery("travel.flightExplore")(query, o),
+      flightAlerts: {
+        list: (query?: EndpointQuery<"travel.flightAlerts.list">, o?: Opts) => withQuery("travel.flightAlerts.list")(query ?? {}, o),
+        create: withBody("travel.flightAlerts.create"),
+        remove: (alertId: string, o?: Opts) => withParams("travel.flightAlerts.delete")(id(alertId), o),
+      },
       hotels: (query: EndpointQuery<"travel.hotels">, o?: Opts) => withQuery("travel.hotels")(query, o),
       hotel: (hotelId: string, query?: EndpointQuery<"travel.hotel">, o?: Opts) =>
         withParamsQuery("travel.hotel")(id(hotelId), query, o),
+      hotelDeals: (query?: EndpointQuery<"travel.hotelDeals">, o?: Opts) => withQuery("travel.hotelDeals")(query ?? {}, o),
+      hotelDestinations: noArgs("travel.hotelDestinations"),
       goUrl: (type: "flight" | "hotel", itemId: string) => core.url("travel.go", { params: { type, id: itemId } }),
     },
 

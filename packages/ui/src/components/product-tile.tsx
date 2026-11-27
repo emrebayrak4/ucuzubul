@@ -33,6 +33,11 @@ export interface ProductTileProps {
   sponsored?: boolean;
   /** Optional overlay action (e.g. favorite IconButton). Rendered outside the link. */
   action?: React.ReactNode;
+  /**
+   * Quick actions (e.g. Compare / Price alert buttons) that slide up over the bottom of the image on hover or keyboard
+   * focus; always visible on touch devices. Rendered outside the link.
+   */
+  quickActions?: React.ReactNode;
   /** Link component (e.g. next/link). Defaults to <a>. */
   linkComponent?: LinkLikeComponent;
   /** Image renderer (e.g. next/image). */
@@ -61,13 +66,14 @@ export function ProductTile({
   isDemo = false,
   sponsored = false,
   action,
+  quickActions,
   linkComponent,
   renderImage,
   density = "compact",
   className,
 }: ProductTileProps) {
   const Link: LinkLikeComponent | "a" = linkComponent ?? "a";
-  const imgClass = "size-full object-contain mix-blend-multiply dark:mix-blend-normal";
+  const imgClass = "group-hover-zoom size-full object-contain mix-blend-multiply dark:mix-blend-normal";
   const hasPrice = typeof lowestPriceCents === "number" && Number.isFinite(lowestPriceCents);
   const stores = typeof storeCount === "number" && storeCount > 0 ? storeCount : null;
 
@@ -75,8 +81,8 @@ export function ProductTile({
     <article
       className={cn(
         "group relative flex h-full flex-col rounded-md bg-surface text-text",
-        "border border-border transition-[border-color,box-shadow] duration-fast ease-standard",
-        "hover:border-border-strong/60 hover:shadow-sm",
+        "border border-border transition-[border-color,box-shadow,translate] duration-base ease-out",
+        "hover:border-border-strong/60 hover:shadow-sm motion-safe:hover:-translate-y-0.5",
         density === "compact" ? "p-2.5" : "p-3.5",
         className,
       )}
@@ -90,7 +96,7 @@ export function ProductTile({
               <img src={imageUrl} alt={imageAlt ?? title} className={imgClass} loading="lazy" decoding="async" />
             )
           ) : (
-            <CategoryIcon category={category} size={density === "compact" ? 36 : 44} className="opacity-70" />
+            <CategoryIcon category={category} size={density === "compact" ? 36 : 44} className="group-hover-zoom opacity-70" />
           )}
           {dealScore !== null && dealScore !== undefined ? (
             <DealScoreBadge score={dealScore} showLabel={false} size="sm" className="absolute left-1.5 top-1.5" />
@@ -135,6 +141,25 @@ export function ProductTile({
         </div>
       </Link>
       {action ? <div className="absolute right-1.5 top-1.5 z-raised">{action}</div> : null}
+      {quickActions ? (
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-x-0 z-raised flex aspect-square items-end justify-center overflow-hidden",
+            density === "compact" ? "top-2.5 mx-2.5" : "top-3.5 mx-3.5",
+          )}
+        >
+          <div
+            className={cn(
+              "pointer-events-auto mb-1.5 flex gap-1.5 transition-[translate,opacity] duration-base ease-out",
+              "[@media(hover:hover)]:translate-y-2 [@media(hover:hover)]:opacity-0",
+              "[@media(hover:hover)]:group-hover:translate-y-0 [@media(hover:hover)]:group-hover:opacity-100",
+              "[@media(hover:hover)]:group-focus-within:translate-y-0 [@media(hover:hover)]:group-focus-within:opacity-100",
+            )}
+          >
+            {quickActions}
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }

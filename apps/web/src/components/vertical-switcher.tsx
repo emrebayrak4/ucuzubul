@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BedDouble, Plane, ShoppingBag } from "lucide-react";
 import { cn } from "@pricora/ui";
+import { TRAVEL_ENABLED } from "@/lib/features";
 
 const verticals = [
   { key: "shopping", href: "/", label: "Shopping", icon: ShoppingBag },
@@ -20,6 +21,7 @@ function activeKey(path: string): (typeof verticals)[number]["key"] {
 /** Top-level vertical switcher (Shopping | Flights | Hotels). Pills on desktop, full-width segmented bar on mobile. */
 export function VerticalSwitcher({ variant = "pills" }: { variant?: "pills" | "bar" }) {
   const path = usePathname() ?? "/";
+  if (!TRAVEL_ENABLED) return null;
   const current = activeKey(path);
   return (
     <nav aria-label="Switch between shopping and travel" data-testid="vertical-switcher">

@@ -15,6 +15,7 @@ import { createPrismaClient, type Prisma } from "../src/index";
 import { AIRLINES, AIRPORTS, CATEGORIES, HOTELS, RETAILERS, type SeedRetailer } from "./seed/reference";
 import { PRODUCTS } from "./seed/products";
 import { seedCoupons } from "./seed/coupons";
+import { seedCatalogExpansion } from "./seed/catalog-seed";
 import { demoUpc, offerSeries, pick, productIndex, randInt } from "./seed/history";
 
 for (const candidate of [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "../../.env")]) {
@@ -398,6 +399,8 @@ async function main(): Promise<void> {
   const travel = await seedTravel();
   const users = await seedUsers();
   const couponSeed = await seedCoupons(prisma);
+  const expansion = await seedCatalogExpansion(prisma, { now });
+  console.log(`  catalog expansion: ${expansion.products} products, ${expansion.offers} offers, ${expansion.history} history rows (demo)`);
   await seedFlags();
 
   console.log(

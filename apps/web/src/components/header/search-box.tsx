@@ -8,6 +8,7 @@ import { Clock, Folder, Package, Search, Tag, TrendingUp } from "lucide-react";
 import type { Suggestion } from "@pricora/contracts";
 import { Button, SearchInput, cn, formatPrice } from "@pricora/ui";
 import { api } from "@/lib/api-browser";
+import { storageAllowed } from "@/lib/privacy/consent";
 
 const RECENT_KEY = "pc_recent_searches";
 
@@ -21,6 +22,7 @@ function readRecent(): string[] {
 }
 
 export function pushRecentSearch(q: string) {
+  if (!storageAllowed(RECENT_KEY)) return; // Functional consent required
   try {
     const next = [q, ...readRecent().filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, 6);
     window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
@@ -28,6 +30,8 @@ export function pushRecentSearch(q: string) {
     /* ignore */
   }
 }
+
+const SECTION_LABEL: Record<Suggestion["type"], string> = { query: "Searches", category: "Categories", brand: "Brands", product: "Products" };
 
 type Row =
   | { kind: "suggestion"; s: Suggestion }
@@ -109,7 +113,7 @@ function SearchBoxInner({ size = "lg", autoFocusShortcut = true, testId = "searc
   });
 
   const rows: Row[] = React.useMemo(() => {
-    if (debounced.length >= 2) return (suggest.data?.items ?? []).slice(0, 10).map((s) => ({ kind: "suggestion", s }));
+    if (debounced.length >= 2) return (suggest.data?.items ?? []).slice(0, 14).map((s) => ({ kind: "suggestion", s }));
     const r: Row[] = recent.map((text) => ({ kind: "recent", text }));
     // Defensive: never surface junk / injection-looking strings as "trending".
     const clean = (t: string) => /^[\p{L}\p{N}][\p{L}\p{N} $.,&+'-]{1,60}$/u.test(t.trim()) && !/--|=|%/.test(t);
@@ -204,12 +208,14 @@ function SearchBoxInner({ size = "lg", autoFocusShortcut = true, testId = "searc
           ) : (
             <ul id={listId} role="listbox" aria-label="Search suggestions" className="max-h-[60vh] overflow-y-auto py-1">
               {rows.map((row, i) => {
-                const prevKind = i > 0 ? rows[i - 1]?.kind : undefined;
+                const section = (r: Row | undefined) => (r ? (r.kind === "suggestion" ? `s:${r.s.type}` : r.kind) : undefined);
                 const header =
-                  row.kind !== prevKind && row.kind !== "suggestion"
+                  section(row) !== section(i > 0 ? rows[i - 1] : undefined)
                     ? row.kind === "recent"
                       ? "Recent searches"
-                      : "Trending searches"
+                      : row.kind === "trending"
+                        ? "Trending searches"
+                        : SECTION_LABEL[row.s.type]
                     : null;
                 return (
                   <React.Fragment key={i}>
@@ -268,13 +274,15 @@ function RowMeta({ row }: { row: Row }) {
   const s = row.s;
   if (s.type === "product" && s.lowestPriceCents !== null) {
     return (
-      <span className="price shrink-0 text-xs text-text-muted">
+      <span className="price shrink-0 text-right text-xs text-text-muted">
         from <span className="font-semibold text-text">{formatPrice(s.lowestPriceCents)}</span>
+        {s.storeCount ? <span className="block text-2xs">{s.storeCount} stores{s.hasDemoData ? " · demo" : ""}</span> : null}
       </span>
     );
   }
-  if (s.type === "category") return <span className="shrink-0 text-2xs text-text-muted">Category</span>;
-  if (s.type === "brand") return <span className="shrink-0 text-2xs text-text-muted">Brand</span>;
+  if (s.type === "category")
+    return <span className="shrink-0 text-2xs text-text-muted">{[s.parent ? `in ${s.parent}` : null, s.count ? `${s.count} ${s.count === 1 ? "product" : "products"}` : null].filter(Boolean).join(" · ") || "Category"}</span>;
+  if (s.type === "brand") return <span className="shrink-0 text-2xs text-text-muted">{s.count ? `${s.count} ${s.count === 1 ? "product" : "products"}` : "Brand"}</span>;
   return null;
 }
 

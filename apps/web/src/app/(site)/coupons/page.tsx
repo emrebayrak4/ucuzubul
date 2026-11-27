@@ -12,6 +12,8 @@ import { CouponCard, FollowStoreButton } from "@/components/coupons/coupon-card"
 import { LinkPagination } from "@/components/link-pagination";
 import { DemoNotice } from "@/components/notices";
 import { LinkTabs, UrlSelect } from "@/components/url-controls";
+import { JsonLd, breadcrumbJsonLd } from "@/components/json-ld";
+import { collectionPageJsonLd } from "@/lib/seo";
 
 type Props = { searchParams: Promise<SearchParams> };
 
@@ -45,6 +47,8 @@ export default async function CouponsPage({ searchParams }: Props) {
 
   return (
     <div className="container-content py-6">
+      <JsonLd data={breadcrumbJsonLd([{ name: "Home", path: "/" }, { name: "Coupons", path: "/coupons" }])} />
+      <JsonLd data={collectionPageJsonLd({ name: "Coupons & promo codes", path: "/coupons", description: "Coupon codes and deals from US stores, with real success reports from shoppers." })} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
@@ -77,7 +81,7 @@ export default async function CouponsPage({ searchParams }: Props) {
                     query.retailer === s.slug ? "border-primary bg-primary-soft text-primary-soft-fg" : "border-border bg-surface hover:border-border-strong",
                   )}
                 >
-                  <BrandMark name={s.name} logoUrl={s.logoUrl} brandColor={s.brandColor} size="xs" className="rounded-full" />
+                  <BrandMark name={s.name} logoUrl={s.logoUrl} brandColor={s.brandColor} size="tile-xs" className="rounded-full" />
                   {s.name}
                 </Link>
               </li>

@@ -75,7 +75,7 @@ export function CouponCard({ coupon: initial, showStore = true }: { coupon: Coup
       <div className="flex items-start justify-between gap-3">
         {showStore ? (
           <Link href={`/stores/${coupon.retailer.slug}`} className="flex min-w-0 items-center gap-2 hover:underline">
-            <BrandMark name={coupon.retailer.name} logoUrl={coupon.retailer.logoUrl} brandColor={coupon.retailer.brandColor} size="sm" />
+            <BrandMark name={coupon.retailer.name} logoUrl={coupon.retailer.logoUrl} brandColor={coupon.retailer.brandColor} size="tile-sm" />
             <span className="truncate text-sm font-semibold">{coupon.retailer.name}</span>
           </Link>
         ) : (
@@ -136,7 +136,7 @@ export function CouponCard({ coupon: initial, showStore = true }: { coupon: Coup
           </a>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
+        <div className="flex min-h-7 flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
           <span data-testid="coupon-stats">
             {reports > 0 && coupon.stats.successRate !== null
               ? `${Math.round(coupon.stats.successRate * 100)}% worked · ${reports} ${reports === 1 ? "report" : "reports"}`

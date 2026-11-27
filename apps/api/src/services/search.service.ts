@@ -1,17 +1,29 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { parseSearchQuery, type ParsedSearchQuery } from "@pricora/algorithms";
 import type {
+  CategoryFacetDef,
   FacetBucket,
   ParsedQuery,
+  PriceHistogramBin,
   SearchFacets,
   SearchQuery,
   SearchResponse,
+  SpecFacet,
   SuggestResponse,
   Suggestion,
   TrendingResponse,
 } from "@pricora/contracts";
 import type { Meilisearch } from "meilisearch";
-import { buildSearchDocuments, PRICE_BUCKETS, PRODUCTS_INDEX, reindexProducts, type ProductSearchDoc } from "../core/search-index";
+import {
+  buildSearchDocuments,
+  effectiveFacets,
+  parseFacetJson,
+  PRICE_BUCKETS,
+  PRODUCTS_INDEX,
+  reindexProducts,
+  type ProductSearchDoc,
+} from "../core/search-index";
+import { buildVocabulary, suggestCorrection, type SpellVocabulary } from "../core/search-spell";
 import { MEILI, PRISMA, type PrismaClient } from "../common/infra";
 import { CatalogService } from "./catalog.service";
 
@@ -42,10 +54,12 @@ const SORTS: Record<SearchQuery["sort"], string[] | null> = {
   price_asc: ["lowestPriceCents:asc"],
   price_desc: ["lowestPriceCents:desc"],
   best_deal: ["dealScore:desc"],
-  popular: ["storeCount:desc"],
+  popular: ["storeCount:desc", "dealScore:desc"],
   newest: ["createdAt:desc"],
   biggest_drop: ["dropRatio:desc"],
 };
+
+const HISTOGRAM_BINS = 24;
 
 interface Effective {
   text: string;
@@ -58,16 +72,42 @@ interface Effective {
   inStock?: boolean;
   freeShipping?: boolean;
   pickup?: boolean;
+  payOverTime?: "payin4" | "any";
   minDiscount?: number;
+  /** Selected spec values grouped by facet key → ["key.slug", …]. */
+  specs: Map<string, string[]>;
 }
 
-const esc = (v: string) => `"${v.replace(/"/g, '\\"')}"`;
+/** Which filter group to leave out (disjunctive facet counts). */
+type Omit = "brand" | "retailer" | "category" | "condition" | "price" | "pay" | `spec:${string}`;
+
+interface Labels {
+  at: number;
+  categories: Map<string, string>;
+  categoryParent: Map<string, string | null>;
+  categoryPath: Map<string, string[]>;
+  facetsBySlug: Map<string, CategoryFacetDef[]>;
+  brands: Map<string, string>;
+  brandLogos: Map<string, string | null>;
+  retailers: Map<string, string>;
+  retailerMeta: Map<string, { logoUrl: string | null; color: string | null }>;
+}
+
+interface DocsCache {
+  at: number;
+  docs: ProductSearchDoc[];
+  specLabels: Map<string, string>;
+  vocab: SpellVocabulary;
+}
+
+const esc = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 
 @Injectable()
 export class SearchService implements OnApplicationBootstrap {
   private readonly log = new Logger("Search");
-  private docsCache: { at: number; docs: ProductSearchDoc[] } | null = null;
-  private labels: { at: number; categories: Map<string, string>; brands: Map<string, string>; retailers: Map<string, string> } | null = null;
+  private docsCache: DocsCache | null = null;
+  private docsInflight: Promise<DocsCache> | null = null;
+  private labels: Labels | null = null;
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
@@ -89,6 +129,7 @@ export class SearchService implements OnApplicationBootstrap {
         if (stats && stats.numberOfDocuments > 0) return stats.numberOfDocuments;
       }
       const n = await reindexProducts(this.prisma, this.meili, await this.catalog.metrics.all());
+      this.docsCache = null;
       this.log.log(`Indexed ${n} products into Meilisearch`);
       return n;
     } catch (err) {
@@ -97,30 +138,66 @@ export class SearchService implements OnApplicationBootstrap {
     }
   }
 
-  private async docs(): Promise<ProductSearchDoc[]> {
-    if (this.docsCache && Date.now() - this.docsCache.at < 120_000) return this.docsCache.docs;
-    const docs = await buildSearchDocuments(this.prisma, await this.catalog.metrics.all());
-    this.docsCache = { at: Date.now(), docs };
-    return docs;
+  private async docsState(): Promise<DocsCache> {
+    if (this.docsCache && Date.now() - this.docsCache.at < 120_000) return this.docsCache;
+    if (!this.docsInflight) {
+      this.docsInflight = (async () => {
+        const docs = await buildSearchDocuments(this.prisma, await this.catalog.metrics.all());
+        const specLabels = new Map<string, string>();
+        for (const d of docs) d.specs.forEach((s, i) => specLabels.set(s, d.specLabels[i] ?? s));
+        const labels = await this.labelMaps();
+        const vocab = buildVocabulary([...docs.map((d) => `${d.title} ${d.brand ?? ""}`), ...labels.categories.values()]);
+        const state = { at: Date.now(), docs, specLabels, vocab };
+        this.docsCache = state;
+        return state;
+      })().finally(() => {
+        this.docsInflight = null;
+      });
+    }
+    return this.docsInflight;
   }
 
-  private async labelMaps() {
+  private async docs(): Promise<ProductSearchDoc[]> {
+    return (await this.docsState()).docs;
+  }
+
+  private async labelMaps(): Promise<Labels> {
     if (this.labels && Date.now() - this.labels.at < 300_000) return this.labels;
     const [c, b, r] = await Promise.all([
-      this.prisma.category.findMany({ select: { slug: true, name: true } }),
-      this.prisma.brand.findMany({ select: { slug: true, name: true } }),
-      this.prisma.retailer.findMany({ select: { slug: true, name: true } }),
+      this.prisma.category.findMany({ where: { isActive: true }, select: { slug: true, name: true, path: true, facets: true } }),
+      this.prisma.brand.findMany({ select: { slug: true, name: true, logoUrl: true } }),
+      this.prisma.retailer.findMany({ select: { slug: true, name: true, logoUrl: true, brandColor: true } }),
     ]);
     this.labels = {
       at: Date.now(),
       categories: new Map(c.map((x) => [x.slug, x.name])),
+      categoryParent: new Map(c.map((x) => [x.slug, x.path.split("/").slice(-2, -1)[0] ?? null])),
+      categoryPath: new Map(c.map((x) => [x.slug, x.path.split("/")])),
+      facetsBySlug: new Map(c.map((x) => [x.slug, parseFacetJson(x.facets)])),
       brands: new Map(b.map((x) => [x.slug, x.name])),
+      brandLogos: new Map(b.map((x) => [x.slug, x.logoUrl])),
       retailers: new Map(r.map((x) => [x.slug, x.name])),
+      retailerMeta: new Map(r.map((x) => [x.slug, { logoUrl: x.logoUrl, color: x.brandColor }])),
     };
     return this.labels;
   }
 
+  /** Effective spec facet definitions for a category slug (empty without a category). */
+  private facetDefs(category: string | undefined, labels: Labels): CategoryFacetDef[] {
+    if (!category) return [];
+    const path = labels.categoryPath.get(category);
+    return path ? effectiveFacets(path, labels.facetsBySlug) : [];
+  }
+
   private effective(q: SearchQuery, parsed: ParsedSearchQuery | null): Effective {
+    const specs = new Map<string, string[]>();
+    for (const item of q.spec ?? []) {
+      const dot = item.indexOf(".");
+      if (dot <= 0 || dot === item.length - 1) continue;
+      const key = item.slice(0, dot);
+      if (!/^[a-z0-9-]+$/.test(key)) continue;
+      specs.set(key, [...(specs.get(key) ?? []), item]);
+    }
     const eff: Effective = {
       text: q.q ?? "",
       category: q.category,
@@ -132,7 +209,9 @@ export class SearchService implements OnApplicationBootstrap {
       inStock: q.inStock,
       freeShipping: q.freeShipping,
       pickup: q.pickup,
+      payOverTime: q.payOverTime,
       minDiscount: q.minDiscount,
+      specs,
     };
     if (parsed && parsed.kind === "text") {
       let terms = parsed.terms;
@@ -148,7 +227,7 @@ export class SearchService implements OnApplicationBootstrap {
     return eff;
   }
 
-  private toParsed(parsed: ParsedSearchQuery, eff: Effective, labels: Awaited<ReturnType<SearchService["labelMaps"]>>): ParsedQuery {
+  private toParsed(parsed: ParsedSearchQuery, eff: Effective, labels: Labels): ParsedQuery {
     return {
       text: eff.text,
       maxPriceCents: parsed.maxPriceCents,
@@ -174,19 +253,20 @@ export class SearchService implements OnApplicationBootstrap {
       const ident = await this.prisma.productIdentifier.findMany({ where: { value: { in: variants } }, select: { productId: true } });
       const ids = [...new Set(ident.map((i) => i.productId))];
       const items = await this.catalog.cards(ids);
-      return this.finish({ items, facets: emptyFacets(), total: items.length, q, degraded: false, parsed: this.toParsed(parsed, eff, labels), started, userId });
+      return this.finish({ items, facets: emptyFacets(), total: items.length, q, degraded: false, parsed: this.toParsed(parsed, eff, labels), didYouMean: null, started, userId });
     }
 
+    const defs = this.facetDefs(eff.category, labels);
     let result: { ids: string[]; total: number; facets: SearchFacets } | null = null;
     let degraded = false;
     try {
-      result = await this.searchMeili(q, eff, labels);
+      result = await this.searchMeili(q, eff, labels, defs);
     } catch (err) {
       this.log.warn(`Meilisearch unavailable, using Postgres fallback: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!result) {
       degraded = true;
-      result = await this.searchFallback(q, eff, labels);
+      result = await this.searchFallback(q, eff, labels, defs);
     }
     const items = await this.catalog.cards(result.ids);
     if (!degraded && items.length < result.ids.length) {
@@ -194,7 +274,22 @@ export class SearchService implements OnApplicationBootstrap {
       this.catalog.metrics.invalidate();
       void this.ensureIndex(true);
     }
-    return this.finish({ items, facets: result.facets, total: result.total, q, degraded, parsed: parsed ? this.toParsed(parsed, eff, labels) : null, started, userId });
+    let didYouMean: string | null = null;
+    if (eff.text.trim()) {
+      const fix = suggestCorrection(eff.text, (await this.docsState()).vocab);
+      if (fix && fix !== eff.text.trim().toLowerCase()) didYouMean = fix;
+    }
+    return this.finish({
+      items,
+      facets: result.facets,
+      total: result.total,
+      q,
+      degraded,
+      parsed: parsed ? this.toParsed(parsed, eff, labels) : null,
+      didYouMean,
+      started,
+      userId,
+    });
   }
 
   private finish(a: {
@@ -204,6 +299,7 @@ export class SearchService implements OnApplicationBootstrap {
     q: SearchQuery;
     degraded: boolean;
     parsed: ParsedQuery | null;
+    didYouMean: string | null;
     started: number;
     userId?: string | null;
   }): SearchResponse {
@@ -232,26 +328,63 @@ export class SearchService implements OnApplicationBootstrap {
       totalPages: Math.ceil(a.total / a.q.pageSize),
       degraded: a.degraded,
       parsed: a.parsed,
+      didYouMean: a.didYouMean,
       tookMs,
     };
   }
 
-  private filters(eff: Effective, omit?: "brand" | "retailer" | "category" | "condition"): string[] {
+  private filters(eff: Effective, omit?: Omit): string[] {
     const f: string[] = [];
     if (eff.category && omit !== "category") f.push(`categorySlugs = ${esc(eff.category)}`);
     if (eff.brands.length && omit !== "brand") f.push(`brandSlug IN [${eff.brands.map(esc).join(", ")}]`);
     if (eff.retailers.length && omit !== "retailer") f.push(`retailers IN [${eff.retailers.map(esc).join(", ")}]`);
     if (eff.conditions.length && omit !== "condition") f.push(`condition IN [${eff.conditions.map(esc).join(", ")}]`);
-    if (eff.minPrice !== undefined) f.push(`lowestPriceCents >= ${eff.minPrice}`);
-    if (eff.maxPrice !== undefined) f.push(`lowestPriceCents <= ${eff.maxPrice}`);
+    if (omit !== "price") {
+      if (eff.minPrice !== undefined) f.push(`lowestPriceCents >= ${eff.minPrice}`);
+      if (eff.maxPrice !== undefined) f.push(`lowestPriceCents <= ${eff.maxPrice}`);
+    }
     if (eff.inStock) f.push("inStock = true");
     if (eff.freeShipping) f.push("freeShipping = true");
     if (eff.pickup) f.push("pickup = true");
+    if (eff.payOverTime === "any" && omit !== "pay") f.push("payOverTime = true");
+    if (eff.payOverTime === "payin4" && omit !== "pay") f.push("payIn4 = true");
     if (eff.minDiscount !== undefined) f.push(`dropRatio >= ${eff.minDiscount}`);
+    for (const [key, items] of eff.specs) if (omit !== `spec:${key}`) f.push(`specs IN [${items.map(esc).join(", ")}]`);
     return f;
   }
 
-  private async searchMeili(q: SearchQuery, eff: Effective, labels: Awaited<ReturnType<SearchService["labelMaps"]>>) {
+  private matcher(eff: Effective) {
+    return (d: ProductSearchDoc, omit?: Omit) =>
+      (omit === "category" || !eff.category || d.categorySlugs.includes(eff.category)) &&
+      (omit === "brand" || !eff.brands.length || (d.brandSlug !== null && eff.brands.includes(d.brandSlug))) &&
+      (omit === "retailer" || !eff.retailers.length || d.retailers.some((r) => eff.retailers.includes(r))) &&
+      (omit === "condition" || !eff.conditions.length || eff.conditions.includes(d.condition)) &&
+      (omit === "price" || eff.minPrice === undefined || (d.lowestPriceCents ?? -1) >= eff.minPrice) &&
+      (omit === "price" || eff.maxPrice === undefined || (d.lowestPriceCents !== null && d.lowestPriceCents <= eff.maxPrice)) &&
+      (!eff.inStock || d.inStock) &&
+      (!eff.freeShipping || d.freeShipping) &&
+      (!eff.pickup || d.pickup) &&
+      (omit === "pay" || !eff.payOverTime || (eff.payOverTime === "payin4" ? d.payIn4 : d.payOverTime)) &&
+      (eff.minDiscount === undefined || (d.dropRatio ?? -1) >= eff.minDiscount) &&
+      [...eff.specs].every(([key, items]) => omit === `spec:${key}` || items.some((i) => d.specs.includes(i)));
+  }
+
+  private buildSpecFacets(defs: CategoryFacetDef[], eff: Effective, countsFor: (key: string) => Record<string, number>, specLabels: Map<string, string>): SpecFacet[] {
+    return defs.flatMap((def) => {
+      const dist = countsFor(def.key);
+      const prefix = `${def.key}.`;
+      const selected = eff.specs.get(def.key) ?? [];
+      const buckets: FacetBucket[] = Object.entries(dist)
+        .filter(([v, n]) => v.startsWith(prefix) && n > 0)
+        .map(([value, count]) => ({ value, label: specLabels.get(value) ?? value.slice(prefix.length), count, selected: selected.includes(value) }));
+      // Keep selected values visible even when their count dropped to 0.
+      for (const s of selected) if (!buckets.some((b) => b.value === s)) buckets.push({ value: s, label: specLabels.get(s) ?? s.slice(prefix.length), count: 0, selected: true });
+      if (buckets.length < 2 && !selected.length) return [];
+      return [{ key: def.key, label: def.label, buckets: sortBuckets(buckets, def) }];
+    });
+  }
+
+  private async searchMeili(q: SearchQuery, eff: Effective, labels: Labels, defs: CategoryFacetDef[]) {
     const index = this.meili.index<ProductSearchDoc>(PRODUCTS_INDEX);
     const stats = await index.getStats();
     if (stats.numberOfDocuments === 0) {
@@ -261,38 +394,49 @@ export class SearchService implements OnApplicationBootstrap {
     const sort = SORTS[q.sort];
     const main = await index.search(eff.text, {
       filter: this.filters(eff),
-      facets: ["categorySlugs", "condition", "priceBucket", "inStock", "lowestPriceCents"],
+      facets: ["categorySlugs", "condition", "priceBucket", "inStock", "freeShipping", "payOverTime", "payIn4", "specs"],
       ...(sort ? { sort } : {}),
       page: q.page,
       hitsPerPage: q.pageSize,
       attributesToRetrieve: ["id"],
     });
-    // Disjunctive facets: brand/retailer counts ignore their own selection.
-    const [brandRes, retailerRes] = await Promise.all([
+    // Disjunctive facets: each group's counts ignore its own selection.
+    const selectedSpecKeys = [...eff.specs.keys()];
+    const [brandRes, retailerRes, priceRes, conditionRes, ...specRes] = await Promise.all([
       index.search(eff.text, { filter: this.filters(eff, "brand"), facets: ["brandSlug"], limit: 0 }),
       index.search(eff.text, { filter: this.filters(eff, "retailer"), facets: ["retailers"], limit: 0 }),
+      index.search(eff.text, { filter: this.filters(eff, "price"), facets: ["lowestPriceCents"], limit: 0 }),
+      index.search(eff.text, { filter: this.filters(eff, "condition"), facets: ["condition"], limit: 0 }),
+      ...selectedSpecKeys.map((k) => index.search(eff.text, { filter: this.filters(eff, `spec:${k}`), facets: ["specs"], limit: 0 })),
     ]);
+    const payDist = eff.payOverTime ? ((await index.search(eff.text, { filter: this.filters(eff, "pay"), facets: ["payOverTime", "payIn4"], limit: 0 })).facetDistribution ?? {}) : null;
     const dist = main.facetDistribution ?? {};
-    const stat = main.facetStats?.["lowestPriceCents"];
+    const priceDist = priceRes.facetDistribution?.["lowestPriceCents"] ?? {};
+    const prices: number[] = [];
+    for (const [v, n] of Object.entries(priceDist)) for (let i = 0; i < n; i++) prices.push(Number(v));
+    const { specLabels } = await this.docsState();
+    const specDist = (key: string): Record<string, number> => {
+      const i = selectedSpecKeys.indexOf(key);
+      return (i >= 0 ? specRes[i]?.facetDistribution?.["specs"] : dist["specs"]) ?? {};
+    };
     const facets: SearchFacets = {
       categories: buckets(dist["categorySlugs"], labels.categories, eff.category ? [eff.category] : []),
-      brands: buckets(brandRes.facetDistribution?.["brandSlug"], labels.brands, eff.brands),
-      retailers: buckets(retailerRes.facetDistribution?.["retailers"], labels.retailers, eff.retailers),
-      conditions: buckets(dist["condition"], CONDITION_LABELS, eff.conditions),
-      price: {
-        minCents: stat ? Math.round(stat.min) : null,
-        maxCents: stat ? Math.round(stat.max) : null,
-        buckets: PRICE_BUCKETS.map(([from, to]) => ({ fromCents: from, toCents: to, count: dist["priceBucket"]?.[`${from}-${to ?? ""}`] ?? 0 })).filter(
-          (b) => b.count > 0,
-        ),
-      },
+      brands: withBrandLogos(buckets(brandRes.facetDistribution?.["brandSlug"], labels.brands, eff.brands), labels),
+      retailers: withRetailerMeta(buckets(retailerRes.facetDistribution?.["retailers"], labels.retailers, eff.retailers), labels),
+      conditions: buckets(conditionRes.facetDistribution?.["condition"], CONDITION_LABELS, eff.conditions),
+      price: priceFacet(prices, dist["priceBucket"]),
       inStockCount: dist["inStock"]?.["true"] ?? 0,
+      freeShippingCount: dist["freeShipping"]?.["true"] ?? 0,
+      payOverTimeCount: (payDist ?? dist)["payOverTime"]?.["true"] ?? 0,
+      payIn4Count: (payDist ?? dist)["payIn4"]?.["true"] ?? 0,
+      specs: this.buildSpecFacets(defs, eff, specDist, specLabels),
     };
     return { ids: main.hits.map((h) => h.id), total: main.totalHits ?? 0, facets };
   }
 
-  private async searchFallback(q: SearchQuery, eff: Effective, labels: Awaited<ReturnType<SearchService["labelMaps"]>>) {
-    let docs = await this.docs();
+  private async searchFallback(q: SearchQuery, eff: Effective, labels: Labels, defs: CategoryFacetDef[]) {
+    const state = await this.docsState();
+    let docs = state.docs;
     const scores = new Map<string, number>();
     if (eff.text.trim()) {
       const text = eff.text.trim();
@@ -308,22 +452,11 @@ export class SearchService implements OnApplicationBootstrap {
           OR EXISTS (SELECT 1 FROM product_identifiers i WHERE i."productId" = p.id AND i.value = ${text})
         )
         ORDER BY score DESC
-        LIMIT 500`;
+        LIMIT 1000`;
       for (const r of rows) scores.set(r.id, Number(r.score));
       docs = docs.filter((d) => scores.has(d.id));
     }
-    const match = (d: ProductSearchDoc, omit?: "brand" | "retailer") =>
-      (!eff.category || d.categorySlugs.includes(eff.category)) &&
-      (omit === "brand" || !eff.brands.length || (d.brandSlug !== null && eff.brands.includes(d.brandSlug))) &&
-      (omit === "retailer" || !eff.retailers.length || d.retailers.some((r) => eff.retailers.includes(r))) &&
-      (!eff.conditions.length || eff.conditions.includes(d.condition)) &&
-      (eff.minPrice === undefined || (d.lowestPriceCents ?? -1) >= eff.minPrice) &&
-      (eff.maxPrice === undefined || (d.lowestPriceCents !== null && d.lowestPriceCents <= eff.maxPrice)) &&
-      (!eff.inStock || d.inStock) &&
-      (!eff.freeShipping || d.freeShipping) &&
-      (!eff.pickup || d.pickup) &&
-      (eff.minDiscount === undefined || (d.dropRatio ?? -1) >= eff.minDiscount);
-
+    const match = this.matcher(eff);
     const hits = docs.filter((d) => match(d));
     const num = (v: number | null, dir: 1 | -1) => (v === null ? Number.POSITIVE_INFINITY : v * dir);
     const sorters: Record<SearchQuery["sort"], (a: ProductSearchDoc, b: ProductSearchDoc) => number> = {
@@ -332,7 +465,7 @@ export class SearchService implements OnApplicationBootstrap {
       price_asc: (a, b) => num(a.lowestPriceCents, 1) - num(b.lowestPriceCents, 1),
       price_desc: (a, b) => num(a.lowestPriceCents, -1) - num(b.lowestPriceCents, -1),
       best_deal: (a, b) => num(a.dealScore, -1) - num(b.dealScore, -1),
-      popular: (a, b) => b.storeCount - a.storeCount,
+      popular: (a, b) => b.storeCount - a.storeCount || num(a.dealScore, -1) - num(b.dealScore, -1),
       newest: (a, b) => b.createdAt - a.createdAt,
       biggest_drop: (a, b) => num(a.dropRatio, -1) - num(b.dropRatio, -1),
     };
@@ -343,22 +476,24 @@ export class SearchService implements OnApplicationBootstrap {
       for (const d of list) for (const k of key(d)) out[k] = (out[k] ?? 0) + 1;
       return out;
     };
-    const prices = hits.map((d) => d.lowestPriceCents).filter((x): x is number => x !== null);
+    const priceSet = docs.filter((d) => match(d, "price"));
+    const prices = priceSet.map((d) => d.lowestPriceCents).filter((x): x is number => x !== null);
     const facets: SearchFacets = {
       categories: buckets(count(hits, (d) => d.categorySlugs), labels.categories, eff.category ? [eff.category] : []),
-      brands: buckets(count(docs.filter((d) => match(d, "brand")), (d) => (d.brandSlug ? [d.brandSlug] : [])), labels.brands, eff.brands),
-      retailers: buckets(count(docs.filter((d) => match(d, "retailer")), (d) => d.retailers), labels.retailers, eff.retailers),
-      conditions: buckets(count(hits, (d) => [d.condition]), CONDITION_LABELS, eff.conditions),
-      price: {
-        minCents: prices.length ? Math.min(...prices) : null,
-        maxCents: prices.length ? Math.max(...prices) : null,
-        buckets: PRICE_BUCKETS.map(([from, to]) => ({
-          fromCents: from,
-          toCents: to,
-          count: prices.filter((p) => p >= from && (to === null || p < to)).length,
-        })).filter((b) => b.count > 0),
-      },
+      brands: withBrandLogos(buckets(count(docs.filter((d) => match(d, "brand")), (d) => (d.brandSlug ? [d.brandSlug] : [])), labels.brands, eff.brands), labels),
+      retailers: withRetailerMeta(buckets(count(docs.filter((d) => match(d, "retailer")), (d) => d.retailers), labels.retailers, eff.retailers), labels),
+      conditions: buckets(count(docs.filter((d) => match(d, "condition")), (d) => [d.condition]), CONDITION_LABELS, eff.conditions),
+      price: priceFacet(prices, count(hits, (d) => (d.priceBucket ? [d.priceBucket] : []))),
       inStockCount: hits.filter((d) => d.inStock).length,
+      freeShippingCount: hits.filter((d) => d.freeShipping).length,
+      payOverTimeCount: (eff.payOverTime ? docs.filter((d) => match(d, "pay")) : hits).filter((d) => d.payOverTime).length,
+      payIn4Count: (eff.payOverTime ? docs.filter((d) => match(d, "pay")) : hits).filter((d) => d.payIn4).length,
+      specs: this.buildSpecFacets(
+        defs,
+        eff,
+        (key) => count(eff.specs.has(key) ? docs.filter((d) => match(d, `spec:${key}`)) : hits, (d) => d.specs),
+        state.specLabels,
+      ),
     };
     const start = (q.page - 1) * q.pageSize;
     return { ids: hits.slice(start, start + q.pageSize).map((d) => d.id), total: hits.length, facets };
@@ -367,33 +502,74 @@ export class SearchService implements OnApplicationBootstrap {
   async suggest(q: string): Promise<SuggestResponse> {
     const items: Suggestion[] = [];
     let degraded = false;
-    let productSugs: Suggestion[] = [];
+    const state = await this.docsState().catch(() => null);
+    const docById = new Map((state?.docs ?? []).map((d) => [d.id, d]));
+    let productIds: string[] = [];
     try {
-      const res = await this.meili.index<ProductSearchDoc>(PRODUCTS_INDEX).search(q, {
-        limit: 5,
-        attributesToRetrieve: ["title", "slug", "lowestPriceCents"],
-      });
-      productSugs = res.hits.map((h) => ({ type: "product", text: h.title, slug: h.slug, imageUrl: null, lowestPriceCents: h.lowestPriceCents }));
+      const res = await this.meili.index<ProductSearchDoc>(PRODUCTS_INDEX).search(q, { limit: 6, attributesToRetrieve: ["id"] });
+      productIds = res.hits.map((h) => h.id);
     } catch {
       degraded = true;
-      const docs = (await this.docs()).filter((d) => d.title.toLowerCase().includes(q.toLowerCase())).slice(0, 5);
-      productSugs = docs.map((d) => ({ type: "product", text: d.title, slug: d.slug, imageUrl: null, lowestPriceCents: d.lowestPriceCents }));
+      const needle = q.toLowerCase();
+      productIds = (state?.docs ?? []).filter((d) => d.title.toLowerCase().includes(needle)).sort((a, b) => b.storeCount - a.storeCount).slice(0, 6).map((d) => d.id);
     }
-    const [queries, cats, brands] = await Promise.all([
-      this.prisma.searchEvent.groupBy({
-        by: ["normalizedQuery"],
-        where: { normalizedQuery: { startsWith: q.toLowerCase() }, resultCount: { gt: 0 } },
-        _count: { _all: true },
-        orderBy: { _count: { normalizedQuery: "desc" } },
-        take: 3,
+    const cards = await this.catalog.cards(productIds);
+    const labels = await this.labelMaps();
+    const catCounts = new Map<string, number>();
+    const brandCounts = new Map<string, number>();
+    for (const d of state?.docs ?? []) {
+      for (const s of d.categorySlugs) catCounts.set(s, (catCounts.get(s) ?? 0) + 1);
+      if (d.brandSlug) brandCounts.set(d.brandSlug, (brandCounts.get(d.brandSlug) ?? 0) + 1);
+    }
+    const needle = q.toLowerCase();
+    const cats = [...labels.categories.entries()]
+      .filter(([slug, name]) => (catCounts.get(slug) ?? 0) > 0 && (name.toLowerCase().includes(needle) || slug.includes(needle.replace(/\s+/g, "-"))))
+      .sort((a, b) => Number(b[1].toLowerCase().startsWith(needle)) - Number(a[1].toLowerCase().startsWith(needle)) || (catCounts.get(b[0]) ?? 0) - (catCounts.get(a[0]) ?? 0))
+      .slice(0, 4);
+    // Categories of the matching products ("in Laptops") when names don't match directly.
+    if (cats.length < 2) {
+      for (const id of productIds) {
+        const slug = docById.get(id)?.categorySlug;
+        if (slug && !cats.some(([s]) => s === slug) && cats.length < 3) cats.push([slug, labels.categories.get(slug) ?? slug]);
+      }
+    }
+    const brands = [...labels.brands.entries()]
+      .filter(([slug, name]) => (brandCounts.get(slug) ?? 0) > 0 && name.toLowerCase().includes(needle))
+      .sort((a, b) => Number(b[1].toLowerCase().startsWith(needle)) - Number(a[1].toLowerCase().startsWith(needle)) || (brandCounts.get(b[0]) ?? 0) - (brandCounts.get(a[0]) ?? 0))
+      .slice(0, 4);
+    const queries = await this.prisma.searchEvent.groupBy({
+      by: ["normalizedQuery"],
+      where: { normalizedQuery: { startsWith: needle }, resultCount: { gt: 0 } },
+      _count: { _all: true },
+      orderBy: { _count: { normalizedQuery: "desc" } },
+      take: 4,
+    });
+    items.push(...queries.filter((x) => x.normalizedQuery !== needle).slice(0, 3).map((x): Suggestion => ({ type: "query", text: x.normalizedQuery })));
+    items.push(
+      ...cats.map(([slug, name]): Suggestion => {
+        const parent = labels.categoryParent.get(slug);
+        return { type: "category", text: name, slug, parent: parent ? labels.categories.get(parent) ?? null : null, count: catCounts.get(slug) ?? 0 };
       }),
-      this.prisma.category.findMany({ where: { name: { contains: q, mode: "insensitive" } }, take: 3, select: { slug: true, name: true } }),
-      this.prisma.brand.findMany({ where: { name: { contains: q, mode: "insensitive" } }, take: 3, select: { slug: true, name: true } }),
-    ]);
-    items.push(...queries.map((x): Suggestion => ({ type: "query", text: x.normalizedQuery })));
-    items.push(...cats.map((c): Suggestion => ({ type: "category", text: c.name, slug: c.slug })));
-    items.push(...brands.map((b): Suggestion => ({ type: "brand", text: b.name, slug: b.slug })));
-    items.push(...productSugs);
+    );
+    items.push(...brands.map(([slug, name]): Suggestion => ({ type: "brand", text: name, slug, count: brandCounts.get(slug) ?? 0 })));
+    items.push(
+      ...cards.map(
+        (c): Suggestion => ({
+          type: "product",
+          text: c.title,
+          slug: c.slug,
+          imageUrl: c.image?.url ?? null,
+          lowestPriceCents: c.lowestPriceCents,
+          storeCount: c.storeCount,
+          category: c.category?.name ?? null,
+          hasDemoData: c.hasDemoData,
+        }),
+      ),
+    );
+    if (!productIds.length && state) {
+      const fix = suggestCorrection(q, state.vocab);
+      if (fix) items.unshift({ type: "query", text: fix });
+    }
     return { items, degraded };
   }
 
@@ -440,13 +616,86 @@ const CONDITION_LABELS = new Map([
 ]);
 
 function buckets(dist: Record<string, number> | undefined, labels: Map<string, string>, selected: string[]): FacetBucket[] {
-  return Object.entries(dist ?? {})
-    .map(([value, count]) => ({ value, label: labels.get(value) ?? value, count, selected: selected.includes(value) }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  const list = Object.entries(dist ?? {})
+    .filter(([, count]) => count > 0)
+    .map(([value, count]) => ({ value, label: labels.get(value) ?? value, count, selected: selected.includes(value) }));
+  for (const s of selected) if (!list.some((b) => b.value === s)) list.push({ value: s, label: labels.get(s) ?? s, count: 0, selected: true });
+  return list.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function withBrandLogos(list: FacetBucket[], labels: Labels): FacetBucket[] {
+  return list.map((b) => ({ ...b, logoUrl: labels.brandLogos.get(b.value) ?? null }));
+}
+
+function withRetailerMeta(list: FacetBucket[], labels: Labels): FacetBucket[] {
+  return list.map((b) => {
+    const m = labels.retailerMeta.get(b.value);
+    return { ...b, logoUrl: m?.logoUrl ?? null, color: m?.color ?? null };
+  });
+}
+
+/** Leading number of a spec label, normalized so "1 TB" > "512 GB" and "6.3 in" sorts numerically. */
+export function numericValue(label: string): number {
+  const m = /(\d+(?:[.,]\d+)?)\s*(tb|gb|mb|k\b)?/i.exec(label.replace(/,(?=\d{3}\b)/g, ""));
+  if (!m) return Number.POSITIVE_INFINITY;
+  const n = Number(m[1]!.replace(",", "."));
+  const unit = m[2]?.toLowerCase();
+  return unit === "tb" ? n * 1000 : unit === "mb" ? n / 1000 : n;
+}
+
+function sortBuckets(list: FacetBucket[], def: CategoryFacetDef): FacetBucket[] {
+  const out = [...list];
+  if (def.sort === "numeric") out.sort((a, b) => numericValue(a.label) - numericValue(b.label) || a.label.localeCompare(b.label));
+  else if (def.sort === "alpha") out.sort((a, b) => a.label.localeCompare(b.label));
+  else if (def.sort === "custom" && def.order?.length) {
+    const rank = (l: string) => {
+      const i = def.order!.findIndex((o) => l.toLowerCase().startsWith(o.toLowerCase()));
+      return i < 0 ? 999 : i;
+    };
+    out.sort((a, b) => rank(a.label) - rank(b.label) || b.count - a.count);
+  } else out.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  return out;
+}
+
+/** Price facet: range + fixed buckets + equal-width histogram (bins aligned to whole dollars). */
+export function priceFacet(prices: number[], bucketDist: Record<string, number> | undefined): SearchFacets["price"] {
+  if (!prices.length) return { minCents: null, maxCents: null, buckets: [], histogram: [] };
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of prices) {
+    if (p < min) min = p;
+    if (p > max) max = p;
+  }
+  const from = Math.floor(min / 100) * 100;
+  const span = Math.max(100, Math.ceil(max / 100) * 100 - from);
+  const width = Math.max(100, Math.ceil(span / HISTOGRAM_BINS / 100) * 100);
+  const bins = Math.max(1, Math.min(HISTOGRAM_BINS, Math.ceil((max - from + 1) / width)));
+  const histogram: PriceHistogramBin[] = Array.from({ length: bins }, (_, i) => ({ fromCents: from + i * width, toCents: from + (i + 1) * width, count: 0 }));
+  for (const p of prices) {
+    const i = Math.min(bins - 1, Math.floor((p - from) / width));
+    histogram[i]!.count++;
+  }
+  return {
+    minCents: Math.round(min),
+    maxCents: Math.round(max),
+    buckets: PRICE_BUCKETS.map(([f, t]) => ({ fromCents: f, toCents: t, count: bucketDist?.[`${f}-${t ?? ""}`] ?? 0 })).filter((b) => b.count > 0),
+    histogram,
+  };
 }
 
 function emptyFacets(): SearchFacets {
-  return { categories: [], brands: [], retailers: [], conditions: [], price: { minCents: null, maxCents: null, buckets: [] }, inStockCount: 0 };
+  return {
+    categories: [],
+    brands: [],
+    retailers: [],
+    conditions: [],
+    price: { minCents: null, maxCents: null, buckets: [], histogram: [] },
+    inStockCount: 0,
+    freeShippingCount: 0,
+    payOverTimeCount: 0,
+    payIn4Count: 0,
+    specs: [],
+  };
 }
 
 /** UPC-A / EAN-13 / GTIN-14 representations of the same code. */

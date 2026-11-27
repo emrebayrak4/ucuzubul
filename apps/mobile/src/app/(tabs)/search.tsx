@@ -1,74 +1,75 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { FlatList, ScrollView, TextInput, View } from "react-native";
+import { Alert, Keyboard, Pressable, ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { ProductCondition, SearchQueryInput, SearchSort, Suggestion } from "@pricora/contracts";
-import { ProductRow, RowSkeleton } from "@/components/product";
-import { Sheet } from "@/components/Sheet";
-import { AppText, Chip, Divider, EmptyState, ErrorState, Field, IconButton, Notice, OfflineBanner, PressableRow, Row } from "@/components/ui";
+import type { SearchResponse, Suggestion } from "@pricora/contracts";
+import { ProductBrowser } from "@/components/browse/ProductBrowser";
+import { CategoryCircleLink } from "@/components/common";
+import { ProductRail } from "@/components/product";
+import { AppText, Button, Chip, DemoBadge, Divider, EmptyState, OfflineBanner, PressableRow, Row, SectionHeader } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { api, errorMessage } from "@/lib/api";
+import { isValidGtin } from "@/lib/barcode";
 import { money } from "@/lib/format";
 import { param, useDebounced } from "@/lib/hooks";
+import { useTabBarSpace } from "@/lib/tabBar";
+import { addRecentSearch, clearRecentSearches, removeRecentSearch, useRecentSearches } from "@/lib/recentSearches";
 import { tokens, typeStyle, useTheme } from "@/lib/theme";
 
 const sp = tokens.spacing;
+const GUTTER = tokens.layout.gutter.base;
 
-const SORTS: { value: SearchSort; label: string }[] = [
-  { value: "relevance", label: "Relevance" },
-  { value: "lowest_total", label: "Lowest total" },
-  { value: "best_deal", label: "Best deal" },
-  { value: "biggest_drop", label: "Biggest drop" },
-  { value: "price_desc", label: "Price: high" },
-  { value: "newest", label: "Newest" },
-];
-
-interface Filters {
-  minDollars: string;
-  maxDollars: string;
-  condition: ProductCondition[];
-  inStock: boolean;
-  freeShipping: boolean;
-  brand: string[];
-  retailer: string[];
+function SuggestRow({ icon, title, subtitle, right, onPress, image }: { icon: keyof typeof Ionicons.glyphMap; title: string; subtitle?: string; right?: string; onPress: () => void; image?: string | null }) {
+  const { c } = useTheme();
+  return (
+    <PressableRow onPress={onPress} accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}>
+      <Row gap={3} style={{ paddingVertical: sp[2] }}>
+        {image ? (
+          <Image source={{ uri: image }} style={{ width: 36, height: 36, borderRadius: tokens.radius.sm, backgroundColor: c["surface-2"] }} contentFit="contain" />
+        ) : (
+          <View style={{ width: 36, height: 36, borderRadius: tokens.radius.sm, backgroundColor: c["surface-2"], alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name={icon} size={18} color={c["text-muted"]} />
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <AppText numberOfLines={1}>{title}</AppText>
+          {subtitle ? (
+            <AppText variant="caption" color="text-muted" numberOfLines={1}>
+              {subtitle}
+            </AppText>
+          ) : null}
+        </View>
+        {right ? <AppText variant="priceSm">{right}</AppText> : null}
+      </Row>
+    </PressableRow>
+  );
 }
-const EMPTY_FILTERS: Filters = { minDollars: "", maxDollars: "", condition: [], inStock: false, freeShipping: false, brand: [], retailer: [] };
-
-const dollarsToCents = (s: string): number | undefined => {
-  const n = Number.parseFloat(s.replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
-};
 
 export default function SearchScreen() {
   const { c } = useTheme();
-  const params = useLocalSearchParams<{ q?: string; category?: string; label?: string; focus?: string }>();
+  const params = useLocalSearchParams<{ q?: string; category?: string; focus?: string }>();
   const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [text, setText] = useState(param(params.q) ?? "");
   const [submitted, setSubmitted] = useState(param(params.q) ?? "");
-  const [category, setCategory] = useState<{ slug: string; label: string } | null>(() => {
-    const slug = param(params.category);
-    return slug ? { slug, label: param(params.label) ?? slug } : null;
-  });
-  const [sort, setSort] = useState<SearchSort>("relevance");
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [category, setCategory] = useState<string | undefined>(param(params.category));
   const [focused, setFocused] = useState(false);
+  const recents = useRecentSearches();
+  const tabSpace = useTabBarSpace();
 
-  // Deep links / home chips: /search?category=…&label=… or ?q=… — adjust state during render when params change.
-  const paramSig = `${param(params.category) ?? ""}|${param(params.label) ?? ""}|${param(params.q) ?? ""}`;
+  // Deep links / Home: /search?q=… or ?category=… — adopt new params during render.
+  const paramSig = `${param(params.q) ?? ""}|${param(params.category) ?? ""}`;
   const [seenSig, setSeenSig] = useState(paramSig);
   if (paramSig !== seenSig) {
     setSeenSig(paramSig);
-    const slug = param(params.category);
-    if (slug) setCategory({ slug, label: param(params.label) ?? slug });
     const q = param(params.q);
     if (q !== undefined) {
       setText(q);
       setSubmitted(q);
     }
+    setCategory(param(params.category));
   }
   useEffect(() => {
     if (param(params.focus) !== "1") return;
@@ -76,292 +77,316 @@ export default function SearchScreen() {
     return () => clearTimeout(t);
   }, [params.focus]);
 
-  const debounced = useDebounced(text.trim(), 200);
+  const trimmed = text.trim();
+  const debounced = useDebounced(trimmed, 180);
+  const digits = trimmed.replace(/[\s-]/g, "");
+  const looksLikeBarcode = /^\d{8,14}$/.test(digits);
+
   const suggest = useQuery({
     queryKey: ["suggest", debounced],
     queryFn: ({ signal }) => api.search.suggest(debounced, { signal }),
-    enabled: focused && debounced.length >= 2,
+    enabled: focused && debounced.length >= 2 && !looksLikeBarcode,
     staleTime: 5 * 60_000,
   });
+  const trending = useQuery({ queryKey: ["home", "trending"], queryFn: ({ signal }) => api.search.trending({ signal }), staleTime: 30 * 60_000 });
+  const cats = useQuery({ queryKey: ["home", "categories"], queryFn: ({ signal }) => api.catalog.categories({ signal }), staleTime: 60 * 60_000 });
 
-  const query = useMemo<SearchQueryInput>(
-    () => ({
-      q: submitted || undefined,
-      category: category?.slug,
-      sort,
-      minPrice: dollarsToCents(filters.minDollars),
-      maxPrice: dollarsToCents(filters.maxDollars),
-      condition: filters.condition.length ? filters.condition.join(",") : undefined,
-      inStock: filters.inStock ? "true" : undefined,
-      freeShipping: filters.freeShipping ? "true" : undefined,
-      brand: filters.brand.length ? filters.brand.join(",") : undefined,
-      retailer: filters.retailer.length ? filters.retailer.join(",") : undefined,
-      pageSize: 24,
-    }),
-    [submitted, category, sort, filters],
-  );
-  const hasQuery = !!(query.q || query.category);
-
-  const results = useInfiniteQuery({
-    queryKey: ["search", query],
-    queryFn: ({ pageParam, signal }) => api.search.search({ ...query, page: pageParam }, { signal }),
-    initialPageParam: 1,
-    getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
-    enabled: hasQuery,
+  const scan = useMutation({
+    mutationFn: (code: string) => api.scan.lookup(code),
+    onSuccess: (res) => {
+      if (res.status === "found") router.push({ pathname: "/products/[slug]", params: { slug: res.card.slug } });
+      else Alert.alert("No match for this barcode", `${res.message} (${res.code})`);
+    },
+    onError: (e) => Alert.alert("Couldn't look up barcode", errorMessage(e)),
   });
-  const first = results.data?.pages[0];
-  const items = useMemo(() => results.data?.pages.flatMap((p) => p.items) ?? [], [results.data]);
 
-  useEffect(() => {
-    if (first && results.data?.pages.length === 1) {
-      const q = query.q ?? "";
-      track("search_performed", {
-        kind: !q ? "empty" : first.parsed?.identifier ? "gtin" : first.parsed?.url ? "url" : "text",
-        queryLength: q.length,
-        termCount: q.split(/\s+/).filter(Boolean).length,
-        resultCount: first.total,
-        hasPriceFilter: query.minPrice !== undefined || query.maxPrice !== undefined,
-        categoryHint: query.category ?? null,
-        sort: query.sort ?? null,
-        degraded: first.degraded,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first]);
-
-  const submit = (q: string) => {
-    setText(q);
-    setSubmitted(q.trim());
+  const submit = (q: string, opts?: { category?: string }) => {
+    const t = q.trim();
+    Keyboard.dismiss();
     setFocused(false);
-    inputRef.current?.blur();
+    setText(t);
+    setSubmitted(t);
+    setCategory(opts?.category);
+    if (t) addRecentSearch(t);
   };
 
-  const onSuggestion = (s: Suggestion) => {
+  const pick = (s: Suggestion, i: number) => {
+    track("search_suggestion_clicked", { position: i, suggestionType: s.type });
+    if (trimmed) addRecentSearch(trimmed);
+    setFocused(false);
+    Keyboard.dismiss();
     if (s.type === "product") router.push({ pathname: "/products/[slug]", params: { slug: s.slug } });
-    else if (s.type === "category") {
-      setCategory({ slug: s.slug, label: s.text });
-      submit("");
-    } else if (s.type === "brand") {
-      setFilters((f) => ({ ...f, brand: [s.slug] }));
-      submit("");
-    } else submit(s.text);
+    else if (s.type === "category") router.push({ pathname: "/categories/[slug]", params: { slug: s.slug } });
+    else if (s.type === "brand") router.push({ pathname: "/brands/[slug]", params: { slug: s.slug } });
+    else submit(s.text);
   };
 
-  const filterCount = activeFilterCount(filters);
-  const showSuggestions = focused && debounced.length >= 2 && (suggest.data?.items.length ?? 0) > 0;
+  const groups = useMemo(() => {
+    const items = suggest.data?.items ?? [];
+    return {
+      query: items.filter((s): s is Extract<Suggestion, { type: "query" }> => s.type === "query"),
+      category: items.filter((s): s is Extract<Suggestion, { type: "category" }> => s.type === "category"),
+      brand: items.filter((s): s is Extract<Suggestion, { type: "brand" }> => s.type === "brand"),
+      product: items.filter((s): s is Extract<Suggestion, { type: "product" }> => s.type === "product"),
+    };
+  }, [suggest.data]);
+  const allSugg = suggest.data?.items ?? [];
+  const idx = (s: Suggestion) => allSugg.indexOf(s);
+
+  const hasResults = !!(submitted || category);
+  const showOverlay = focused || !hasResults;
+  const scope = useMemo(() => ({ q: submitted || undefined, category }), [submitted, category]);
+
+  const header = (first: SearchResponse | undefined) => (
+    <View style={{ gap: sp[2], paddingTop: sp[2] }}>
+      {first?.didYouMean && first.total > 0 ? (
+        <Pressable onPress={() => submit(first.didYouMean!)} accessibilityRole="button">
+          <AppText>
+            Did you mean{" "}
+            <AppText variant="label" color="primary">
+              {first.didYouMean}
+            </AppText>
+            ?
+          </AppText>
+        </Pressable>
+      ) : null}
+      {first?.parsed && (first.parsed.maxPriceCents !== null || first.parsed.category || first.parsed.brand) ? (
+        <AppText variant="caption" color="text-muted">
+          Understood:{" "}
+          {[
+            first.parsed.category?.name,
+            first.parsed.brand?.name,
+            first.parsed.maxPriceCents !== null ? `under ${money(first.parsed.maxPriceCents, "USD", "auto")}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </AppText>
+      ) : null}
+      {category ? (
+        <Row>
+          <Chip label={`Category: ${category}`} icon="close" selected onPress={() => setCategory(undefined)} />
+        </Row>
+      ) : null}
+    </View>
+  );
+
+  const zeroResults = (first: SearchResponse, clear: () => void) => (
+    <View style={{ paddingHorizontal: GUTTER }}>
+      <EmptyState icon="search-outline" title={`No results${submitted ? ` for “${submitted}”` : ""}`} message="Check the spelling, use fewer words, or try one of these." />
+      {first.didYouMean ? <Button title={`Search “${first.didYouMean}” instead`} onPress={() => submit(first.didYouMean!)} /> : null}
+      <Button title="Clear filters" variant="secondary" style={{ marginTop: sp[2] }} onPress={clear} />
+      {cats.data ? (
+        <>
+          <SectionHeader title="Browse categories" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -GUTTER }} contentContainerStyle={{ paddingHorizontal: GUTTER }}>
+            {cats.data.items.map((cat) => (
+              <CategoryCircleLink key={cat.id} slug={cat.slug} name={cat.name} size={60} />
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+      {trending.data?.products.length ? (
+        <>
+          <SectionHeader title="Trending instead" />
+          <ProductRail items={trending.data.products} />
+        </>
+      ) : null}
+    </View>
+  );
 
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.bg }}>
       <OfflineBanner />
-      <View style={{ paddingHorizontal: tokens.layout.gutter.base, paddingTop: sp[2], gap: sp[2] }}>
-        <Row
-          gap={2}
-          style={{
-            minHeight: 48,
-            borderRadius: tokens.radius.md,
-            borderWidth: 1,
-            borderColor: focused ? c.primary : c["border-strong"],
-            backgroundColor: c.surface,
-            paddingHorizontal: sp[3],
-          }}
-        >
-          <Ionicons name="search" size={18} color={c["text-muted"]} />
-          <TextInput
-            ref={inputRef}
-            value={text}
-            onChangeText={setText}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 150)}
-            onSubmitEditing={() => submit(text)}
-            placeholder="Search products, brands, or UPC"
-            placeholderTextColor={c["text-muted"]}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
-            clearButtonMode="while-editing"
-            accessibilityLabel="Search products"
-            style={[typeStyle("md"), { flex: 1, color: c.text, paddingVertical: sp[2] }]}
-          />
+      <View style={{ paddingHorizontal: GUTTER, paddingTop: sp[2], paddingBottom: sp[2] }}>
+        <Row gap={2}>
+          <View
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: sp[2],
+              minHeight: 46,
+              paddingHorizontal: sp[3],
+              borderRadius: tokens.radius.full,
+              borderWidth: 1,
+              borderColor: focused ? c.primary : c["border-strong"],
+              backgroundColor: c.surface,
+            }}
+          >
+            <Ionicons name="search" size={18} color={c["text-muted"]} />
+            <TextInput
+              ref={inputRef}
+              value={text}
+              onChangeText={setText}
+              onFocus={() => setFocused(true)}
+              onSubmitEditing={() => (looksLikeBarcode && isValidGtin(digits) ? scan.mutate(digits) : submit(text))}
+              placeholder="Search products, brands, UPC"
+              placeholderTextColor={c["text-muted"]}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="while-editing"
+              accessibilityLabel="Search"
+              style={[typeStyle("md"), { flex: 1, color: c.text, paddingVertical: sp[2] }]}
+            />
+            <Pressable onPress={() => router.push("/scan")} hitSlop={8} accessibilityRole="button" accessibilityLabel="Scan a barcode">
+              <Ionicons name="barcode-outline" size={22} color={c.primary} />
+            </Pressable>
+          </View>
+          {focused ? (
+            <Button
+              title="Cancel"
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                Keyboard.dismiss();
+                setFocused(false);
+                setText(submitted);
+              }}
+            />
+          ) : null}
         </Row>
-        {category ? (
-          <Row gap={2}>
-            <Chip label={`Category: ${category.label}`} selected icon="close" onPress={() => setCategory(null)} />
-          </Row>
-        ) : null}
       </View>
 
-      {showSuggestions ? (
-        <FlatList
-          data={suggest.data?.items ?? []}
-          keyboardShouldPersistTaps="handled"
-          keyExtractor={(s, i) => s.type + s.text + i}
-          ItemSeparatorComponent={Divider}
-          contentContainerStyle={{ paddingHorizontal: tokens.layout.gutter.base }}
-          renderItem={({ item }) => (
-            <PressableRow onPress={() => onSuggestion(item)} accessibilityLabel={item.text} style={{ justifyContent: "center", paddingVertical: sp[2] }}>
-              <Row gap={3}>
-                <Ionicons
-                  name={item.type === "product" ? "pricetag-outline" : item.type === "category" ? "grid-outline" : item.type === "brand" ? "ribbon-outline" : "search-outline"}
-                  size={18}
-                  color={c["text-muted"]}
-                />
-                <AppText variant="bodyLg" numberOfLines={1} style={{ flex: 1 }}>
-                  {item.text}
-                </AppText>
-                {item.type === "product" && item.lowestPriceCents !== null ? (
-                  <AppText variant="priceSm">{money(item.lowestPriceCents)}</AppText>
-                ) : null}
-              </Row>
-            </PressableRow>
-          )}
-        />
-      ) : !hasQuery ? (
-        <TrendingPanel onPick={submit} />
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(p) => p.id}
-          ItemSeparatorComponent={Divider}
-          contentContainerStyle={{ paddingHorizontal: tokens.layout.gutter.base, paddingBottom: sp[12] }}
-          onEndReachedThreshold={0.6}
-          onEndReached={() => {
-            if (results.hasNextPage && !results.isFetchingNextPage) void results.fetchNextPage();
-          }}
-          ListHeaderComponent={
-            <View style={{ gap: sp[2], paddingVertical: sp[2] }}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: sp[2] }}>
-                <Chip
-                  label={filterCount ? `Filters (${filterCount})` : "Filters"}
-                  icon="options-outline"
-                  selected={filterCount > 0}
-                  onPress={() => {
-                    setDraft(filters);
-                    setSheetOpen(true);
-                  }}
-                />
-                {SORTS.map((s) => (
-                  <Chip key={s.value} label={s.label} selected={sort === s.value} onPress={() => setSort(s.value)} />
-                ))}
-              </ScrollView>
-              {first ? (
-                <AppText variant="caption" color="text-muted">
-                  {first.total.toLocaleString("en-US")} results{first.parsed?.maxPriceCents ? ` · under ${money(first.parsed.maxPriceCents, "USD", "auto")}` : ""}
+      {hasResults ? (
+        <View style={{ flex: 1, display: showOverlay ? "none" : "flex" }}>
+          <ProductBrowser key={`${submitted}|${category ?? ""}`} scope={scope} header={header} empty={zeroResults} analyticsKind="text" bottomSpace={tabSpace} />
+        </View>
+      ) : null}
+
+      {showOverlay ? (
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: tabSpace }}>
+          {looksLikeBarcode ? (
+            <SuggestRow
+              icon="barcode-outline"
+              title={`Look up barcode ${digits}`}
+              subtitle={isValidGtin(digits) ? "UPC / EAN / GTIN" : "Check digit doesn't match — double-check the number"}
+              onPress={() => (isValidGtin(digits) ? scan.mutate(digits) : Alert.alert("Invalid barcode", "That number's check digit doesn't match a UPC/EAN code."))}
+            />
+          ) : null}
+
+          {trimmed.length >= 2 && !looksLikeBarcode ? (
+            <>
+              <SuggestRow icon="search" title={`Search “${trimmed}”`} onPress={() => submit(trimmed)} />
+              {groups.category.length ? (
+                <>
+                  <AppText variant="overline" color="text-muted" style={{ marginTop: sp[3] }}>
+                    Categories
+                  </AppText>
+                  {groups.category.map((s) => (
+                    <SuggestRow
+                      key={`c${s.slug}`}
+                      icon="grid-outline"
+                      title={s.text}
+                      subtitle={[s.parent, s.count !== undefined ? `${s.count} products` : null].filter(Boolean).join(" · ") || undefined}
+                      onPress={() => pick(s, idx(s))}
+                    />
+                  ))}
+                </>
+              ) : null}
+              {groups.brand.length ? (
+                <>
+                  <AppText variant="overline" color="text-muted" style={{ marginTop: sp[3] }}>
+                    Brands
+                  </AppText>
+                  {groups.brand.map((s) => (
+                    <SuggestRow key={`b${s.slug}`} icon="ribbon-outline" title={s.text} subtitle={s.count !== undefined ? `${s.count} products` : undefined} onPress={() => pick(s, idx(s))} />
+                  ))}
+                </>
+              ) : null}
+              {groups.product.length ? (
+                <>
+                  <AppText variant="overline" color="text-muted" style={{ marginTop: sp[3] }}>
+                    Products
+                  </AppText>
+                  {groups.product.map((s) => (
+                    <View key={`p${s.slug}`}>
+                      <SuggestRow
+                        icon="pricetag-outline"
+                        image={s.imageUrl}
+                        title={s.text}
+                        subtitle={[s.category, s.storeCount ? `${s.storeCount} stores` : null].filter(Boolean).join(" · ") || undefined}
+                        right={s.lowestPriceCents !== null ? money(s.lowestPriceCents) : undefined}
+                        onPress={() => pick(s, idx(s))}
+                      />
+                      {s.hasDemoData ? (
+                        <View style={{ marginLeft: 48, marginTop: -4, marginBottom: 4 }}>
+                          <DemoBadge />
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </>
+              ) : null}
+              {groups.query.length ? (
+                <>
+                  <AppText variant="overline" color="text-muted" style={{ marginTop: sp[3] }}>
+                    Searches
+                  </AppText>
+                  {groups.query.map((s) => (
+                    <SuggestRow key={`q${s.text}`} icon="trending-up-outline" title={s.text} onPress={() => pick(s, idx(s))} />
+                  ))}
+                </>
+              ) : null}
+              {suggest.data && allSugg.length === 0 ? (
+                <AppText color="text-muted" style={{ marginTop: sp[3] }}>
+                  No suggestions — press search to see all results.
                 </AppText>
               ) : null}
-              {first?.degraded ? <Notice tone="warning">Search is running in basic mode right now; results may be less relevant.</Notice> : null}
-              {items.some((p) => p.hasDemoData) ? <Notice tone="demo">Results include demo data, not live retailer prices.</Notice> : null}
-            </View>
-          }
-          renderItem={({ item }) => <ProductRow p={item} />}
-          ListEmptyComponent={
-            results.isPending ? (
-              <RowSkeleton />
-            ) : results.isError ? (
-              <ErrorState message={errorMessage(results.error)} onRetry={() => void results.refetch()} />
-            ) : (
-              <EmptyState icon="search-outline" title="No matches" message="Try fewer words, a different spelling, or remove filters." />
-            )
-          }
-          ListFooterComponent={results.isFetchingNextPage ? <RowSkeleton count={2} /> : undefined}
-        />
-      )}
-
-      <Sheet
-        visible={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        title="Filters"
-        secondary={{ label: "Reset", onPress: () => setDraft(EMPTY_FILTERS) }}
-        primary={{
-          label: "Show results",
-          onPress: () => {
-            setFilters(draft);
-            setSheetOpen(false);
-          },
-        }}
-      >
-        <View style={{ gap: sp[2] }}>
-          <AppText variant="label">Price (USD)</AppText>
-          <Row gap={3}>
-            <Field style={{ flex: 1 }} placeholder="Min" keyboardType="decimal-pad" value={draft.minDollars} onChangeText={(v) => setDraft({ ...draft, minDollars: v })} accessibilityLabel="Minimum price" />
-            <Field style={{ flex: 1 }} placeholder="Max" keyboardType="decimal-pad" value={draft.maxDollars} onChangeText={(v) => setDraft({ ...draft, maxDollars: v })} accessibilityLabel="Maximum price" />
-          </Row>
-        </View>
-        <View style={{ gap: sp[2] }}>
-          <AppText variant="label">Condition</AppText>
-          <Row gap={2} style={{ flexWrap: "wrap" }}>
-            {(["new", "refurbished", "open_box", "used"] as const).map((cond) => (
-              <Chip
-                key={cond}
-                label={cond === "open_box" ? "Open box" : cond[0]!.toUpperCase() + cond.slice(1)}
-                selected={draft.condition.includes(cond)}
-                onPress={() => setDraft({ ...draft, condition: toggle(draft.condition, cond) })}
-              />
-            ))}
-          </Row>
-        </View>
-        <View style={{ gap: sp[2] }}>
-          <AppText variant="label">Availability</AppText>
-          <Row gap={2} style={{ flexWrap: "wrap" }}>
-            <Chip label="In stock" selected={draft.inStock} onPress={() => setDraft({ ...draft, inStock: !draft.inStock })} />
-            <Chip label="Free shipping" selected={draft.freeShipping} onPress={() => setDraft({ ...draft, freeShipping: !draft.freeShipping })} />
-          </Row>
-        </View>
-        {first && first.facets.brands.length > 0 ? (
-          <View style={{ gap: sp[2] }}>
-            <AppText variant="label">Brand</AppText>
-            <Row gap={2} style={{ flexWrap: "wrap" }}>
-              {first.facets.brands.slice(0, 16).map((b) => (
-                <Chip key={b.value} label={`${b.label} (${b.count})`} selected={draft.brand.includes(b.value)} onPress={() => setDraft({ ...draft, brand: toggle(draft.brand, b.value) })} />
-              ))}
-            </Row>
-          </View>
-        ) : null}
-        {first && first.facets.retailers.length > 0 ? (
-          <View style={{ gap: sp[2] }}>
-            <AppText variant="label">Store</AppText>
-            <Row gap={2} style={{ flexWrap: "wrap" }}>
-              {first.facets.retailers.slice(0, 16).map((r) => (
-                <Chip key={r.value} label={`${r.label} (${r.count})`} selected={draft.retailer.includes(r.value)} onPress={() => setDraft({ ...draft, retailer: toggle(draft.retailer, r.value) })} />
-              ))}
-            </Row>
-          </View>
-        ) : null}
-      </Sheet>
+            </>
+          ) : (
+            <>
+              {recents.length ? (
+                <>
+                  <SectionHeader title="Recent searches" action={{ label: "Clear", onPress: clearRecentSearches }} />
+                  {recents.map((r) => (
+                    <View key={r}>
+                      <Row>
+                        <View style={{ flex: 1 }}>
+                          <SuggestRow icon="time-outline" title={r} onPress={() => submit(r)} />
+                        </View>
+                        <Pressable onPress={() => removeRecentSearch(r)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ${r} from recent searches`} style={{ padding: sp[2] }}>
+                          <Ionicons name="close" size={18} color={c["text-muted"]} />
+                        </Pressable>
+                      </Row>
+                      <Divider />
+                    </View>
+                  ))}
+                </>
+              ) : null}
+              {trending.data?.queries.length ? (
+                <>
+                  <SectionHeader title="Trending searches" />
+                  <Row gap={2} style={{ flexWrap: "wrap" }}>
+                    {trending.data.queries.slice(0, 12).map((t) => (
+                      <Chip key={t.text} label={t.text} icon="trending-up-outline" onPress={() => submit(t.text)} />
+                    ))}
+                  </Row>
+                </>
+              ) : null}
+              {cats.data ? (
+                <>
+                  <SectionHeader title="Browse categories" action={{ label: "All", onPress: () => router.push("/categories") }} />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -GUTTER }} contentContainerStyle={{ paddingHorizontal: GUTTER }}>
+                    {cats.data.items.map((cat) => (
+                      <CategoryCircleLink key={cat.id} slug={cat.slug} name={cat.name} size={60} />
+                    ))}
+                  </ScrollView>
+                </>
+              ) : null}
+              {trending.data?.products.length ? (
+                <>
+                  <SectionHeader title="Trending products" />
+                  <ProductRail items={trending.data.products} />
+                </>
+              ) : null}
+              <SectionHeader title="Have a barcode?" />
+              <AppText color="text-muted">Type the 8–14 digit UPC/EAN above, or scan it with the camera.</AppText>
+              <Button title="Scan a barcode" icon="barcode-outline" variant="secondary" style={{ marginTop: sp[3] }} onPress={() => router.push("/scan")} />
+            </>
+          )}
+        </ScrollView>
+      ) : null}
     </SafeAreaView>
-  );
-}
-
-function toggle<T>(list: T[], v: T): T[] {
-  return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
-}
-
-function activeFilterCount(f: Filters): number {
-  return (
-    (f.minDollars ? 1 : 0) +
-    (f.maxDollars ? 1 : 0) +
-    f.condition.length +
-    (f.inStock ? 1 : 0) +
-    (f.freeShipping ? 1 : 0) +
-    f.brand.length +
-    f.retailer.length
-  );
-}
-
-function TrendingPanel({ onPick }: { onPick: (q: string) => void }) {
-  const trending = useQuery({ queryKey: ["trending"], queryFn: ({ signal }) => api.search.trending({ signal }), staleTime: 10 * 60_000 });
-  return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: tokens.layout.gutter.base, paddingVertical: sp[4], gap: sp[3] }} keyboardShouldPersistTaps="handled">
-      <AppText variant="h4">Trending searches</AppText>
-      {trending.data?.queries.length ? (
-        <Row gap={2} style={{ flexWrap: "wrap" }}>
-          {trending.data.queries.map((q) => (
-            <Chip key={q.text} label={q.text} icon="trending-up-outline" onPress={() => onPick(q.text)} />
-          ))}
-        </Row>
-      ) : trending.isPending ? null : (
-        <AppText color="text-muted">Search by product name, brand, model number, or scan a barcode.</AppText>
-      )}
-      <IconButton icon="barcode-outline" label="Scan a barcode" onPress={() => router.push("/scan")} />
-    </ScrollView>
   );
 }

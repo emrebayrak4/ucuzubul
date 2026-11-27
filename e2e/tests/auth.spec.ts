@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../helpers/fixtures";
 import { API_URL, TEST_PASSWORD, uniqueEmail } from "../helpers/env";
 import { uiLogin, waitForHydration } from "../helpers/ui";
 

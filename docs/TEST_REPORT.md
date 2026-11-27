@@ -132,6 +132,57 @@ Caveat: the per-IP limit (300/min) would turn a single-IP benchmark into a 429 b
 
 The root document TTFB was about 210–230 ms. Transfer was 1.42 MB (home) and 1.93 MB (product), with an estimated 495 KiB and 591 KiB of unused JS and about 2.2–2.4 s JS boot-up. CLS is excellent. The LCP and TBT values must be re-measured on a production build before any conclusion.
 
+### 6.1 Front-end "lag" investigation (perf session, 2026-11-27) — production build, before → after
+
+Setup: `next build` + `next start --port 3190` in `apps/web` (stopped afterwards), API :4400 dev (`tsx watch`, Redis-cached), Chromium 1243 headless, same laptop as all other servers and sessions (CPU contention → ±10–15 % noise). Lighthouse 12 (perf category only), Playwright CDP traces. Raw JSON, trace summaries and screenshots: `%TEMP%\claude\ecbafb045093e37e\d3804b2a-da00-41e5-94ac-6d358a667f38\scratchpad\perf\`.
+
+**Root cause.** Every Deal Score ≥ 75 badge and every price-drop badge ran an *infinite* CSS loop (shimmer sweep; ≥ 20 % drops also a `background-position` "hot" drift that repaints every frame). Running loops counted with `document.getAnimations()`: home **256** (189 shimmer + 67 hot), category 89, deals 87, search 29, product 14. With nothing happening on screen the renderer main thread was busy **99 %** of the time (style recalc + paint + layerize), so scrolling, clicks and typing queued behind it.
+
+**Fixes** (design unchanged; reduced-motion unchanged; no scroll-reveal):
+1. `MotionGovernor` (`@pricora/ui`, mounted once in `providers.tsx`): one IntersectionObserver + MutationObserver sets `data-anim="on"` only on looping badges that are in the viewport; CSS (`design-tokens` `animate-shimmer` / `animate-hot`, generator `scripts/build-css.mjs` updated identically) runs the loops only on `[data-anim="on"]`. Without JS the badges show their static design (the paused sheen is off-badge).
+2. "Hot" drift re-implemented as a 220 %-wide gradient pseudo-element moved with `transform` (compositor-only) — same look as `background-position 0→100→0 %`; static screenshot pixel-identical (`badge-hot-*.png`).
+3. `CountUp` / `PriceRoll`: one shared IntersectionObserver per option set (was one per instance, 100+ per grid) and the tween writes the existing text node per frame instead of a React re-render per frame.
+4. Server data cache keyed by URL only (`lib/api-server.ts` → `unstable_cache`, tag `api`): Next's fetch cache keys on request headers and every SSR request carried the visitor IP (`x-pricora-client-ip`), so in production each visitor had a private cache (miss → API round trips). The IP is still sent on misses (throttle unchanged); only 2xx cached. Not visible in local numbers (single IP).
+5. Home LCP image (`deals` promo tile) `fetchPriority="high"`; `preconnect` to `images.unsplash.com` in the root layout.
+
+**Lighthouse, production build** (score / LCP / TBT / CLS; mobile = simulated Moto G + slow 4G):
+
+| Page | Mobile before | Mobile after | Desktop before | Desktop after |
+|---|---|---|---|---|
+| Home `/` | 57 / 4.98 s / 1259 ms / 0.001 | **79 / 5.39 s / 123 ms / 0** | 99 / 1.00 s / 17 ms / 0 | 99 / 0.96 s / 0 ms / 0 |
+| Category `/categories/electronics` | 79 / 3.77 s / 403 ms / 0.001 | **86 / 3.76 s / 171 ms / 0** | 100 / 0.75 s / 12 ms / 0 | 100 / 0.71 s / 28 ms / 0 |
+| Product | 84 / 4.04 s / 183 ms / 0.001 | 85 / 4.11 s / 157 ms / 0.001 | 100 / 0.77 s / 0 ms / 0 | 99 / 0.86 s / 2 ms / 0 |
+| Search `?q=headphones` | 88 / 3.46 s / 207 ms / 0 | 88 / 3.46 s / 191 ms / 0.001 | 99 / 0.89 s / 8 ms / 0 | 100 / 0.82 s / 1 ms / 0 |
+| Deals | 76 / 4.03 s / 453 ms / 0 | **90 / 3.46 s / 128 ms / 0.001** | 100 / 0.78 s / 0 ms / 0.003 | 99 / 0.87 s / 0 ms / 0 |
+| Coupons | 86 / 3.98 s / 138 ms / 0.001 | 85 / 4.06 s / 155 ms / 0.001 | 100 / 0.72 s / 0 ms / 0 | 100 / 0.80 s / 0 ms / 0 |
+
+Mobile main-thread work during the Lighthouse load: home 12.4 s → **1.7 s**, category 13.0 → 4.3 s, product 12.9 → 2.0 s, deals 11.8 → 4.3 s, search 7.0 → 2.8 s, coupons 1.3 → 1.3 s. JS per route (transfer, gzip): 310–326 KB before, 319–335 KB after (+≈9 KB from other sessions' concurrent changes, not from this fix). TTFB 13–74 ms everywhere.
+
+**Interaction traces (desktop 1366×860, no CPU throttle, prod build):**
+
+| Scenario | Before | After |
+|---|---|---|
+| Home idle 5 s — main thread busy | 4974 ms (99 %) | **777 ms (15 %)** |
+| Category idle 5 s — main thread busy | 3150 ms | **719 ms** |
+| Home scroll (80 wheel steps) — p95 frame / frames > 33 ms / long tasks | 56 ms / 24 / 18 (TBT-like 165 ms) | **14 ms / 9 / 0** |
+| Category scroll — p95 frame / frames > 33 ms | 14 ms / 0 | 7 ms / 0 |
+| Mega menu open — pointerdown→paint (INP-like) | 128 ms | **40 ms** |
+| Typing in search — worst key event | 104 ms (9 long tasks) | **40 ms (0 long tasks)** |
+| Filter checkbox toggle — click→URL settled | 83 ms | 122 ms (noise; 0 long tasks both) |
+| Route transitions, warm, click→networkidle | 226–387 ms (max task 122 ms) | 86–356 ms (max task 77 ms) |
+| Route transitions, warm, click→new `<main>` content (after only) | — | 44–197 ms (deals 136, coupons 90, price-drops 44, category 169, home 197) |
+| CLS (all six routes, interaction pages) | 0–0.001 | 0 |
+
+**Targets on the production build:** TBT < 200 ms ✅ on all 12 runs (was ❌ home/category/deals mobile). CLS < 0.1 ✅. INP-like < 200 ms ✅ (worst measured 40 ms desktop). Scroll ≈ 60 fps ✅ on category; home much improved (p95 14 ms) but still 9 frames > 33 ms in 80 wheel steps (Layerize/paint of ~6 k DOM nodes, 57 images). Route transitions < 300 ms warm ✅ (click→content). **LCP < 2.5 s mobile-simulated ❌ (3.5–5.4 s).** Real LCP measured in Chromium at 4× CPU, mobile viewport, local network: home 0.48 s, coupons 0.74 s. The simulated value is dominated by Lighthouse's slow-4G model of ~320 KB gzip JS + 72 KB gzip HTML (home) requested before the LCP paint, not by server time (TTFB < 75 ms) or main-thread work.
+
+**Dev server (`next dev` :3100, shared, mobile Lighthouse):** home TBT 3483 → 2611 ms, category 2786 → 1161 ms, main thread home 16.7 → 8.1 s; LCP 4.5–17 s and TTFB 250–1850 ms in both runs; 1.3–2.3 MB of unminified JS per page (deals "after" 2.35 MB = a recompile triggered by another session mid-run; desktop product "before" scored 0 for the same reason).
+
+### 6.2 What part of the lag is dev-mode only (for the founder)
+- `next dev` compiles each route on first visit and again whenever any of the parallel sessions saves a file (HMR); a click can wait 0.5–2 s for compilation (dev TTFB 250–1850 ms vs prod 13–74 ms).
+- Dev ships unminified React with debug checks: 1.3–2.3 MB JS per page vs ~320 KB in production; StrictMode double-renders effects.
+- Several sessions run builds, tests and Lighthouse on the same laptop at the same time.
+- The animation load (fixed above) was real in production too — that part was not dev-only.
+
 ## 7. Not verified ❌
 - Production builds (web, admin, API) and Lighthouse or load numbers on them. Behaviour behind a real reverse proxy (trust proxy, Secure cookies, HSTS).
 - `apps/mobile` (A03 still building): no e2e, only turbo typecheck and lint.

@@ -11,6 +11,7 @@ import { PLANNED_PROVIDERS, ProviderStatusList } from "@/components/travel/provi
 import { FlightSearchForm } from "@/components/travel/search-forms";
 import { TravelHero } from "@/components/travel/travel-band";
 import { DestinationShortcuts, FlightShortcutCards } from "@/components/travel/destinations";
+import { ExploreCard } from "@/components/travel/flights/explore-card";
 
 export const metadata: Metadata = {
   title: "Travel — compare flights and hotels",
@@ -37,11 +38,13 @@ export default async function TravelHomePage() {
   const checkin = toIsoDate(addDays(new Date(), 30));
   const checkout = toIsoDate(addDays(new Date(), 33));
 
-  const [airportResults, hotelResults, health] = await Promise.all([
+  const [airportResults, hotelResults, health, explore] = await Promise.all([
     Promise.all(codes.map((c) => load(() => api.travel.airports(c)))),
     Promise.all(CITIES.map((city) => load(() => api.travel.hotels({ city, checkin, checkout, guests: 2, rooms: 1 })))),
     load(() => api.health()),
+    load(() => api.travel.flightExplore({ from: "NYC", tripLength: 7, limit: 60 })),
   ]);
+  const exploreItems = explore.ok ? explore.data.destinations.filter((d) => d.countryIso2 !== "US").slice(0, 4) : [];
 
   const airports = new Map<string, Airport>();
   airportResults.forEach((r, i) => {
@@ -64,7 +67,7 @@ export default async function TravelHomePage() {
 
   return (
     <>
-      <TravelHero vertical="flights" active="explore" title="Where to next?" sub="Compare flights and hotels from multiple providers — real fares and rates only.">
+      <TravelHero vertical="flights" active="explore" title="Where to next?" sub="Compare flights and hotels from multiple providers — demo data is always labeled.">
         <FlightSearchForm />
       </TravelHero>
 
@@ -76,7 +79,7 @@ export default async function TravelHomePage() {
             <section className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-4 py-3 text-sm" data-testid="provider-status">
               <span className="font-semibold text-flights-soft-fg">Live fares: connecting soon</span>
               <span className="text-text-muted">
-                We&apos;re setting up {providers.map((p) => p.name.replace(/ (.*)$/, "")).join(", ")}. Until then, flight searches show no fares (we never invent them) and hotel listings are labeled demo data.
+                We&apos;re setting up {providers.map((p) => p.name.replace(/ (.*)$/, "")).join(", ")}. Until then, flight fares and hotel listings are clearly labeled demo data and can’t be booked.
               </span>
             </section>
           )
@@ -117,6 +120,29 @@ export default async function TravelHomePage() {
                   </li>
                 );
               })}
+            </ul>
+          </section>
+        ) : null}
+
+        {explore.ok && exploreItems.length ? (
+          <section aria-labelledby="explore-title" data-testid="travel-explore">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 id="explore-title" className="mb-1 text-xl font-semibold tracking-tight">
+                  Explore everywhere from {explore.data.origin.city}
+                </h2>
+                <p className="text-sm text-text-muted">Cheapest round trips abroad for a week away{explore.data.source === "demo" ? " — demo fares, not bookable" : ""}.</p>
+              </div>
+              <Link href="/travel/flights/explore?from=NYC" className="inline-flex items-center gap-1 text-sm font-semibold text-flights-action hover:underline">
+                See all destinations <ArrowRight aria-hidden className="size-4" />
+              </Link>
+            </div>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {exploreItems.map((d) => (
+                <li key={d.airport}>
+                  <ExploreCard d={d} from={explore.data.origin.code} />
+                </li>
+              ))}
             </ul>
           </section>
         ) : null}

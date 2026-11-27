@@ -1,9 +1,11 @@
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
+import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import { ApiError, createApiClient, type ApiClient } from "@pricora/api-client";
 import { serverApiUrl } from "./env";
+import { getEdgeZipGuess } from "@/lib/privacy/server";
 
 export interface ServerApiOptions {
   /** ISR window in seconds for GET requests (ignored when `withCookies`). Default 300. */
@@ -50,14 +52,45 @@ export async function serverApi(opts: ServerApiOptions = {}): Promise<ApiClient>
     baseUrl: serverApiUrl(),
     credentials: "omit",
     headers: Object.keys(extra).length ? extra : undefined,
-    fetch: (input, init) =>
-      fetch(input, {
-        ...init,
-        signal: init?.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        ...(opts.withCookies ? { cache: "no-store" as const } : { next: { revalidate: opts.revalidate ?? 300 } }),
-      }),
+    fetch: (input, init) => {
+      const doFetch = (cache: RequestCache) => fetch(input, { ...init, cache, signal: init?.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      if (opts.withCookies || (init?.method ?? "GET") !== "GET") return doFetch("no-store");
+      return cachedGet(String(input), opts.revalidate ?? 300, () => doFetch("no-store"));
+    },
   });
 }
+
+type CachedBody = { status: number; statusText: string; contentType: string | null; body: string };
+
+/**
+ * Shared data cache for public GETs, keyed by URL only (perf). Next's fetch cache keys on request headers, and every
+ * request carries the visitor's IP (`x-pricora-client-ip`), so in production each visitor got their own cache entry
+ * (cache miss → API round trips on most page views). The IP header is still sent on misses, so the API keeps
+ * rate-limiting the visitor who caused the miss. Only 2xx responses are cached.
+ */
+async function cachedGet(url: string, revalidate: number, run: () => Promise<Response>): Promise<Response> {
+  let uncached: Response | null = null;
+  try {
+    const hit = await unstable_cache(
+      async (): Promise<CachedBody> => {
+        const res = await run();
+        if (!res.ok) {
+          uncached = res;
+          throw new UncachedResponse();
+        }
+        return { status: res.status, statusText: res.statusText, contentType: res.headers.get("content-type"), body: await res.text() };
+      },
+      ["pricora-api-get", url],
+      { revalidate, tags: ["api"] },
+    )();
+    return new Response(hit.body, { status: hit.status, statusText: hit.statusText, headers: hit.contentType ? { "content-type": hit.contentType } : undefined });
+  } catch (err) {
+    if (err instanceof UncachedResponse && uncached) return uncached;
+    throw err;
+  }
+}
+
+class UncachedResponse extends Error {}
 
 export interface LoadError {
   status: number;
@@ -93,10 +126,11 @@ export async function load<T>(fn: () => Promise<T>, opts: { notFoundOn404?: bool
   return { ok: false, error };
 }
 
-/** Reads the visitor's ZIP cookie (validated). */
+/** Visitor ZIP for tax estimates: ZIP cookie (validated), else a trusted edge/IP estimate (shown as "Estimated" in the header). */
 export const getZip = cache(async (): Promise<string | null> => {
   const raw = (await cookies()).get("pc_zip")?.value;
-  return raw && /^\d{5}$/.test(raw) ? raw : null;
+  if (raw && /^\d{5}$/.test(raw)) return raw;
+  return (await getEdgeZipGuess())?.zip ?? null;
 });
 
 export const hasSessionCookie = cache(async (): Promise<boolean> => {

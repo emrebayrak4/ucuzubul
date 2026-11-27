@@ -317,3 +317,72 @@ export function ProductIconActions({ product }: { product: ActionProduct }) {
     </div>
   );
 }
+
+/* -------------------------------------------------------- Inline alert */
+
+/** Inline "price alarm": one target-price field with quick presets (−5/−10/−20%). Creates a below_price alert. */
+export function InlinePriceAlert({ product }: { product: ActionProduct }) {
+  const { requireAuth } = useSession();
+  const toLogin = useAuthRedirect();
+  const qc = useQueryClient();
+  const base = product.lowestPriceCents;
+  const preset = (pct: number) => (base === null ? "" : String(Math.floor((base * (1 - pct)) / 100)));
+  const [target, setTarget] = React.useState(preset(0.1));
+  const [done, setDone] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const m = useMutation({
+    mutationFn: () => api.me.alerts.create({ productId: product.id, type: "below_price", targetPriceCents: Math.round(Number(target) * 100), channels: ["email", "in_app"] }),
+    onSuccess: () => {
+      setDone(true);
+      toast.success("Price alarm set", { description: `We'll tell you when it drops to ${formatPrice(Math.round(Number(target) * 100), { currency: product.currency })} or less.` });
+      void qc.invalidateQueries({ queryKey: ["me", "alerts"] });
+    },
+    onError: (err) => (err instanceof ApiError && err.isUnauthorized ? toLogin() : setError(errorMessage(err))),
+  });
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!/^\d+$/.test(target) || Number(target) <= 0) return setError("Enter a target price in whole dollars.");
+    requireAuth(() => m.mutate());
+  };
+  return (
+    <form onSubmit={submit} className="rounded-md border border-border bg-surface-2/60 p-3" data-testid="inline-price-alert" aria-labelledby="inline-alert-title">
+      <p id="inline-alert-title" className="flex items-center gap-1.5 text-sm font-bold">
+        <BellPlus aria-hidden className="size-4 text-primary" /> Price alarm
+      </p>
+      {done ? (
+        <p className="mt-1 text-sm text-success">Alarm set — manage it under Account → Alerts.</p>
+      ) : (
+        <>
+          <p className="mt-0.5 text-xs text-text-muted">Get an email when any store drops to your price.</p>
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <div className="w-28">
+              <Label htmlFor="inline-target" className="text-2xs text-text-muted">
+                Target ($)
+              </Label>
+              <Input id="inline-target" size="sm" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/\D/g, ""))} aria-invalid={Boolean(error)} />
+            </div>
+            {base !== null ? (
+              <div className="flex gap-1" role="group" aria-label="Quick targets">
+                {[0.05, 0.1, 0.2].map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setTarget(preset(p))}
+                    className={cn("h-8 rounded-sm border px-2 text-xs font-medium", target === preset(p) ? "border-primary bg-primary-soft text-primary-soft-fg" : "border-border bg-surface hover:bg-surface-2")}
+                  >
+                    −{Math.round(p * 100)}%
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <Button type="submit" size="sm" disabled={m.isPending}>
+              {m.isPending ? "Saving…" : "Set alarm"}
+            </Button>
+          </div>
+          {error ? <FieldMessage tone="error">{error}</FieldMessage> : null}
+        </>
+      )}
+    </form>
+  );
+}

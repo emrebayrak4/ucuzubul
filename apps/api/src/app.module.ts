@@ -16,14 +16,18 @@ import { CatalogController } from "./controllers/catalog.controller";
 import { GoController } from "./controllers/go.controller";
 import { HealthController } from "./controllers/health.controller";
 import { IntegrationsController } from "./controllers/integrations.controller";
+import { AffiliateProgramsController } from "./controllers/integrations-affiliate.controller";
 import { LogosController } from "./controllers/logos.controller";
 import { CouponsController } from "./controllers/coupons.controller";
 import { GuidesController } from "./controllers/guides.controller";
 import { MeController } from "./controllers/me.controller";
 import { MerchantController } from "./controllers/merchant.controller";
 import { MiscController } from "./controllers/misc.controller";
+import { PrivacyController } from "./controllers/privacy.controller";
 import { SearchController } from "./controllers/search.controller";
 import { TravelController } from "./controllers/travel.controller";
+import { TravelHotelsController } from "./controllers/travel-hotels.controller";
+import { TravelFlightsController } from "./controllers/travel-flights.controller";
 import { CatalogService, MetricsService } from "./services/catalog.service";
 import { ProductService } from "./services/product.service";
 import { SearchService } from "./services/search.service";
@@ -48,14 +52,18 @@ void throttleRedis.connect().catch(() => undefined);
     SearchController,
     GoController,
     TravelController,
+    TravelHotelsController,
+    TravelFlightsController,
     MiscController,
     MeController,
     AdminController,
     MerchantController,
     IntegrationsController,
+    AffiliateProgramsController,
     LogosController,
     CouponsController,
     GuidesController,
+    PrivacyController,
   ],
   providers: [
     ...infraProviders,
@@ -78,7 +86,7 @@ export class AppModule implements OnApplicationShutdown {
   ) {}
 
   async onApplicationShutdown(): Promise<void> {
-    await Promise.allSettled([this.queues.priceEvents.close(), this.queues.searchIndex.close(), this.queues.priceRefresh.close(), this.queues.merchantFeeds.close()]);
+    await Promise.allSettled([this.queues.priceEvents.close(), this.queues.searchIndex.close(), this.queues.priceRefresh.close(), this.queues.merchantFeeds.close(), this.queues.networkIngest.close()]);
     await this.integrations.close();
     this.redis.disconnect();
     throttleRedis.disconnect();

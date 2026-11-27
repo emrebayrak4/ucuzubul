@@ -176,7 +176,6 @@ export class EbayBrowseAdapter extends BaseRetailerAdapter {
     if (!(u.hostname === "ebay.com" || u.hostname.endsWith(".ebay.com"))) return null;
     u.searchParams.set("mkcid", "1");
     u.searchParams.set("mkrid", "711-53200-19255-0");
-    u.searchParams.set("siteid", "0");
     u.searchParams.set("campid", campaign);
     u.searchParams.set("toolid", "10001");
     u.searchParams.set("mkevt", "1");

@@ -12,4 +12,5 @@ export * from "./travel";
 export * from "./misc";
 export * from "./admin";
 export * from "./merchant";
+export * from "./privacy";
 export * from "./endpoints";

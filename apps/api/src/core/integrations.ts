@@ -3,7 +3,7 @@
  * Adapter entries are derived from @pricora/retailer-adapters ADAPTER_REGISTRY; app integrations
  * (OAuth, payments, email, AI, monitoring, affiliate network reporting APIs) are declared here.
  */
-import { ADAPTER_REGISTRY } from "@pricora/retailer-adapters";
+import { ADAPTER_REGISTRY, NETWORK_REGISTRY } from "@pricora/retailer-adapters";
 
 export type IntegrationGroup = "retail" | "affiliate" | "travel_flight" | "travel_hotel" | "auth" | "payments" | "email" | "ai" | "monitoring" | "branding";
 
@@ -21,6 +21,8 @@ export interface IntegrationDef {
   group: IntegrationGroup;
   /** Adapter id in @pricora/retailer-adapters, when the integration is an adapter. */
   adapterId: string | null;
+  /** Affiliate-network client id (NETWORK_REGISTRY), when the integration is a network publisher API. */
+  networkId?: string;
   fields: IntegrationField[];
   docsUrl: string | null;
   goLive: string;
@@ -54,14 +56,62 @@ const GO_LIVE: Record<string, string> = {
   discontinued: "Provider discontinued this API",
 };
 
+/** Where to find each adapter credential (shown under the field in Admin → Integrations). */
+export const FIELD_HELP: Readonly<Record<string, string>> = {
+  AMAZON_CREATORS_CREDENTIAL_ID: "Associates Central → Tools → Creators API → Manage credentials → Credential ID (needs 10 qualifying sales in the last 30 days).",
+  AMAZON_CREATORS_CREDENTIAL_SECRET: "Shown once when the credential is created; regenerate if lost.",
+  AMAZON_CREATORS_CREDENTIAL_VERSION: "Version shown next to the credential, e.g. 3.1 (NA, Login with Amazon) or 2.1 (NA, Cognito).",
+  AMAZON_ASSOCIATE_TAG: "Your US store/tracking ID, e.g. yourstore-20 (Associates Central → Manage Tracking IDs).",
+  AMAZON_MARKETPLACE: "Default www.amazon.com.",
+  WALMART_CONSUMER_ID: "walmart.io → My Account → Applications → Consumer ID (after uploading your RSA public key).",
+  WALMART_PRIVATE_KEY: "PEM of the RSA private key whose public half is uploaded on walmart.io; literal \\n escapes are accepted.",
+  WALMART_KEY_VERSION: "Key version shown on walmart.io next to the uploaded key (usually 1).",
+  WALMART_PUBLISHER_ID: "Your Impact publisher ID for Walmart (added to product tracking URLs).",
+  BESTBUY_API_KEY: "developer.bestbuy.com → Get API Key (company email required).",
+  BESTBUY_LEGAL_APPROVED: 'Type "true" only after counsel has approved using Best Buy API data for price comparison (the API terms restrict third-party price analysis).',
+  BESTBUY_AFFILIATE_LINK_TEMPLATE: "Impact deep link for Best Buy containing {url} and {subId}, e.g. https://bestbuy.7tiv.net/c/<mpId>/<adId>/10014?u={url}&subId1={subId}.",
+  EBAY_CLIENT_ID: "developer.ebay.com → Application Keys → Production App ID (Client ID).",
+  EBAY_CLIENT_SECRET: "Same keyset → Cert ID (Client Secret).",
+  EBAY_EPN_CAMPAIGN_ID: "partnernetwork.ebay.com → Campaigns → 10-digit campaign ID (campid).",
+  EBAY_EPN_REFERENCE_ID: "Optional affiliateReferenceId sent in X-EBAY-C-ENDUSERCTX.",
+  EBAY_ENVIRONMENT: '"production" (default) or "sandbox".',
+  KROGER_CLIENT_ID: "developer.kroger.com → My Apps → Create App (Production, scope product.compact) → Client ID.",
+  KROGER_CLIENT_SECRET: "Same app → Client Secret.",
+  KROGER_LOCATION_ID: "8-character store locationId (GET /v1/locations?filter.zipCode.near=<zip> or the store page URL).",
+  DUFFEL_ACCESS_TOKEN: "app.duffel.com → Developers → Access tokens. duffel_test_… works immediately (test mode); duffel_live_… after activation.",
+  TRAVELPAYOUTS_TOKEN: "app.travelpayouts.com → Profile → API token.",
+  TRAVELPAYOUTS_MARKER: "Your partner marker (numeric ID shown in the dashboard).",
+  HOTELBEDS_API_KEY: "developer.hotelbeds.com → My Account → Hotel APItude evaluation key.",
+  HOTELBEDS_SECRET: "Secret shown with the key.",
+  HOTELBEDS_ENVIRONMENT: '"test" (default, evaluation) or "production" after certification.',
+  EXPEDIA_RAPID_API_KEY: "Issued by Expedia Group after the Rapid partner agreement (test key works on test.ean.com only).",
+  EXPEDIA_RAPID_SECRET: "Shared secret paired with the Rapid API key.",
+  EXPEDIA_RAPID_ENVIRONMENT: '"test" (default) or "production".',
+  BOOKING_API_KEY: "Booking.com Partner Centre → Demand API credentials (Managed Affiliate Partners only).",
+  BOOKING_AFFILIATE_ID: "Your Booking.com affiliate ID (aid).",
+  BOOKING_ENVIRONMENT: '"sandbox" (default) or "production".',
+  AMADEUS_CLIENT_ID: "Enterprise contract credentials only (Self-Service was decommissioned 2026-07-17).",
+  AMADEUS_CLIENT_SECRET: "Enterprise contract credentials only.",
+  AMADEUS_BASE_URL: "Base URL issued with the enterprise contract.",
+};
+
+function adapterFieldHelp(key: string): string | null {
+  const known = FIELD_HELP[key];
+  if (known) return known;
+  if (key.endsWith("_FEED_URL")) return "Product-feed URL from the network (CJ/Impact/Rakuten/Awin feed export for this advertiser; https).";
+  if (key.endsWith("_FEED_AUTH_HEADER")) return 'Optional full header for the feed URL, e.g. "Authorization: Bearer …".';
+  if (key.endsWith("_AFFILIATE_LINK_TEMPLATE")) return "Optional network deep-link template containing {url} and {subId} (sub-ID = our click id).";
+  return null;
+}
+
 const fromAdapters: IntegrationDef[] = ADAPTER_REGISTRY.map((m) => ({
   id: m.id,
   name: m.name,
   group: m.kind === "flight" ? "travel_flight" : m.kind === "hotel" ? "travel_hotel" : m.dataAccess === "affiliate_feed" ? "affiliate" : "retail",
   adapterId: m.id,
   fields: [
-    ...m.requiredEnv.map((k) => field(k, true, k === "WALMART_PRIVATE_KEY" ? "PEM; literal \\n escapes are accepted" : null)),
-    ...m.optionalEnv.filter((k) => !m.requiredEnv.includes(k)).map((k) => field(k, false)),
+    ...m.requiredEnv.map((k) => field(k, true, adapterFieldHelp(k), k === "BESTBUY_LEGAL_APPROVED" ? false : isSecretKey(k))),
+    ...m.optionalEnv.filter((k) => !m.requiredEnv.includes(k)).map((k) => field(k, false, adapterFieldHelp(k))),
   ],
   docsUrl: m.docsUrl,
   goLive: GO_LIVE[m.goLive] ?? m.goLive,
@@ -139,49 +189,26 @@ const APP_INTEGRATIONS: IntegrationDef[] = [
     goLive: "Self-serve token; check attribution/plan terms",
     notes: "Fallback for store/brand logos when the official site icon cannot be fetched. Logos remain trademarks of their owners.",
   },
-  {
-    id: "cj",
-    name: "CJ Affiliate (reporting API)",
-    group: "affiliate",
-    adapterId: null,
-    fields: [field("CJ_PERSONAL_ACCESS_TOKEN", true), field("CJ_WEBSITE_ID", true, null, false), field("CJ_COMPANY_ID", false, null, false)],
-    docsUrl: "https://developers.cj.com/",
-    goLive: "Publisher account approval",
-    notes: "Used for conversion/commission import (not implemented yet).",
-  },
-  {
-    id: "impact",
-    name: "Impact (reporting API)",
-    group: "affiliate",
-    adapterId: null,
-    fields: [field("IMPACT_ACCOUNT_SID", true, null, false), field("IMPACT_AUTH_TOKEN", true)],
-    docsUrl: "https://integrations.impact.com/impact-publisher/reference",
-    goLive: "Partner account approval",
-    notes: "Used for conversion/commission import (not implemented yet).",
-  },
-  {
-    id: "awin",
-    name: "Awin (reporting API)",
-    group: "affiliate",
-    adapterId: null,
-    fields: [field("AWIN_API_TOKEN", true), field("AWIN_PUBLISHER_ID", true, null, false)],
-    docsUrl: "https://wiki.awin.com/index.php/Publisher_API",
-    goLive: "Publisher account approval",
-    notes: "Used for conversion/commission import (not implemented yet).",
-  },
-  {
-    id: "rakuten",
-    name: "Rakuten Advertising (reporting API)",
-    group: "affiliate",
-    adapterId: null,
-    fields: [field("RAKUTEN_CLIENT_ID", true, null, false), field("RAKUTEN_CLIENT_SECRET", true), field("RAKUTEN_SID", true, null, false)],
-    docsUrl: "https://developers.rakutenadvertising.com/",
-    goLive: "Publisher account approval",
-    notes: "Used for conversion/commission import (not implemented yet).",
-  },
 ];
 
-export const INTEGRATION_CATALOG: readonly IntegrationDef[] = [...fromAdapters, ...APP_INTEGRATIONS];
+/** Affiliate-network publisher APIs (products, promotions, conversion reports). */
+const fromNetworks: IntegrationDef[] = NETWORK_REGISTRY.map((n) => ({
+  // "ebay" is already the Browse adapter's id; the EPN reporting API gets its own entry.
+  id: n.id === "ebay_partner" ? "ebay_partner_network" : n.id,
+  name: n.name,
+  group: "affiliate" as const,
+  adapterId: null,
+  networkId: n.id,
+  fields: n.fields.map((x) => field(x.key, x.required, x.help, x.secret)),
+  docsUrl: n.docsUrl,
+  goLive: GO_LIVE.affiliate_approval ?? "affiliate_approval",
+  notes: `${n.notes} Capabilities: ${(Object.entries(n.capabilities) as [string, boolean][])
+    .filter(([, v]) => v)
+    .map(([k]) => k)
+    .join(", ")}. Sign up: ${n.signupUrl}`,
+}));
+
+export const INTEGRATION_CATALOG: readonly IntegrationDef[] = [...fromAdapters, ...fromNetworks, ...APP_INTEGRATIONS];
 
 export function getIntegration(id: string): IntegrationDef | undefined {
   return INTEGRATION_CATALOG.find((i) => i.id === id);

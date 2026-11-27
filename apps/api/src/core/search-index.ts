@@ -2,8 +2,11 @@
  * Meilisearch product index: document shape, settings and full reindex. Shared by API and worker.
  */
 import type { Meilisearch } from "meilisearch";
+import type { CategoryFacetDef } from "@pricora/contracts";
 import type { PrismaClient } from "@pricora/database";
+import { slugify } from "@pricora/utils";
 import { computeProductMetrics, type ProductMetrics } from "./metrics";
+import { applicableOptions, loadPaymentIndex, payIn4For } from "./payment-options";
 
 export const PRODUCTS_INDEX = "products";
 
@@ -38,11 +41,45 @@ export interface ProductSearchDoc {
   inStock: boolean;
   freeShipping: boolean;
   pickup: boolean;
+  /** Some store offers a pay-over-time option (BNPL / financing) for its price. */
+  payOverTime: boolean;
+  /** Some store offers interest-free pay-in-4 for its total (known limits). */
+  payIn4: boolean;
   dealScore: number | null;
   dropRatio: number | null;
   hasDemoData: boolean;
+  /** Spec facet values as `key.value-slug` (keys from the category's effective facet definitions). */
+  specs: string[];
+  /** Display labels for `specs`, same order (not filterable; used for facet labels and key specs). */
+  specLabels: string[];
+  /** First-listed time (earliest offer) — drives "Newly added". */
   createdAt: number;
   updatedAt: number;
+}
+
+/** Spec value → URL-safe slug used in `spec=key.slug`. */
+export function specSlug(value: string): string {
+  return slugify(value) || "x";
+}
+
+/** Effective facet definitions for a category path (root → leaf); deeper definitions override by key. */
+export function effectiveFacets(pathSlugs: string[], facetsBySlug: Map<string, CategoryFacetDef[]>): CategoryFacetDef[] {
+  const out = new Map<string, CategoryFacetDef>();
+  for (const slug of pathSlugs) for (const f of facetsBySlug.get(slug) ?? []) out.set(f.key, f);
+  return [...out.values()];
+}
+
+/** Parses Category.facets JSON defensively (admin-editable). */
+export function parseFacetJson(raw: unknown): CategoryFacetDef[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((f): CategoryFacetDef[] => {
+    if (!f || typeof f !== "object") return [];
+    const o = f as Record<string, unknown>;
+    if (typeof o["key"] !== "string" || typeof o["label"] !== "string" || typeof o["attribute"] !== "string") return [];
+    const sort = o["sort"] === "alpha" || o["sort"] === "numeric" || o["sort"] === "custom" ? o["sort"] : "count";
+    const order = Array.isArray(o["order"]) ? o["order"].filter((x): x is string => typeof x === "string") : undefined;
+    return [{ key: o["key"], label: o["label"], attribute: o["attribute"], sort, ...(order ? { order } : {}) }];
+  });
 }
 
 export const SEARCH_SETTINGS = {
@@ -56,9 +93,12 @@ export const SEARCH_SETTINGS = {
     "inStock",
     "freeShipping",
     "pickup",
+    "payOverTime",
+    "payIn4",
     "dropRatio",
     "priceBucket",
     "dealScore",
+    "specs",
     "id",
   ],
   sortableAttributes: ["lowestPriceCents", "lowestTotalCents", "dealScore", "dropRatio", "storeCount", "createdAt", "updatedAt"],
@@ -79,6 +119,8 @@ export const SEARCH_SETTINGS = {
     fridge: ["refrigerator"],
   },
   typoTolerance: { enabled: true, minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 } },
+  faceting: { maxValuesPerFacet: 3000 },
+  pagination: { maxTotalHits: 5000 },
 };
 
 export async function buildSearchDocuments(
@@ -89,16 +131,42 @@ export async function buildSearchDocuments(
   const [products, categories, retailers] = await Promise.all([
     prisma.product.findMany({
       where: { status: "active" },
-      include: { brand: true, category: true, identifiers: { select: { value: true } } },
+      include: { brand: true, category: true, identifiers: { select: { value: true } }, attributes: { select: { name: true, value: true } } },
     }),
-    prisma.category.findMany({ select: { id: true, slug: true, path: true } }),
+    prisma.category.findMany({ select: { id: true, slug: true, path: true, facets: true } }),
     prisma.retailer.findMany({ select: { id: true, slug: true } }),
   ]);
+  const [pay, payOffers] = await Promise.all([
+    loadPaymentIndex(prisma).catch(() => new Map()),
+    prisma.offer.findMany({ where: { isActive: true }, select: { productId: true, retailerId: true, priceCents: true, shippingCents: true } }),
+  ]);
+  const payOverTime = new Set<string>();
+  const payIn4Set = new Set<string>();
+  for (const o of payOffers) {
+    const total = o.priceCents + (o.shippingCents ?? 0);
+    if (applicableOptions(pay.get(o.retailerId), total).length) payOverTime.add(o.productId);
+    if (payIn4For(pay.get(o.retailerId), total)) payIn4Set.add(o.productId);
+  }
   const retailerSlug = new Map(retailers.map((r) => [r.id, r.slug]));
   const catById = new Map(categories.map((c) => [c.id, c]));
+  const facetsBySlug = new Map(categories.map((c) => [c.slug, parseFacetJson(c.facets)]));
+  const facetCache = new Map<string, CategoryFacetDef[]>();
   return products.map((p) => {
     const pm = m.get(p.id);
     const cat = p.categoryId ? catById.get(p.categoryId) : undefined;
+    let defs: CategoryFacetDef[] = [];
+    if (cat) {
+      defs = facetCache.get(cat.path) ?? effectiveFacets(cat.path.split("/"), facetsBySlug);
+      facetCache.set(cat.path, defs);
+    }
+    const specs: string[] = [];
+    const specLabels: string[] = [];
+    for (const d of defs) {
+      const a = p.attributes.find((x) => x.name === d.attribute);
+      if (!a) continue;
+      specs.push(`${d.key}.${specSlug(a.value)}`);
+      specLabels.push(a.value);
+    }
     return {
       id: p.id,
       slug: p.slug,
@@ -120,9 +188,13 @@ export async function buildSearchDocuments(
       inStock: pm?.inStock ?? false,
       freeShipping: pm?.freeShipping ?? false,
       pickup: pm?.pickup ?? false,
+      payOverTime: payOverTime.has(p.id),
+      payIn4: payIn4Set.has(p.id),
       dealScore: pm?.dealScore?.score ?? null,
       dropRatio: pm?.dropRatio ?? null,
       hasDemoData: pm?.hasDemoData ?? p.isDemo,
+      specs,
+      specLabels,
       createdAt: p.createdAt.getTime(),
       updatedAt: p.updatedAt.getTime(),
     };

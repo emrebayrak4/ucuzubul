@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../helpers/fixtures";
 import { API_URL } from "../helpers/env";
 import { waitForHydration } from "../helpers/ui";
 

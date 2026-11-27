@@ -12,7 +12,7 @@ If code and this doc disagree, fix one of them in the same PR.
 3. **Honest by construction.** Every price says where it came from and when. Demo data is labeled. Sponsored is labeled. No invented ratings, counts, "trusted by" claims or urgency timers. If we do not know (tax, shipping, stock), we say "estimated" or "unknown".
 4. **Calm color.** One deep green brand color, one lime accent used sparingly, neutrals for everything else. Color carries meaning (deal tier, price drop, error), never decoration.
 5. **Restraint.** Small radii (4/6/10), faint shadows, no gradients, no glass, no purple, no emoji icons, no cards inside cards.
-6. **Fast and quiet motion.** 120–260ms, purposeful (orientation, feedback), never ornamental. Everything collapses under `prefers-reduced-motion`.
+6. **Fast, lively motion on real data.** 120–260ms for feedback; small looping accents (deal badges, live dots) are allowed (4.1). Composite-only, no layout shift, everything collapses under `prefers-reduced-motion`.
 7. **Accessible by default.** WCAG 2.2 AA in light and dark, visible focus rings, keyboard paths for every interaction, 44px touch targets on mobile.
 
 ---
@@ -125,20 +125,20 @@ White base, confident blue brand, orange/amber accent for deal highlights, green
 
 ## 3. Typography
 
-Fonts: **Nunito Sans** (all UI text — headings, body, buttons, prices; variable 400–800; founder decision 2026-11-26, replacing Geist Sans) and **Geist Mono** (literal codes only: UPC/GTIN, model numbers). Web/admin load Nunito Sans with `next/font/google` (`Nunito_Sans({ subsets: ["latin"], display: "swap", variable: "--font-nunito-sans" })`) and put the variable class on `<html>`; the token stack `--pc-font-sans` starts with `var(--font-nunito-sans)`. Mobile registers it as `NunitoSans`, `NunitoSans-SemiBold`, `NunitoSans-Bold` (`tokens.nativeFontFamily`). Nunito Sans has tabular figures (`tnum`), used by the `price` utility.
+Fonts: **Plus Jakarta Sans** (all UI text — headings, body, buttons, prices; variable 200–800; founder decision 2026-11-27, replacing Nunito Sans) and **Geist Mono** (literal codes only: UPC/GTIN, model numbers). Web/admin load Plus Jakarta Sans with `next/font/google` (`Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: "--font-plus-jakarta-sans" })`) and put the variable class on `<html>`; the token stack `--pc-font-sans` starts with `var(--font-plus-jakarta-sans)`. Mobile registers it per weight as `PlusJakartaSans-Regular`, `PlusJakartaSans-SemiBold`, `PlusJakartaSans-Bold`, `PlusJakartaSans-ExtraBold` (`tokens.nativeFontFamily`, `FONTS` in `apps/mobile/src/lib/theme.tsx`). Plus Jakarta Sans has tabular figures (`tnum`), used by the `price` utility.
 
 | Step | Size / line-height | Tracking | Typical use |
 |---|---|---|---|
 | `text-2xs` | 11 / 14 | +0.01em | Badges, overlines |
 | `text-xs` | 12 / 16 | +0.005em | Meta ("at 7 stores", "updated 2h ago"), captions |
 | `text-sm` | 13 / 18 | 0 | Tile titles, table cells, labels |
-| `text-base` | 14 / 20 | 0 | **Default UI text** (body of dense pages) |
-| `text-md` | 16 / 24 | −0.005em | Reading text, inputs on mobile, tile price |
-| `text-lg` | 18 / 26 | −0.01em | Card titles, h4 |
+| `text-base` | 14.5 / 20.3 (1.4) | 0 | **Default UI text** (founder 2026-11-27: a hair above the original 14) |
+| `text-md` | 15.5 / 22 | −0.005em | Reading text, inputs on mobile, tile price |
+| `text-lg` | 17 / 24 | −0.01em | Card titles, h4 |
 | `text-xl` | 20 / 28 | −0.012em | Section titles (rails), h3, offer-table hero price |
 | `text-2xl` | 24 / 30 | −0.015em | Page h2 |
 | `text-3xl` | 30 / 36 | −0.02em | Product page price, h1 |
-| `text-4xl` | 36 / 42 | −0.022em | Display (homepage headline) |
+| `text-4xl` | 38 / 44 | −0.022em | Display (homepage headline) |
 | `text-5xl` | 48 / 52 | −0.025em | Reserved (marketing) |
 
 Weights: 400 body, 600 buttons/nav/labels, 700 headings and prices, 800 for tile prices and hero headlines (Walmart-style bold prices).
@@ -153,20 +153,54 @@ Weights: 400 body, 600 buttons/nav/labels, 700 headings and prices, 800 for tile
 - **Radius:** `rounded-xs` 2 (kbd, checkbox), `rounded-sm` 4 (badges, image wells), `rounded-md` 6 (buttons, inputs, tiles), `rounded-lg` 10 (dialogs, panels, popovers). `rounded-full` only for chips, avatars, switches, circular arrow buttons. Larger radii are removed from the theme.
 - **Shadows:** `shadow-xs` (buttons), `shadow-sm` (tile hover), `shadow-md` (menus, popovers), `shadow-lg` (dialogs, sheets, toasts). Prefer borders over shadows for resting state.
 - **Z-index utilities:** `z-raised` 10, `z-sticky` 100 (header), `z-dropdown` 1000, `z-overlay` 1100, `z-modal` 1200, `z-popover` 1300, `z-toast` 1400, `z-tooltip` 1500. Popover/tooltip > modal so they work inside dialogs.
-- **Motion:** `duration-fast` 120ms (hover, press, toggles), `duration-base` 180ms (popover, fade), `duration-slow` 260ms (sheet slide). Easing `ease-standard` (state changes), `ease-out` (enter), `ease-in` (exit). Animations: `animate-fade-in/out`, `animate-pop-in/out`, `animate-slide-in/out-{right,left,bottom}`, `animate-skeleton`. Under `prefers-reduced-motion` all token durations become ~0 and a base rule neutralizes transitions/animations. Never animate prices, layout of result lists, or anything on scroll for decoration.
-- **Breakpoints:** `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `2xl` 1536.
+- **Motion:** `duration-fast` 120ms (hover, press, toggles), `duration-base` 180ms (popover, fade), `duration-slow` 260ms (sheet slide). Easing `ease-standard` (state changes), `ease-out` (enter), `ease-in` (exit). Animations: `animate-fade-in/out`, `animate-pop-in/out`, `animate-slide-in/out-{right,left,bottom}`, `animate-skeleton`. See 4.1 for the motion layer. Under `prefers-reduced-motion` all token durations become ~0 and a base rule neutralizes transitions/animations. Never animate the layout of result lists.
+- **Controls:** heights sm 32 / md 38 / lg 44px (`--pc-control-h-{sm,md,lg}`; Button, IconButton, Input, Select, SearchInput).
+- **Breakpoints:** `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `2xl` 1536, `3xl` 1920.
+
+### 4.1 Motion layer (founder decision 2026-11-27: "lively — discounts change color, things move")
+
+Lively, but still honest and cheap. Rules: **composite-only** (`transform`/`opacity`; `background-position` only on small badges), **no layout shift** (numbers animate inside a box sized by the final value), **no infinite motion on large areas** (only badges/dots loop), **everything off under `prefers-reduced-motion`** (utilities are gated on `no-preference`; components render the final state), and **server HTML always shows the final state** (no-JS, SEO, screenshots). Motion only ever decorates real data: never animate an invented "previous price", never show a live dot without a real `updatedAt`.
+
+**CSS utilities** (`@pricora/design-tokens/tailwind.css`):
+
+| Utility | What it does | Use on |
+|---|---|---|
+| `animate-shimmer` | Diagonal light sweep every ~4s (pseudo-element `translateX`) | Small badges only (drop %, Exceptional/Great) |
+| `animate-hot` | Red → deep-orange fill that slowly drifts (text = `price-drop-soft`, AA on both ends) | Drop badges ≥ 20% (PriceDropBadge does this) |
+| `animate-pulse-dot` | 8px dot + expanding ring, `currentColor` | "Live" indicators (use `<LiveDot>`) |
+| `skeleton-shimmer` | Soft light band sweeping across a skeleton | `Skeleton` already uses it |
+| `animate-flash-success` | One-shot green flash behind an element | Drop amount; add the class when the element is in view |
+| `hover-lift` | `translateY(-3px)` on hover | Cards that are links |
+| `hover-tilt` | `rotate(-1.25deg) scale(1.03)` on hover | Promo tiles, category circles |
+| `group-hover-zoom` | Child scales 1.06 when the `.group` ancestor is hovered (parent must be `overflow-hidden`) | Tile/promo images |
+| `hover-bounce-icon` | SVG icons inside bounce once on hover/focus | Header icons, category circles, CTA icons |
+| `press-scale` | `scale(0.97)` while pressed | Custom buttons/tiles (Button/IconButton already press) |
+| `reveal-on-scroll` | Fade/slide-up when `data-reveal` goes `pending → in` | Set by `<Reveal>` / `useReveal()` |
+| `animate-check`, `animate-pop` | Check mark draws itself / pops in | Copied, Alert set (`<AnimatedCheck>`) |
+
+**React primitives** (`@pricora/ui`):
+
+- `<Reveal as="section" index={i}>` / `useReveal()`: fade-up on first scroll into view; `index` staggers 50ms per item (max 400ms). Elements already on screen at hydration never hide.
+- `<CountUp value={storeCount} />`: counts up from 0 on first view (stats like "22 stores", "N coupons"). Width is reserved; screen readers get the final number.
+- `<PriceRoll cents={c} previousCents={real} />` and `PriceTag previousCents={real}`: the price rolls down from the real previous price on first view; PriceTag also shows "−$X" with a one-time green flash.
+- `<LiveDot updatedAt={offer.updatedAt} />`: pulsing dot + "Updated Xm ago", rendered only when the real timestamp is under 60 min old (computed after hydration).
+- `<CouponCodeReveal code={c.code} onReveal={trackClick} />`: the "Show code" cover slides aside, then Copy with an animated check and an `aria-live` confirmation.
+- `<AnimatedCheck />`, `usePrefersReducedMotion()`, `useInViewOnce(ref)`.
+
+**Built into shared components:** `PriceDropBadge` (shimmer; ≥ 20% → `animate-hot`; `animated={false}` to opt out), `DealScoreBadge` (shimmer on Exceptional/Great), `Button`/`IconButton` (press scale 0.97/0.94), `Skeleton` (sweep), `ProductTile` (hover lift, image zoom, new `quickActions` slot that slides up on hover/focus and is always visible on touch), `ProductRail` (staggered reveal by default, `reveal={false}` to opt out; `autoAdvance` for "Today's deals": advances one tile every 4.5s, pauses on hover/focus/touch/hidden tab/off-screen, has a pause/play button), web header (store count `CountUp`, icon bounce).
+
+**Adoption checklist for feature sessions:** use `PriceDropBadge`/`DealScoreBadge` instead of hand-rolled badges; `grid-products` + `<Reveal index>` for grids; `hover-tilt` + `hover-bounce-icon` on promo tiles and category circles; `CouponCodeReveal` in coupon cards; `CountUp` for stat numbers; `LiveDot` where a real `updatedAt` exists; `PriceTag previousCents` only with a real tracked previous price.
 
 ---
 
 ## 5. Layout
 
-- **Content width:** max 1280px (`container-content` utility = centered, max 1280, gutters 16 / 24 (md) / 32 (xl)). Full-bleed only for the header bar background and footer.
+- **Content width:** `container-content` = 100% with gutters 16 / 24 (md) / 32 (xl), max 1280px, 1360px at ≥1920 (`--pc-content-max`). Root font-size stays 100% (no root scaling or zoom). Full-bleed only for the header bar background and footer.
 - **Grid:** 12 columns, 24px gap on desktop, 16px on mobile.
-- **Dense product grid:** 2 cols (base) → 3 (`sm`) → 4 (`md`) → 5 (`lg`) → 6 (`xl`), gap 12px:
-  `grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6`.
+- **Dense product grid:** use the `grid-products` utility: 2 cols (base) → 3 (`sm`) → 4 (`lg`) → 5 (`xl`) → 6 (`2xl`, ≥1536), gap 12px (14px from `lg`), tiles never narrower than 150px.
   Search/category pages with a filter sidebar (240–264px, `lg+`) drop one column (max 5).
-- **Rails:** `ProductRail` shows ≈2.2 / 3.2 / 4 / 5 / 6 tiles per view; the partial tile on mobile signals scrollability.
-- **Header height:** 56px mobile, 64px desktop (`--pc-header-h`). Sticky.
+- **Rails:** `ProductRail` shows ≈2.3 / 3.2 (`sm`) / 4 (`lg`) / 5 (`xl`) / 6 (`2xl`) tiles per view; the partial tile on mobile signals scrollability.
+- **Header height:** 64px mobile, 66px desktop main bar (`--pc-header-h`), logo 38px. Sticky. The category nav row is priority+: items that do not fit collapse into "More".
 
 ---
 
@@ -260,7 +294,7 @@ Touch targets ≥ 44pt (`tokens.layout.minTouchTarget`). Haptics: light impact o
 | "Estimated", "Unknown", "Demo data" when true | Fake ratings, "10,000+ happy shoppers", countdown timers |
 | `price` utility on every number | Proportional figures in price columns |
 | 4/6/10 radii | 16–24px "bubbly" radii everywhere |
-| Short, functional motion | Parallax, bouncy springs on web, animated counters |
+| Short motion on real data (4.1), small looping badge accents | Parallax, bouncy springs on web, looping motion on large areas, counters on invented numbers |
 | Visible focus ring | `outline: none` without replacement |
 
 ---
@@ -268,7 +302,7 @@ Touch targets ≥ 44pt (`tokens.layout.minTouchTarget`). Haptics: light impact o
 ## 13. Page specs
 
 ### 13.1 Header (web)
-Sticky, `surface` background, bottom `border`, height 64 (lg) / 56 (mobile).
+Sticky, `surface` background, bottom `border`, main bar 66 (lg) / 64 (mobile).
 - **Row 1 (lg+):** Logo (left, links home) · **wide search** (flex-1, max ~720px, `SearchInput size="lg"`, placeholder "Search products, brands, or paste a product URL", `/` shortcut, autocomplete popover with suggestions / recent / trending) · ZIP selector (`MapPin` + "ZIP 10001" or "Set ZIP", opens popover) · Alerts icon (bell, badge count from real data) · Compare (count) · **Log in** (ghost) / **Sign up** (primary, sm). Logged in → Avatar dropdown (Account, Saved, Alerts, Lists, Settings, Log out).
 - **Row 2 (lg+, 40px, `border-t`):** "All categories" menu button (mega menu: 16 categories in 4 columns with subcategories) · Deals · Price Drops · Flights · Hotels · Price Alerts · Compare. Active item: `text` + 2px `primary` underline.
 - **Mobile:** Row 1 = menu button (left Sheet with categories + links), logo, account icon. Row 2 = full-width search. Flights/Hotels reachable from the sheet and home quick-search module.
@@ -331,7 +365,7 @@ Split layout on lg+: **form panel** (left, 5/12, `surface`, vertically centered,
 ```
 - `@source` paths are relative to the CSS file. From `apps/web/app/globals.css` the monorepo path above works with any pnpm linker. Equivalent alternative: `@source "../node_modules/@pricora/ui/dist";` (adjust depth to where `node_modules/@pricora/ui` resolves).
 - Scan **`dist`** (built output, what the app imports), not `src`.
-- Fonts: `import { Nunito_Sans } from "next/font/google"; import { GeistMono } from "geist/font/mono";` → `const nunitoSans = Nunito_Sans({ subsets: ["latin"], display: "swap", variable: "--font-nunito-sans" })`, and put `${nunitoSans.variable} ${GeistMono.variable}` on `<html>`.
+- Fonts: `import { Plus_Jakarta_Sans } from "next/font/google"; import { GeistMono } from "geist/font/mono";` → `const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: "--font-plus-jakarta-sans" })`, and put `${plusJakartaSans.variable} ${GeistMono.variable}` on `<html>`.
 - Components: `import { Button, ProductTile, PriceTag } from "@pricora/ui";` — the entry is a single `"use client"` module (works from Server Components as client islands; you cannot pass functions such as `onClick` from a Server Component). Server-only code that needs `cn`/`formatPrice` imports `@pricora/ui/utils` (no directive).
 - Mount once: `<TooltipProvider>` and `<Toaster />` in the root layout.
 - `@pricora/ui` must be built first (`turbo` handles `^build`). No `transpilePackages` needed.

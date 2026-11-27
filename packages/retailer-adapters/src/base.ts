@@ -85,9 +85,10 @@ export abstract class AdapterCore {
   }
 
   protected requireEnv(): Record<string, string> {
-    const { values, missing } = readEnv(this.env, this.requiredEnv);
+    // missingEnv() may be overridden (e.g. legal/feature flags that must equal "true").
+    const missing = this.missingEnv();
     if (missing.length > 0) throw new PendingConfigurationError(this.id, missing);
-    return values;
+    return readEnv(this.env, this.requiredEnv).values;
   }
 
   protected freshness(source: OfferSource, cached = false, ttlSeconds = this.ttlSeconds): Freshness {

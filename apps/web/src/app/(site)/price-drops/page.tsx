@@ -2,24 +2,27 @@ import type { Metadata } from "next";
 import { TrendingDown } from "lucide-react";
 import { PriceDropsQuery } from "@pricora/contracts";
 import { EmptyState } from "@pricora/ui";
-import { formatPrice } from "@pricora/ui/utils";
 import { load, serverApi } from "@/lib/api-server";
-import { absolute, relative } from "@/lib/format";
+import { relative } from "@/lib/format";
 import { first, toQueryString, type SearchParams } from "@/lib/nav";
 import { ApiErrorPanel } from "@/components/api-error";
 import { LinkPagination } from "@/components/link-pagination";
 import { DemoNotice } from "@/components/notices";
 import { ProductCardTile } from "@/components/product-card";
 import { LinkTabs, UrlSelect } from "@/components/url-controls";
+import { JsonLd } from "@/components/json-ld";
+import { absolute } from "@/lib/format";
+import { collectionPageJsonLd, itemListJsonLd, pageParam } from "@/lib/seo";
 
 type Props = { searchParams: Promise<SearchParams> };
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
+  const page = pageParam(sp);
   return {
-    title: "Biggest price drops",
+    title: "Biggest price drops this week",
     description: "Real price drops from tracked store prices in the last 24 hours, 7 days and 30 days.",
-    alternates: { canonical: "/price-drops" },
+    alternates: { canonical: page > 1 ? `/price-drops?page=${page}` : "/price-drops" },
     robots: first(sp.window) || first(sp.category) ? { index: false, follow: true } : undefined,
   };
 }
@@ -39,13 +42,25 @@ export default async function PriceDropsPage({ searchParams }: Props) {
   const href = (o: Record<string, string | number | undefined>) =>
     "/price-drops" + toQueryString({ window: query.window === "7d" ? undefined : query.window, category: query.category, ...o });
 
+  const freshest = res.ok ? res.data.items.reduce<string | null>((m, d) => (!m || d.droppedAt > m ? d.droppedAt : m), null) : null;
   return (
     <div className="container-content py-6">
+      {res.ok && res.data.items.length ? (
+        <>
+          <JsonLd data={collectionPageJsonLd({ name: "Biggest price drops", path: "/price-drops", description: "Real price drops from tracked store prices.", dateModified: freshest })} />
+          <JsonLd data={itemListJsonLd("Biggest price drops", res.data.items.map((d) => d.product), (res.data.page - 1) * res.data.pageSize + 1)} />
+        </>
+      ) : null}
       <h1 className="text-2xl font-semibold tracking-tight">Biggest price drops</h1>
+      {freshest ? (
+        <p className="mt-1 text-xs text-text-muted" data-testid="freshness">
+          Latest drop <time dateTime={freshest} title={absolute(freshest)}>{relative(freshest)}</time>
+        </p>
+      ) : null}
       <p className="mt-1 text-sm text-text-muted">Computed from real price observations — previous vs. current price at the same store.</p>
       <div className="my-5 flex flex-wrap items-center justify-between gap-3">
         <LinkTabs label="Time window" items={windows.map((w) => ({ href: href({ window: w.value === "7d" ? undefined : w.value }), label: w.label, active: query.window === w.value }))} />
-        {cats.ok ? <UrlSelect name="category" label="Category" allLabel="All categories" options={cats.data.items.map((c) => ({ value: c.slug, label: c.name }))} /> : null}
+        {cats.ok ? <UrlSelect name="category" label="Category" allLabel="All categories" options={cats.data.items.flatMap((c) => [{ value: c.slug, label: c.name }, ...c.children.filter((x) => x.productCount > 0).map((x) => ({ value: x.slug, label: `– ${x.name}` }))])} /> : null}
       </div>
       {!res.ok ? (
         <ApiErrorPanel error={res.error} />
@@ -54,15 +69,17 @@ export default async function PriceDropsPage({ searchParams }: Props) {
       ) : (
         <>
           {res.data.items.every((d) => d.source === "demo") ? <DemoNotice className="mb-4" /> : null}
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="drops-grid">
+          <ul className="grid-products" data-testid="drops-grid">
             {res.data.items.map((d) => (
-              <li key={d.product.id + d.retailer.slug + d.droppedAt} className="flex flex-col gap-1.5">
-                <ProductCardTile product={{ ...d.product, lowestPriceCents: d.currentPriceCents }} dropPercent={Math.round(d.dropRatio * 100)} previousPriceCents={d.previousPriceCents} storeName={d.retailer.name} storeIsLowest={false} />
-                <p className="px-0.5 text-2xs text-text-muted">
-                  <s className="price">{formatPrice(d.previousPriceCents, { currency: d.product.currency })}</s> →{" "}
-                  <span className="price font-semibold text-price-drop">{formatPrice(d.currentPriceCents, { currency: d.product.currency })}</span> at{" "}
-                  {d.retailer.name} · <span title={absolute(d.droppedAt)}>{relative(d.droppedAt)}</span>
-                </p>
+              <li key={d.product.id + d.retailer.slug + d.droppedAt}>
+                <ProductCardTile
+                  product={{ ...d.product, lowestPriceCents: d.currentPriceCents }}
+                  dropPercent={Math.round(d.dropRatio * 100)}
+                  previousPriceCents={d.previousPriceCents}
+                  storeName={d.retailer.name}
+                  storeIsLowest={false}
+                  storeNote={relative(d.droppedAt)}
+                />
               </li>
             ))}
           </ul>

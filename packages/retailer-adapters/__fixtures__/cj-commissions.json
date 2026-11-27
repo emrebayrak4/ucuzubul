@@ -1,0 +1,52 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "data": {
+      "publisherCommissions": {
+        "count": 3,
+        "payloadComplete": false,
+        "maxCommissionId": "9000003",
+        "records": [
+          {
+            "commissionId": "9000001",
+            "actionStatus": "new",
+            "actionType": "advanced sale",
+            "orderId": "ORD-1",
+            "advertiserId": "1234567",
+            "advertiserName": "Test Advertiser A",
+            "postingDate": "2026-11-20T10:00:00Z",
+            "eventDate": "2026-11-19T22:15:00Z",
+            "saleAmountUsd": "120.00",
+            "pubCommissionAmountUsd": "6.00",
+            "shopperId": "clk_abc123",
+            "original": true
+          },
+          {
+            "commissionId": "9000002",
+            "actionStatus": "closed",
+            "orderId": "ORD-2",
+            "advertiserId": "1234567",
+            "postingDate": "2026-11-21T10:00:00Z",
+            "eventDate": "2026-11-21T09:00:00Z",
+            "saleAmountUsd": "50",
+            "pubCommissionAmountUsd": "2.5",
+            "shopperId": null,
+            "original": true
+          },
+          {
+            "commissionId": "9000003",
+            "actionStatus": "new",
+            "orderId": "ORD-1",
+            "advertiserId": "1234567",
+            "postingDate": "2026-11-22T10:00:00Z",
+            "eventDate": "2026-11-19T22:15:00Z",
+            "saleAmountUsd": "-120.00",
+            "pubCommissionAmountUsd": "-6.00",
+            "shopperId": "clk_abc123",
+            "original": false
+          }
+        ]
+      }
+    }
+  }
+}

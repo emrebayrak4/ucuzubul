@@ -19,6 +19,10 @@
       "import": { "types": "./dist/env.d.ts", "default": "./dist/env.js" },
       "require": { "types": "./dist/env.d.cts", "default": "./dist/env.cjs" }
     },
+    "./markets": {
+      "import": { "types": "./dist/markets.d.ts", "default": "./dist/markets.js" },
+      "require": { "types": "./dist/markets.d.cts", "default": "./dist/markets.cjs" }
+    },
     "./tsconfig/*": "./tsconfig/*",
     "./package.json": "./package.json"
   },

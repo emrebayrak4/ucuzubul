@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     // Product images come from retailer/CDN hosts we don't control; rendered with plain <img> (lazy) to avoid
     // proxying third-party images through the Next image optimizer.
     unoptimized: true,
+    // Unsplash city photos are hotlinked from images.unsplash.com (Unsplash API guidelines); listed for next/image use.
+    remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],
   },
   async redirects() {
     // Travel moved to its own area (/travel/*). Query strings are preserved automatically.
@@ -20,6 +22,7 @@ const nextConfig: NextConfig = {
       { source: "/flights/:path*", destination: "/travel/flights/:path*", statusCode: 301 },
       { source: "/hotels", destination: "/travel/hotels", statusCode: 301 },
       { source: "/hotels/:path*", destination: "/travel/hotels/:path*", statusCode: 301 },
+      { source: "/legal/credits", destination: "/credits", statusCode: 301 },
     ];
   },
   async rewrites() {
@@ -35,7 +38,7 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=(), browsing-topics=()",
+            value: "camera=(), microphone=(), geolocation=(self), payment=(), usb=(), interest-cohort=(), browsing-topics=()",
           },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
         ],

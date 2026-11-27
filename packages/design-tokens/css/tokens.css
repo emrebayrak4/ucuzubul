@@ -68,7 +68,7 @@
 }
 
 :root {
-  --pc-font-sans: var(--font-nunito-sans), "Nunito Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pc-font-sans: var(--font-plus-jakarta-sans), "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pc-font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --pc-radius-none: 0;
   --pc-radius-xs: 0.125rem;
@@ -93,12 +93,38 @@
   --pc-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --pc-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --pc-content-max: 80rem;
-  --pc-header-h: 3.5rem;
+  --pc-header-h: 4rem;
+  --pc-control-h-sm: 2rem;
+  --pc-control-h-md: 2.375rem;
+  --pc-control-h-lg: 2.75rem;
+  --pc-grid-gap: 0.75rem;
+  --pc-section-gap: 2rem;
+  --pc-section-head-gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --pc-section-head-gap: 1rem;
+  }
 }
 
 @media (min-width: 1024px) {
   :root {
-    --pc-header-h: 4rem;
+    --pc-header-h: 4.125rem;
+    --pc-grid-gap: 0.875rem;
+    --pc-section-gap: 2.5rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  :root {
+    --pc-content-max: 80rem;
+  }
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --pc-content-max: 85rem;
   }
 }
 

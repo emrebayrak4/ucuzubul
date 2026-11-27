@@ -1,0 +1,43 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the network's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "data": [
+      {
+        "promotionId": 5550001,
+        "type": "voucher",
+        "advertiser": {
+          "id": 7001,
+          "name": "Test Awin Advertiser",
+          "joined": true
+        },
+        "title": "Save $10 on orders of $60+",
+        "description": "Code AWIN10",
+        "terms": "Minimum spend $60",
+        "startDate": "2026-11-01T00:00:00Z",
+        "endDate": "2026-12-15T23:59:59Z",
+        "url": "https://www.example-retailer.test/",
+        "urlTracking": "https://www.awin1.com/cread.php?awinmid=7001&awinaffid=123456&ued=https%3A%2F%2Fwww.example-retailer.test%2F",
+        "voucher": {
+          "code": "AWIN10",
+          "exclusive": false
+        }
+      },
+      {
+        "promotionId": 5550002,
+        "type": "promotion",
+        "advertiser": {
+          "id": 7001,
+          "name": "Test Awin Advertiser"
+        },
+        "title": "Black Friday sale",
+        "startDate": "2026-11-20T00:00:00Z",
+        "endDate": null
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "pageSize": 200,
+      "total": 2
+    }
+  }
+}

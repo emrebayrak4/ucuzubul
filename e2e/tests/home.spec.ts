@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../helpers/fixtures";
 
 test.describe("home", () => {
   test("renders rails and the demo-data notice", async ({ page }) => {

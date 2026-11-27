@@ -12,6 +12,7 @@ export * from "./components/store-logo";
 export * from "./components/category-icon";
 export * from "./components/product-tile";
 export * from "./components/product-rail";
+export * from "./components/section-header";
 export * from "./components/overlays";
 export * from "./components/segmented-control";
 export * from "./components/dropdown-menu";
@@ -19,5 +20,6 @@ export * from "./components/feedback";
 export * from "./components/navigation";
 export * from "./components/display";
 export * from "./components/data";
+export * from "./components/motion";
 
 export { dealTierFromScore, dealTierLabel, type DealTier } from "@pricora/design-tokens";

@@ -406,3 +406,41 @@ export const AdminLogoResponse = z.object({
   logoUpdatedAt: IsoDateTime.nullable(),
 });
 export type AdminLogoResponse = z.infer<typeof AdminLogoResponse>;
+
+/* Affiliate programs (network advertiser ↔ retailer mapping) + network ingestion runs */
+export const AffiliateNetworkId = z.enum(["amazon_associates", "cj", "impact", "awin", "rakuten", "partnerize", "ebay_partner", "walmart", "travelpayouts", "booking", "expedia", "direct",
+  // Added with migration markets_multi_market (DB enum values; no adapters).
+  "tradedoubler", "adtraction", "webgains", "tradetracker", "daisycon", "effinity", "commission_factory", "valuecommerce", "a8net", "rakuten_jp", "moshimo", "admitad", "gelir_ortakligi", "lomadee", "afilio"]);
+export const AdminAffiliateProgram = z.object({
+  id: Id,
+  network: AffiliateNetworkId,
+  externalId: z.string().nullable(),
+  name: z.string(),
+  retailer: z.object({ id: Id, slug: z.string(), name: z.string() }).nullable(),
+  status: IntegrationStatus,
+  isActive: z.boolean(),
+  commissionRateBp: z.number().int().nullable(),
+  cookieDays: z.number().int().nullable(),
+  conversions: z.number().int(),
+  createdAt: IsoDateTime,
+});
+export type AdminAffiliateProgram = z.infer<typeof AdminAffiliateProgram>;
+export const AdminAffiliateProgramListQuery = z.object({
+  network: AffiliateNetworkId.optional(),
+  unmapped: z.enum(["true", "false"]).optional(),
+});
+export const AdminAffiliateProgramListResponse = z.object({ items: z.array(AdminAffiliateProgram) });
+export type AdminAffiliateProgramListResponse = z.infer<typeof AdminAffiliateProgramListResponse>;
+export const AffiliateProgramIdParam = z.object({ id: Id });
+/** retailerSlug null = unlink. Linking sets status live; unlinked programs stay pending_configuration. */
+export const AdminUpdateAffiliateProgramRequest = z.object({
+  retailerSlug: z.string().max(120).nullable().optional(),
+  isActive: z.boolean().optional(),
+  commissionRateBp: z.number().int().min(0).max(10_000).nullable().optional(),
+  cookieDays: z.number().int().min(0).max(365).nullable().optional(),
+});
+export type AdminUpdateAffiliateProgramRequest = z.infer<typeof AdminUpdateAffiliateProgramRequest>;
+export const NetworkRunParam = z.object({ network: z.enum(["cj", "impact", "rakuten", "awin", "partnerize", "ebay_partner"]) });
+export const AdminNetworkRunRequest = z.object({ kind: z.enum(["coupons", "products", "conversions"]) });
+export const AdminNetworkRunResponse = z.object({ queued: z.boolean(), jobId: z.string().nullable(), message: z.string() });
+export type AdminNetworkRunResponse = z.infer<typeof AdminNetworkRunResponse>;

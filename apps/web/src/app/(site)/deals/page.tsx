@@ -9,16 +9,20 @@ import { LinkPagination } from "@/components/link-pagination";
 import { DemoNotice, Notice } from "@/components/notices";
 import { ProductCardTile } from "@/components/product-card";
 import { LinkTabs, UrlSelect } from "@/components/url-controls";
+import { JsonLd } from "@/components/json-ld";
+import { absolute, relative } from "@/lib/format";
+import { collectionPageJsonLd, itemListJsonLd, pageParam } from "@/lib/seo";
 
 type Props = { searchParams: Promise<SearchParams> };
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
   const facet = Boolean(first(sp.sort) || first(sp.category));
+  const page = pageParam(sp);
   return {
     title: "Today's best deals — ranked by Deal Score",
     description: "Deals ranked by an honest Deal Score: price vs. its own 90-day history, all-time low and other stores. Fake discounts flagged.",
-    alternates: { canonical: "/deals" },
+    alternates: { canonical: page > 1 ? `/deals?page=${page}` : "/deals" },
     robots: facet ? { index: false, follow: true } : undefined,
   };
 }
@@ -39,9 +43,21 @@ export default async function DealsPage({ searchParams }: Props) {
   const href = (o: Record<string, string | number | undefined>) =>
     "/deals" + toQueryString({ sort: query.sort === "score" ? undefined : query.sort, category: query.category, ...o });
 
+  const freshest = res.ok ? res.data.items.reduce<string | null>((m, d) => (!m || d.offer.lastCheckedAt > m ? d.offer.lastCheckedAt : m), null) : null;
   return (
     <div className="container-content py-6">
+      {res.ok && res.data.items.length ? (
+        <>
+          <JsonLd data={collectionPageJsonLd({ name: "Today's best deals", path: "/deals", description: "Deals ranked by Deal Score from real price history.", dateModified: freshest })} />
+          <JsonLd data={itemListJsonLd("Today's best deals", res.data.items.map((d) => d.product), (res.data.page - 1) * res.data.pageSize + 1)} />
+        </>
+      ) : null}
       <h1 className="text-2xl font-semibold tracking-tight">Today&apos;s best deals</h1>
+      {freshest ? (
+        <p className="mt-1 text-xs text-text-muted" data-testid="freshness">
+          Updated <time dateTime={freshest} title={absolute(freshest)}>{relative(freshest)}</time>
+        </p>
+      ) : null}
       <p className="mt-1 max-w-3xl text-sm text-text-muted">
         Ranked by Deal Score (0–100): how today&apos;s price compares with its own 90-day median, its all-time low and other stores. Sponsored
         placements never change the score.
@@ -57,7 +73,7 @@ export default async function DealsPage({ searchParams }: Props) {
       ) : (
         <>
           {res.data.items.every((d) => d.offer.source === "demo") ? <DemoNotice className="mb-4" /> : null}
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="deals-grid">
+          <ul className="grid-products" data-testid="deals-grid">
             {res.data.items.map((d) => (
               <li key={d.product.id + d.offer.id} className="flex flex-col gap-1.5">
                 <ProductCardTile product={{ ...d.product, dealScore: d.dealScore.score }} storeName={d.offer.retailer.name} />

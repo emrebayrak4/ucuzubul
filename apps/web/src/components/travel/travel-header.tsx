@@ -51,13 +51,13 @@ export function TravelHeader() {
       <div className="hidden border-b border-border bg-surface-2 lg:block">
         <div className="container-content flex h-9 items-center justify-between text-xs">
           <VerticalSwitcher />
-          <p className="text-text-muted">Real fares and rates from connected providers only — nothing estimated.</p>
+          <p className="text-text-muted">Compare flights and stays across providers — demo data is always labeled.</p>
         </div>
       </div>
       <div className={cn(v === "hotels" ? "bg-hotels text-hotels-fg" : "bg-flights text-flights-fg")}>
-        <div className="container-content flex h-16 items-center gap-3 lg:h-[72px]">
+        <div className="container-content flex h-16 items-center gap-3 lg:h-[66px]">
           <Link href={current === "flights" || current === "explore" ? "/travel/flights" : "/travel/hotels"} className="flex shrink-0 items-center gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label={`${brand.name} ${label}`}>
-            <img src="/brand/wordmark-white.png" alt={brand.name} width={104} height={42} className="block h-[34px] w-auto lg:h-[42px]" />
+            <img src="/brand/wordmark-white.png" alt={brand.name} width={104} height={42} className="block h-[32px] w-auto lg:h-[38px]" />
             <span className="text-xl font-light tracking-tight lg:text-2xl">{label}</span>
           </Link>
           <div className="ml-auto flex items-center gap-2">

@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink, Info, PackageX } from "lucide-react";
-import type { ProductDetailResponse } from "@pricora/contracts";
-import { Badge, DealScoreBadge, DemoDataBadge, EmptyState, PriceTag } from "@pricora/ui";
+import { Badge, CountUp, DealScoreBadge, DemoDataBadge, EmptyState, LiveDot, PriceDropBadge, PriceTag } from "@pricora/ui";
 import { getZip, hasSessionCookie } from "@/lib/api-server";
-import { absoluteUrl } from "@/lib/env";
+import { TITLE_MAX, clampText, metaDescription, productJsonLd, realOffers, usd } from "@/lib/seo";
 import { absolute, conditionLabel, formatPrice, isStale, relative } from "@/lib/format";
 import { getProduct } from "@/lib/loaders";
 import { ApiErrorPanel } from "@/components/api-error";
@@ -13,9 +12,11 @@ import { JsonLd, breadcrumbJsonLd } from "@/components/json-ld";
 import { DemoNotice, Notice } from "@/components/notices";
 import { ProductCardRail } from "@/components/rail";
 import { Gallery } from "@/components/product/gallery";
-import { OfferTable, goHref, outboundRel } from "@/components/product/offer-table";
+import { OfferTable } from "@/components/product/offer-table";
+import { goHref, outboundRel } from "@/components/product/outbound";
 import { PriceHistory } from "@/components/product/price-history";
-import { AlertDialogButton, ProductIconActions, type ActionProduct } from "@/components/product/product-actions";
+import { AlertDialogButton, InlinePriceAlert, ProductIconActions, type ActionProduct } from "@/components/product/product-actions";
+import { CompareWithList } from "@/components/product/alternatives";
 import { SetZipButton } from "@/components/zip-provider";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -29,55 +30,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const { res } = await fetchProduct(slug);
   if (!res.ok) return { title: "Product", robots: { index: false, follow: true } };
-  const { product, storeCount } = res.data;
-  const img = product.images[0];
-  const desc =
-    product.description?.slice(0, 155) ??
-    `Compare ${product.title} prices${storeCount ? ` across ${storeCount} stores` : ""}, with price history, shipping and estimated tax.`;
+  const { product, storeCount, offers } = res.data;
+  const real = realOffers(offers);
+  const low = real.length ? Math.min(...real.map((o) => o.priceCents)) : null;
+  // Prices only appear in snippets when they come from real (non-demo) offers.
+  const lead =
+    low !== null
+      ? `${product.title}: lowest price ${usd(low, real[0]!.currency)} across ${real.length} US ${real.length === 1 ? "store" : "stores"}.`
+      : `Compare ${product.title} prices${storeCount ? ` across ${storeCount} US stores` : " across US stores"}.`;
+  const desc = metaDescription(`${lead} Price history, shipping, estimated tax and an honest Deal Score.${product.description ? " " + product.description : ""}`);
+  const path = `/products/${product.slug}`;
   return {
-    title: `${product.title} — price comparison`,
+    // Keep the full product name (the entity) whenever possible; the "compare prices" suffix goes first.
+    title: `${product.title} — compare prices`.length <= TITLE_MAX ? `${product.title} — compare prices` : clampText(product.title, 70),
     description: desc,
-    alternates: { canonical: `/products/${product.slug}` },
-    openGraph: {
-      type: "website",
-      title: product.title,
-      description: desc,
-      url: `/products/${product.slug}`,
-      images: img ? [{ url: img.url, alt: img.alt || product.title }] : undefined,
-    },
+    alternates: { canonical: path, types: { "text/markdown": `/md${path}` } },
+    openGraph: { type: "website", title: product.title, description: desc, url: path },
   };
 }
 
-function productJsonLd(d: ProductDetailResponse): Record<string, unknown> {
-  const p = d.product;
-  const gtin = p.identifiers.find((i) => i.type === "GTIN" || i.type === "UPC" || i.type === "EAN");
-  // Only real (non-demo) offers are exposed to search engines. No Review / AggregateRating (we have none).
-  const real = d.offers.filter((o) => o.source !== "demo");
-  const prices = real.map((o) => o.priceCents);
-  const data: Record<string, unknown> = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: p.title,
-    url: absoluteUrl(`/products/${p.slug}`),
-    image: p.images.map((i) => i.url),
-    description: p.description ?? undefined,
-    brand: p.brand ? { "@type": "Brand", name: p.brand.name } : undefined,
-    mpn: p.mpn ?? undefined,
-    model: p.model ?? undefined,
-    gtin: gtin?.value,
-    itemCondition: `https://schema.org/${p.condition === "new" ? "NewCondition" : p.condition === "used" ? "UsedCondition" : "RefurbishedCondition"}`,
-  };
-  if (prices.length) {
-    data.offers = {
-      "@type": "AggregateOffer",
-      priceCurrency: real[0]!.currency,
-      lowPrice: (Math.min(...prices) / 100).toFixed(2),
-      highPrice: (Math.max(...prices) / 100).toFixed(2),
-      offerCount: real.length,
-    };
-  }
-  return data;
-}
+const SOURCE_LABEL: Record<string, string> = {
+  api: "retailer API",
+  feed: "retailer product feed",
+  merchant_upload: "merchant upload",
+  affiliate: "affiliate network feed",
+  demo: "demo data (not live prices)",
+};
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
@@ -109,6 +87,8 @@ export default async function ProductPage({ params }: Props) {
     hasDemoData: d.hasDemoData,
   };
   const allDemo = d.offers.length > 0 && d.offers.every((o) => o.source === "demo");
+  const allOutOfStock = d.offers.length > 0 && d.offers.every((o) => o.stock === "out_of_stock");
+  const sources = Array.from(new Set(d.offers.map((o) => o.source)));
   const stale = isStale(d.lastUpdatedAt);
   const attrGroups = new Map<string, typeof p.attributes>();
   for (const a of p.attributes) {
@@ -133,6 +113,11 @@ export default async function ProductPage({ params }: Props) {
       />
       <Crumbs items={crumbs} />
       {allDemo ? <DemoNotice className="mb-4" /> : null}
+      {allOutOfStock ? (
+        <Notice tone="warning" className="mb-4" testId="out-of-stock">
+          Out of stock at every store we track. Prices below are the last ones we saw — set an alert to hear when it&apos;s back.
+        </Notice>
+      ) : null}
 
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-5">
@@ -169,13 +154,28 @@ export default async function ProductPage({ params }: Props) {
                 {conditionLabel[p.condition]}
               </Badge>
             </p>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text" data-testid="answer-summary">
+              {d.hasDemoData ? <span className="font-semibold">Demo data: </span> : null}
+              {lowest ? (
+                <>
+                  {p.title} is listed at {d.storeCount} US {d.storeCount === 1 ? "store" : "stores"} we track. The lowest price right now is{" "}
+                  <strong>{formatPrice(lowest.priceCents, { currency })}</strong> at {lowest.retailer.name}, last checked{" "}
+                  <time dateTime={d.lastUpdatedAt}>{relative(d.lastUpdatedAt)}</time>.
+                  {d.priceStats.allTimeLowCents !== null ? <> The lowest price we have recorded is {formatPrice(d.priceStats.allTimeLowCents, { currency })}.</> : null}
+                  {d.dealScore ? <> Deal Score: {d.dealScore.score}/100 ({d.dealScore.tier}).</> : null}
+                  {allOutOfStock ? <> It is currently out of stock at every store we track.</> : null}
+                </>
+              ) : (
+                <>{p.title} isn&apos;t listed by any store we track right now. Set a price alert to hear when it is.</>
+              )}
+            </p>
           </div>
 
           {variantGroups.size ? (
             <div className="flex flex-col gap-2">
               {Array.from(variantGroups.entries()).map(([key, list]) => (
                 <div key={key}>
-                  <p className="mb-1 text-xs font-medium capitalize text-text-muted">{key}</p>
+                  <p className="mb-1 text-xs font-semibold capitalize text-text-muted">{key === "configuration" ? "Configuration" : key}</p>
                   <ul className="flex flex-wrap gap-1.5">
                     {list.map((v) => (
                       <li key={v.slug}>
@@ -204,10 +204,21 @@ export default async function ProductPage({ params }: Props) {
                 <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
                   <div>
                     <p className="text-xs text-text-muted">Lowest price</p>
-                    <PriceTag cents={lowest.priceCents} currency={currency} size="xl" tone="primary" data-testid="lowest-price" />
+                    {d.previousLowestPriceCents && d.previousLowestPriceCents > lowest.priceCents ? (
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        <PriceTag cents={lowest.priceCents} previousCents={d.previousLowestPriceCents} currency={currency} size="xl" className="[&>.price]:text-price-drop" data-testid="lowest-price" />
+                        <s className="price text-base text-text-muted">
+                          <span className="sr-only">Previously </span>
+                          {formatPrice(d.previousLowestPriceCents, { currency })}
+                        </s>
+                        <PriceDropBadge percent={Math.round(((d.previousLowestPriceCents - lowest.priceCents) / d.previousLowestPriceCents) * 100)} context="this week" />
+                      </span>
+                    ) : (
+                      <PriceTag cents={lowest.priceCents} currency={currency} size="xl" tone="primary" data-testid="lowest-price" />
+                    )}
                   </div>
                   <div className="pb-1 text-sm text-text-muted">
-                    at <span className="price font-medium text-text">{d.storeCount}</span> {d.storeCount === 1 ? "store" : "stores"} · lowest at{" "}
+                    at <CountUp value={d.storeCount} className="price font-medium text-text" /> {d.storeCount === 1 ? "store" : "stores"} · lowest at{" "}
                     <span className="font-medium text-text">{lowest.retailer.name}</span>
                   </div>
                   {d.dealScore ? <DealScoreBadge score={d.dealScore.score} tier={d.dealScore.tier} className="mb-1.5" /> : null}
@@ -223,9 +234,12 @@ export default async function ProductPage({ params }: Props) {
                     <>incl. est. tax for ZIP {zip}</>
                   ) : null}
                 </p>
-                <p className={"mt-1 text-xs " + (stale ? "text-warning" : "text-text-muted")} title={absolute(d.lastUpdatedAt)}>
-                  Updated {relative(d.lastUpdatedAt)}
-                  {stale ? " · Price may have changed" : ""}
+                <p className={"mt-1 flex flex-wrap items-center gap-2 text-sm " + (stale ? "text-warning" : "text-text-muted")} title={absolute(d.lastUpdatedAt)}>
+                  <LiveDot updatedAt={d.lastUpdatedAt} showLabel={false} />
+                  <span>
+                    Updated {relative(d.lastUpdatedAt)}
+                    {stale ? " · Price may have changed" : ""}
+                  </span>
                 </p>
               </>
             ) : (
@@ -261,7 +275,7 @@ export default async function ProductPage({ params }: Props) {
                   href={goHref(lowest, "pdp_summary")}
                   target="_blank"
                   rel={outboundRel}
-                  className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-base font-medium text-primary-fg hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="inline-flex h-9.5 items-center gap-2 rounded-md bg-primary px-4 text-base font-medium text-primary-fg hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   data-testid="visit-lowest"
                 >
                   Visit {lowest.retailer.name} <ExternalLink aria-hidden className="size-4" />
@@ -270,19 +284,35 @@ export default async function ProductPage({ params }: Props) {
               <AlertDialogButton product={actionProduct} />
               <ProductIconActions product={actionProduct} />
             </div>
+            <div className="mt-4">
+              <InlinePriceAlert product={actionProduct} />
+            </div>
           </div>
         </div>
       </div>
 
-      <section aria-labelledby="offers-title" className="mt-10">
+      <section aria-labelledby="offers-title" className="mt-(--pc-section-gap)">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="offers-title" className="text-xl font-semibold tracking-tight">
             Compare {d.offers.length} {d.offers.length === 1 ? "offer" : "offers"}
           </h2>
           <p className="flex items-center gap-1 text-xs text-text-muted">
-            <Info aria-hidden className="size-3.5" /> Sorted by lowest estimated total
+            <Info aria-hidden className="size-3.5" /> Sorted by lowest estimated total — click a column to re-sort
           </p>
         </div>
+        {d.offers.length ? (
+          <p className="mb-2 text-xs text-text-muted" data-testid="price-sources">
+            Sources: {sources.map((src) => SOURCE_LABEL[src] ?? src).join(", ")} · prices in {currency}, last updated{" "}
+            <time dateTime={d.lastUpdatedAt}>{absolute(d.lastUpdatedAt)}</time> ·{" "}
+            <Link href="/how-we-compare" className="underline underline-offset-2">
+              how we compare
+            </Link>{" "}
+            ·{" "}
+            <a href={`/md/products/${p.slug}`} type="text/markdown" className="underline underline-offset-2">
+              Markdown
+            </a>
+          </p>
+        ) : null}
         {d.offers.length ? (
           <OfferTable offers={d.offers} lowestOfferId={d.lowestOfferId} coupons={d.coupons ?? []} />
         ) : (
@@ -290,11 +320,11 @@ export default async function ProductPage({ params }: Props) {
         )}
       </section>
 
-      <div className="mt-10">
+      <div className="mt-(--pc-section-gap)">
         <PriceHistory slug={p.slug} initialStats={d.priceStats} currency={currency} hasDemoData={d.hasDemoData} />
       </div>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-12">
+      <div className="mt-(--pc-section-gap) grid gap-8 lg:grid-cols-12">
         <section aria-labelledby="specs-title" className="lg:col-span-7">
           <h2 id="specs-title" className="mb-3 text-xl font-semibold tracking-tight">
             Specifications
@@ -350,9 +380,15 @@ export default async function ProductPage({ params }: Props) {
         </aside>
       </div>
 
+      {(d.alternatives ?? []).length ? (
+        <div className="mt-(--pc-section-gap)">
+          <CompareWithList current={{ id: p.id, title: p.title }} currentPriceCents={lowest?.priceCents ?? null} items={d.alternatives} />
+        </div>
+      ) : null}
+
       {d.related.length ? (
-        <div className="mt-10">
-          <ProductCardRail title="Similar products" products={d.related} />
+        <div className="mt-(--pc-section-gap)">
+          <ProductCardRail title="Similar products" description="Same category, closest specs and price." products={d.related} testId="rail-similar" />
         </div>
       ) : null}
     </div>

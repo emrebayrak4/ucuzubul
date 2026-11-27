@@ -4,10 +4,12 @@
  * Limits (developer.bestbuy.com/legal): 5 calls/second, 50,000/day; data cache max 72 hours.
  * LEGAL NOTE: the API terms restrict using Best Buy content to analyze Best Buy pricing for third
  * parties — get a legal read before using this adapter for price comparison (see DATA_SOURCES.md).
+ * The adapter stays pending_configuration until BESTBUY_LEGAL_APPROVED=true is set by an admin
+ * after that review (Admin → Integrations → Best Buy).
  */
 import { BaseRetailerAdapter } from "../base";
-import type { AffiliateLinkOptions, FetchResult, NormalizedListing, ProductQuery } from "../types";
-import { arr, cleanGtin, compactAttrs, get, isObject, mapCondition, str, toCents } from "../util";
+import type { AffiliateLinkOptions, EnvLike, FetchResult, NormalizedListing, ProductQuery } from "../types";
+import { arr, cleanGtin, compactAttrs, get, isObject, mapCondition, readEnv, str, toCents } from "../util";
 
 const BASE = "https://api.bestbuy.com/v1";
 export const BESTBUY_SHOW_FIELDS = [
@@ -15,6 +17,12 @@ export const BESTBUY_SHOW_FIELDS = [
   "manufacturer", "modelNumber", "url", "image", "affiliateUrl", "addToCartUrl", "condition", "freeShipping",
   "shippingCost", "categoryPath.name", "color", "shortDescription",
 ].join(",");
+
+export function bestBuyMissingEnv(env: EnvLike): string[] {
+  const missing = readEnv(env, ["BESTBUY_API_KEY"]).missing;
+  if ((env.BESTBUY_LEGAL_APPROVED ?? "").trim().toLowerCase() !== "true") missing.push("BESTBUY_LEGAL_APPROVED");
+  return missing;
+}
 
 /** Sanitize free text into Best Buy's products(search=...&search=...) syntax. */
 export function bestBuySearchFilter(keywords: string): string {
@@ -31,11 +39,16 @@ export class BestBuyAdapter extends BaseRetailerAdapter {
   readonly id = "bestbuy";
   readonly name = "Best Buy";
   readonly dataAccess = "official_api" as const;
-  readonly requiredEnv = ["BESTBUY_API_KEY"] as const;
+  readonly requiredEnv = ["BESTBUY_API_KEY", "BESTBUY_LEGAL_APPROVED"] as const;
   protected readonly source = "api" as const;
   protected override defaultRateLimit = { capacity: 5, refillPerSecond: 5 };
   // Terms cap caching at 72h; refresh much more often for prices.
   protected override ttlSeconds = 3600;
+
+  /** The legal flag must be exactly "true" — any other value keeps the adapter pending. */
+  override missingEnv(): string[] {
+    return bestBuyMissingEnv(this.env);
+  }
 
   private async query(filter: string, page = 1, pageSize = 25): Promise<unknown> {
     const env = this.requireEnv();

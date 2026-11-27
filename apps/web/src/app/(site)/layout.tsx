@@ -1,6 +1,7 @@
 import { PageTransition } from "@/components/page-transition";
 import { SiteHeader } from "@/components/header/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { CompareTray } from "@/components/compare/compare-tray";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,6 +18,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
       <SiteFooter />
+      <CompareTray />
     </PageTransition>
   );
 }

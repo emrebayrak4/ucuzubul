@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { api } from "./api-browser";
 import { PUBLIC_API_URL } from "./env";
+import { storageAllowed } from "@/lib/privacy/consent";
 
 /**
  * Worldwide places (countries, cities, airports) from GET /v1/travel/places?q=&types=.
@@ -103,6 +104,7 @@ export function readRecentPlaces(kind: string): Place[] {
 }
 
 export function pushRecentPlace(kind: string, p: Place) {
+  if (!storageAllowed(RECENT_KEY(kind))) return; // Functional consent required
   try {
     const next = [p, ...readRecentPlaces(kind).filter((x) => x.id !== p.id)].slice(0, 5);
     window.localStorage.setItem(RECENT_KEY(kind), JSON.stringify(next));

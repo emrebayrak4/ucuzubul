@@ -1,30 +1,46 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Tabs } from "expo-router/js-tabs";
 import { NativeTabs } from "expo-router/native-tabs";
+import { GlassTabBar } from "@/components/GlassTabBar";
+import { USES_SYSTEM_LIQUID_GLASS } from "@/lib/tabBar";
 import { FONTS, useTheme } from "@/lib/theme";
 
 /**
- * Native bottom tabs (UITabBarController on iOS, Material BottomNavigationView on Android)
- * via expo-router/native-tabs. iOS uses SF Symbols; Android uses Ionicons rendered to images.
+ * iOS 26+: system Liquid Glass tab bar (UITabBarController via expo-router NativeTabs). It floats, refracts,
+ * minimizes on scroll and honours Reduce Transparency / Reduce Motion natively.
+ * Android + iOS < 26: JS tabs with the floating glass pill (`GlassTabBar`, prominent center Scan button).
  */
 export default function TabsLayout() {
+  return USES_SYSTEM_LIQUID_GLASS ? <SystemGlassTabs /> : <FloatingGlassTabs />;
+}
+
+function FloatingGlassTabs() {
+  const { c } = useTheme();
+  return (
+    <Tabs tabBar={(props) => <GlassTabBar {...props} />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: c.bg } }}>
+      <Tabs.Screen name="index" options={{ title: "Home" }} />
+      <Tabs.Screen name="search" options={{ title: "Search" }} />
+      <Tabs.Screen name="scan" options={{ title: "Scan" }} />
+      <Tabs.Screen name="saved" options={{ title: "Saved" }} />
+      <Tabs.Screen name="account" options={{ title: "Account" }} />
+    </Tabs>
+  );
+}
+
+function SystemGlassTabs() {
   const { c } = useTheme();
   return (
     <NativeTabs
       tintColor={c.primary}
-      backgroundColor={c.surface}
-      iconColor={{ default: c["text-muted"], selected: c.primary }}
+      minimizeBehavior="onScrollDown"
       labelStyle={{
-        default: { fontFamily: FONTS.semibold, fontSize: 12, color: c["text-muted"] },
-        selected: { fontFamily: FONTS.semibold, fontSize: 12, color: c.primary },
+        default: { fontFamily: FONTS.semibold, fontSize: 11 },
+        selected: { fontFamily: FONTS.semibold, fontSize: 11, color: c.primary },
       }}
-      indicatorColor={c["primary-soft"]}
     >
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: "house", selected: "house.fill" }}
-          src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="home-outline" />}
-        />
+        <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="home-outline" />} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="search">
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
@@ -36,10 +52,7 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="saved">
         <NativeTabs.Trigger.Label>Saved</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{ default: "heart", selected: "heart.fill" }}
-          src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="heart-outline" />}
-        />
+        <NativeTabs.Trigger.Icon sf={{ default: "heart", selected: "heart.fill" }} src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="heart-outline" />} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="account">
         <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
