@@ -443,4 +443,6 @@ export type AdminUpdateAffiliateProgramRequest = z.infer<typeof AdminUpdateAffil
 export const NetworkRunParam = z.object({ network: z.enum(["cj", "impact", "rakuten", "awin", "partnerize", "ebay_partner"]) });
 export const AdminNetworkRunRequest = z.object({ kind: z.enum(["coupons", "products", "conversions"]) });
 export const AdminNetworkRunResponse = z.object({ queued: z.boolean(), jobId: z.string().nullable(), message: z.string() });
+/** Catalog-source jobs an admin can queue now (worker queue "catalog-sources"). */
+export const CatalogSourceRunParam = z.object({ job: z.enum(["channel3-catalog", "channel3-refresh", "kroger-catalog", "icecat-enrich"]) });
 export type AdminNetworkRunResponse = z.infer<typeof AdminNetworkRunResponse>;

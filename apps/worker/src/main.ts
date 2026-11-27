@@ -43,6 +43,7 @@ import {
   enrichWithIcecat,
   refreshChannel3Offers,
   runChannel3Catalog,
+  runKrogerCatalog,
   type CatalogSourceJobName,
 } from "@pricora/api/core";
 import { parseServerEnv } from "@pricora/config/env";
@@ -68,7 +69,7 @@ integrations.subscribe(env.REDIS_URL);
 const log = (scope: string, msg: string) => console.log(`${new Date().toISOString()} [${scope}] ${msg}`);
 
 /** Adapter id → our retailer slug (where they differ). */
-const ADAPTER_RETAILER: Record<string, string> = { bestbuy: "best-buy", homedepot: "home-depot", bhphoto: "bh-photo" };
+const ADAPTER_RETAILER: Record<string, string> = { bestbuy: "best-buy", homedepot: "home-depot", bhphoto: "bh-photo", samsclub: "sams-club" };
 
 async function refreshAdapter(adapter: RetailerAdapter, priceEvents: Queue): Promise<{ checked: number; changed: number }> {
   const slug = ADAPTER_RETAILER[adapter.id] ?? adapter.id;
@@ -142,6 +143,8 @@ async function main(): Promise<void> {
   await catalogSources.upsertJobScheduler("channel3-catalog-daily", { every: 24 * 60 * 60_000 }, { name: "channel3-catalog" });
   await catalogSources.upsertJobScheduler("channel3-refresh-6h", { every: 6 * 60 * 60_000 }, { name: "channel3-refresh" });
   await catalogSources.upsertJobScheduler("icecat-enrich-daily", { every: 24 * 60 * 60_000 }, { name: "icecat-enrich" });
+  // Kroger grocery products for grocery categories (free API, 10,000 calls/day); prices then refresh with price-refresh.
+  await catalogSources.upsertJobScheduler("kroger-catalog-daily", { every: 24 * 60 * 60_000 }, { name: "kroger-catalog" });
   // Coupons for CJ/Impact/Rakuten/Awin run inside the coupons queue ("ingest"); here: products + conversions.
   for (const s of networkSchedules().filter((x) => x.job.kind !== "coupons")) {
     await networkIngest.upsertJobScheduler(s.id, { every: s.everyMs }, { name: s.job.kind, data: s.job, opts: { removeOnComplete: 200, removeOnFail: 200 } });
@@ -272,18 +275,20 @@ async function main(): Promise<void> {
         const runEnv = await integrations.env();
         const deps = { enqueuePriceEvent: async (ev: PriceEventJob) => void (await priceEvents.add("price-change", ev, { removeOnComplete: 1000, removeOnFail: 1000 })) };
         const ingest = await prisma.dataIngestionJob.create({ data: { kind: job.name, status: "processing", startedAt: new Date() } });
-        let r: Awaited<ReturnType<typeof runChannel3Catalog | typeof refreshChannel3Offers | typeof enrichWithIcecat>>;
+        let r: Awaited<ReturnType<typeof runChannel3Catalog | typeof refreshChannel3Offers | typeof enrichWithIcecat | typeof runKrogerCatalog>>;
         try {
           r =
             job.name === "channel3-catalog"
               ? await runChannel3Catalog(prisma, runEnv, deps)
               : job.name === "channel3-refresh"
                 ? await refreshChannel3Offers(prisma, runEnv, deps)
-                : await enrichWithIcecat(prisma, runEnv, deps);
+                : job.name === "kroger-catalog"
+                  ? await runKrogerCatalog(prisma, runEnv, deps)
+                  : await enrichWithIcecat(prisma, runEnv, deps);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           await prisma.dataIngestionJob.update({ where: { id: ingest.id }, data: { status: "failed", finishedAt: new Date(), stats: { error: message.slice(0, 1000) } } });
-          await prisma.integrationError.create({ data: { provider: job.name.startsWith("icecat") ? "icecat" : "channel3", code: `${job.name}_failed`, message: message.slice(0, 1000) } });
+          await prisma.integrationError.create({ data: { provider: job.name.split("-")[0] ?? job.name, code: `${job.name}_failed`, message: message.slice(0, 1000) } });
           throw err;
         }
         await prisma.dataIngestionJob.update({ where: { id: ingest.id }, data: { status: r.status === "error" ? "failed" : "completed", finishedAt: new Date(), stats: JSON.parse(JSON.stringify(r)) as object } });

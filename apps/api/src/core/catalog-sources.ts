@@ -16,6 +16,7 @@ import {
   AdapterHttpError,
   Channel3Client,
   IcecatClient,
+  KrogerAdapter,
   channel3RetailerId,
   type Channel3Product,
   type EnvLike,
@@ -25,11 +26,12 @@ import { slugify } from "@pricora/utils";
 import type { PriceEventJob } from "./alerts";
 
 export const CATALOG_SOURCES_QUEUE = "catalog-sources";
-export type CatalogSourceJobName = "channel3-catalog" | "channel3-refresh" | "icecat-enrich";
+export type CatalogSourceJobName = "channel3-catalog" | "channel3-refresh" | "icecat-enrich" | "kroger-catalog";
 
 export interface CatalogSourceDeps {
   channel3?: Channel3Client;
   icecat?: IcecatClient;
+  kroger?: KrogerAdapter;
   enqueuePriceEvent?: (job: PriceEventJob) => Promise<void>;
   now?: Date;
 }
@@ -142,40 +144,50 @@ async function allowHost(prisma: PrismaClient, r: RetailerRow, url: string): Pro
   return true;
 }
 
-/** Upsert one (storable) Channel3 listing as an offer of `productId`. */
-async function upsertChannel3Offer(
+type UpsertResult = "created" | "changed" | "unchanged" | "skipped";
+
+/** Upsert one (storable) Channel3 listing as an offer of `productId` (Channel3-attributed link). */
+async function upsertChannel3Offer(prisma: PrismaClient, productId: string, retailer: RetailerRow, listing: NormalizedListing, deps: CatalogSourceDeps, now: Date): Promise<UpsertResult> {
+  const url = listing.offer?.affiliateUrl;
+  if (!url || !(await allowHost(prisma, retailer, url))) return "skipped";
+  return upsertOffer(prisma, productId, retailer.id, listing, { url, affiliateUrl: url, source: "affiliate" }, deps, now);
+}
+
+/** Upsert a listing's offer with price history + price events on price/stock change. */
+async function upsertOffer(
   prisma: PrismaClient,
   productId: string,
-  retailer: RetailerRow,
+  retailerId: string,
   listing: NormalizedListing,
+  link: { url: string; affiliateUrl: string | null; source: "affiliate" | "api" },
   deps: CatalogSourceDeps,
   now: Date,
-): Promise<"created" | "changed" | "unchanged" | "skipped"> {
+): Promise<UpsertResult> {
   const o = listing.offer;
-  if (!o?.affiliateUrl || !(await allowHost(prisma, retailer, o.affiliateUrl))) return "skipped";
+  if (!o) return "skipped";
   const stock = STOCK[o.availability];
-  const prev = await prisma.offer.findUnique({ where: { retailerId_retailerSku: { retailerId: retailer.id, retailerSku: listing.product.retailerSku } } });
+  const prev = await prisma.offer.findUnique({ where: { retailerId_retailerSku: { retailerId, retailerSku: listing.product.retailerSku } } });
   const priceOrStockChanged = !prev || prev.priceCents !== o.priceCents || prev.stock !== stock;
   const data = {
     title: listing.product.title.slice(0, 500),
-    url: o.affiliateUrl,
-    affiliateUrl: o.affiliateUrl,
+    url: link.url,
+    affiliateUrl: link.affiliateUrl,
     condition: o.condition,
     sellerName: o.sellerName,
     priceCents: o.priceCents,
     listPriceCents: o.listPriceCents,
     currency: o.currency,
     stock,
-    source: "affiliate" as const,
+    source: link.source,
     isActive: true,
     lastCheckedAt: now,
   };
   const saved = prev
     ? await prisma.offer.update({ where: { id: prev.id }, data: { ...data, ...(prev.priceCents !== o.priceCents ? { lastChangedAt: now } : {}) } })
-    : await prisma.offer.create({ data: { ...data, productId, retailerId: retailer.id, retailerSku: listing.product.retailerSku, firstSeenAt: now, lastChangedAt: now } });
+    : await prisma.offer.create({ data: { ...data, productId, retailerId, retailerSku: listing.product.retailerSku, firstSeenAt: now, lastChangedAt: now } });
   if (priceOrStockChanged) {
     await prisma.priceHistory.create({
-      data: { offerId: saved.id, observedAt: now, productId: saved.productId, retailerId: retailer.id, priceCents: o.priceCents, shippingCents: o.shippingCents, currency: o.currency, stock, source: "affiliate" },
+      data: { offerId: saved.id, observedAt: now, productId: saved.productId, retailerId, priceCents: o.priceCents, shippingCents: o.shippingCents, currency: o.currency, stock, source: link.source },
     });
   }
   if (prev && priceOrStockChanged && deps.enqueuePriceEvent) {
@@ -529,3 +541,132 @@ export async function enrichWithIcecat(
   stats.message = `${stats.enriched}/${stats.checked} product(s) enriched, ${stats.notFound} not in Open Icecat, ${stats.errors} error(s)`;
   return stats;
 }
+
+// ───────────────────────── Kroger grocery ─────────────────────────
+
+function identifierType(gtin: string): "UPC" | "EAN" | "GTIN" {
+  return gtin.length === 12 ? "UPC" : gtin.length === 14 ? "GTIN" : "EAN";
+}
+
+/** Same GTIN in its 12/13/14-digit forms (leading zeros differ between sources). */
+function gtinForms(code: string): string[] {
+  const core = code.replace(/\D/g, "").replace(/^0+/, "");
+  const out = new Set<string>([code]);
+  for (const len of [12, 13, 14]) if (core.length <= len) out.add(core.padStart(len, "0"));
+  return [...out];
+}
+
+export interface KrogerCategoryStats {
+  status: Status;
+  message: string;
+  products: number;
+  productsCreated: number;
+  productsMatched: number;
+  offersUpserted: number;
+  priceChanges: number;
+  demoArchived: number;
+  demoRestored: number;
+}
+
+/**
+ * Kroger product search for a (grocery) category at KROGER_LOCATION_ID → real products with their UPC/GTIN,
+ * brand, image and a Kroger offer (kroger.com link, source "api"). An existing real product with the same
+ * GTIN gets the offer instead of a duplicate. Free API (10,000 calls/day); the worker's price refresh keeps
+ * Kroger offers current afterwards.
+ */
+export async function ingestKrogerCategory(
+  prisma: PrismaClient,
+  env: EnvLike,
+  categoryId: string,
+  deps: CatalogSourceDeps = {},
+  opts: { limit?: number; minRealProducts?: number } = {},
+): Promise<KrogerCategoryStats> {
+  const stats: KrogerCategoryStats = { status: "ok", message: "", products: 0, productsCreated: 0, productsMatched: 0, offersUpserted: 0, priceChanges: 0, demoArchived: 0, demoRestored: 0 };
+  const client = deps.kroger ?? new KrogerAdapter({ env });
+  if (client.status() === "pending_configuration") return { ...stats, status: "pending_configuration", message: `Missing ${client.missingEnv().join(", ")}` };
+  const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true, name: true } });
+  if (!category) return { ...stats, status: "error", message: "Category not found" };
+  const now = deps.now ?? new Date();
+  const kroger = await retailerForDomain(prisma, "kroger.com", new Map(), { retailersCreated: 0 });
+  // Kroger's keyword search finds nothing for names like "Coffee Beans & Ground" / "Pantry Staples":
+  // try the name without punctuation, then its first word.
+  const cleaned = category.name.replace(/&|\band\b/gi, " ").replace(/[^\p{L}\p{N}\s'-]/gu, " ").replace(/\s+/g, " ").trim();
+  const terms = [...new Set([cleaned, cleaned.split(" ")[0] ?? ""].filter((t) => t.length >= 3))];
+  let found: NormalizedListing[] = [];
+  for (const term of terms) {
+    found = (await client.fetchProducts({ keywords: term, pageSize: opts.limit ?? 20 })).data.filter((l) => l.offer);
+    if (found.length) break;
+  }
+  for (const l of found) {
+    const o = l.offer;
+    const url = o?.productUrl ?? l.product.productUrl;
+    if (!o || o.currency !== "USD" || !url || hostOf(url)?.replace(/^www\./, "") !== "kroger.com") continue;
+    stats.products++;
+    const prev = await prisma.offer.findUnique({ where: { retailerId_retailerSku: { retailerId: kroger.id, retailerSku: l.product.retailerSku } }, select: { productId: true } });
+    let productId = prev?.productId ?? null;
+    if (!productId && l.product.gtin) {
+      const hit = await prisma.productIdentifier.findFirst({ where: { value: { in: gtinForms(l.product.gtin) }, product: { isDemo: false, status: "active" } }, select: { productId: true } });
+      productId = hit?.productId ?? null;
+    }
+    if (productId) stats.productsMatched++;
+    else {
+      const slug = `${slugify(l.product.title, { maxLength: 100 }) || "product"}-${shortHash(`kroger:${l.product.retailerSku}`)}`;
+      const existing = await prisma.product.findUnique({ where: { slug }, select: { id: true } });
+      if (existing) {
+        productId = existing.id;
+        stats.productsMatched++;
+      } else {
+        const created = await prisma.product.create({
+          data: {
+            slug,
+            title: l.product.title.slice(0, 500),
+            brandId: await brandId(prisma, l.product.brand),
+            categoryId: category.id,
+            status: "active",
+            isDemo: false,
+            identifiers: l.product.gtin ? { create: [{ type: identifierType(l.product.gtin), value: l.product.gtin }] } : undefined,
+            images: l.product.imageUrl ? { create: [{ url: l.product.imageUrl, alt: l.product.title.slice(0, 200), sortOrder: 0, source: "api" }] } : undefined,
+            attributes: { create: Object.entries(l.product.attributes).map(([name, value], i) => ({ name, value, sortOrder: i })) },
+          },
+          select: { id: true },
+        });
+        productId = created.id;
+        stats.productsCreated++;
+      }
+    }
+    const r = await upsertOffer(prisma, productId, kroger.id, l, { url, affiliateUrl: null, source: "api" }, deps, now);
+    if (r !== "skipped") stats.offersUpserted++;
+    if (r === "changed") stats.priceChanges++;
+  }
+  const demo = await syncDemoVisibility(prisma, category.id, opts.minRealProducts ?? DEFAULT_MIN_REAL_PRODUCTS);
+  if (demo > 0) stats.demoArchived = demo;
+  else stats.demoRestored = -demo;
+  stats.message = `${stats.products} Kroger product(s) for "${category.name}"`;
+  return stats;
+}
+
+/** Daily: every active grocery leaf category (path "grocery/…") through Kroger. Free API, so no credit budget. */
+export async function runKrogerCatalog(
+  prisma: PrismaClient,
+  env: EnvLike,
+  deps: CatalogSourceDeps = {},
+): Promise<{ status: Status; message: string; categories: Record<string, KrogerCategoryStats | { error: string }> }> {
+  const client = deps.kroger ?? new KrogerAdapter({ env });
+  if (client.status() === "pending_configuration") return { status: "pending_configuration", message: `Missing ${client.missingEnv().join(", ")}`, categories: {} };
+  const leaves = await prisma.category.findMany({ where: { isActive: true, children: { none: {} }, path: { startsWith: "grocery" } }, select: { id: true, slug: true }, orderBy: { sortOrder: "asc" } });
+  const out: Record<string, KrogerCategoryStats | { error: string }> = {};
+  let failures = 0;
+  for (const c of leaves) {
+    try {
+      out[c.slug] = await ingestKrogerCategory(prisma, env, c.id, { ...deps, kroger: client });
+    } catch (err) {
+      failures++;
+      out[c.slug] = { error: errorMessage(err) };
+      await prisma.integrationError.create({ data: { provider: "kroger", code: "catalog_ingest_failed", message: errorMessage(err).slice(0, 1000) } });
+      if (client.status() === "error") break;
+    }
+  }
+  const status: Status = leaves.length > 0 && failures === leaves.length ? "error" : "ok";
+  return { status, message: `${leaves.length} grocery categor(ies), ${failures} failed`, categories: out };
+}
+

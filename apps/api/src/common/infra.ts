@@ -12,6 +12,7 @@ import { Meilisearch } from "meilisearch";
 import { PRICE_EVENTS_QUEUE, PRICE_REFRESH_QUEUE, SEARCH_INDEX_QUEUE } from "../core/alerts";
 import { MERCHANT_FEEDS_QUEUE } from "../core/feeds";
 import { NETWORK_INGEST_QUEUE } from "../core/integrations-ingest";
+import { CATALOG_SOURCES_QUEUE } from "../core/catalog-sources";
 import { parseKey } from "../core/crypto";
 import { IntegrationConfig } from "../core/integration-config";
 import { defaultStorageDir, LocalDiskStorage, type ObjectStorage } from "../core/storage";
@@ -31,6 +32,7 @@ export interface Queues {
   priceRefresh: Queue;
   merchantFeeds: Queue;
   networkIngest: Queue;
+  catalogSources: Queue;
 }
 
 export type { PrismaClient };
@@ -79,8 +81,9 @@ export const infraProviders: Provider[] = [
       const priceRefresh = new Queue(PRICE_REFRESH_QUEUE, { connection });
       const merchantFeeds = new Queue(MERCHANT_FEEDS_QUEUE, { connection });
       const networkIngest = new Queue(NETWORK_INGEST_QUEUE, { connection });
-      for (const q of [priceEvents, searchIndex, priceRefresh, merchantFeeds, networkIngest]) q.on("error", (e: Error) => log.warn(`Queue ${q.name}: ${e.message}`));
-      return { priceEvents, searchIndex, priceRefresh, merchantFeeds, networkIngest };
+      const catalogSources = new Queue(CATALOG_SOURCES_QUEUE, { connection });
+      for (const q of [priceEvents, searchIndex, priceRefresh, merchantFeeds, networkIngest, catalogSources]) q.on("error", (e: Error) => log.warn(`Queue ${q.name}: ${e.message}`));
+      return { priceEvents, searchIndex, priceRefresh, merchantFeeds, networkIngest, catalogSources };
     },
   },
 ];

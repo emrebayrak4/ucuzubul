@@ -39,6 +39,13 @@ scheduled by the worker queue `catalog-sources`. Neither source is a single reta
 - A category with ≥3 real products (active, with an active offer) has its demo products archived; below 3 they are restored automatically.
 - Prices refresh every 6 h through the free product-detail call; offers that vanish are deactivated.
 - Icecat adds images (source `api`) and specs (attributes group `Icecat`) to products with a UPC/EAN/GTIN.
+- Kroger (`kroger-catalog`, daily, free): every grocery leaf category is searched at `KROGER_LOCATION_ID`.
+  - Real products are created with their GTIN, brand and image, plus a Kroger offer (kroger.com link, source `api`).
+  - An existing real product with the same GTIN gets the offer instead.
+  - A category name that finds nothing falls back to the name without punctuation, then to its first word.
+  - The worker's price refresh keeps Kroger prices current afterwards.
+- Admin → Integrations → Channel3 / Kroger / Icecat has an **Import now** section. It calls
+  `POST /v1/admin/catalog-sources/:job/run` (`admin.catalogSources.run`) to queue a job without waiting for the schedule.
 
 ### Channel3 — product search across many US stores (`channel3`)
 - **API: Verified** against the live API on 2026-11-27 with a free developer account.

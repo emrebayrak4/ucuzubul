@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { getPrisma } from "@pricora/database";
 import { Channel3Client, IcecatClient, type FetchLike } from "@pricora/retailer-adapters";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { INTEGRATION_CATALOG, enrichWithIcecat, ingestChannel3Category, refreshChannel3Offers, runChannel3Catalog, testIntegration } from "../src/core";
+import { INTEGRATION_CATALOG, enrichWithIcecat, ingestChannel3Category, ingestKrogerCategory, refreshChannel3Offers, runChannel3Catalog, testIntegration } from "../src/core";
 
 for (const candidate of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../../.env")]) {
   if (!process.env.DATABASE_URL && existsSync(candidate)) process.loadEnvFile(candidate);
@@ -20,6 +20,7 @@ const NEWSHOP = `${TAG}-newshop.example`; // a store we don't have yet
 const BUY = "https://buy.trychannel3.com";
 const http = { rateLimit: { capacity: 100, refillPerSecond: 100 }, retry: { retries: 0, baseDelayMs: 1, maxDelayMs: 1 } };
 let categoryId = "";
+let groceryCategoryId = "";
 let demoProductId = "";
 let knownRetailerId = "";
 
@@ -65,6 +66,7 @@ const enqueuePriceEvent = async (job: unknown) => {
 beforeAll(async () => {
   const cat = await prisma.category.create({ data: { slug: TAG, name: `Headphones ${TAG}`, path: TAG, depth: 0 } });
   categoryId = cat.id;
+  groceryCategoryId = (await prisma.category.create({ data: { slug: `${TAG}-grocery`, name: `Cereal ${TAG}`, path: `${TAG}-grocery`, depth: 0 } })).id;
   const demo = await prisma.product.create({ data: { slug: `${TAG}-demo`, title: "Demo headphones", isDemo: true, categoryId } });
   demoProductId = demo.id;
   const r = await prisma.retailer.create({ data: { slug: `${TAG}-known`, name: "Known Test Store", domain: KNOWN, websiteUrl: `https://${KNOWN}` } });
@@ -72,11 +74,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const products = await prisma.product.findMany({ where: { OR: [{ slug: { startsWith: TAG } }, { categoryId }] }, select: { id: true } });
+  const products = await prisma.product.findMany({ where: { OR: [{ slug: { startsWith: TAG } }, { categoryId }, { categoryId: groceryCategoryId }] }, select: { id: true } });
   await prisma.product.deleteMany({ where: { id: { in: products.map((p) => p.id) } } });
   await prisma.retailer.deleteMany({ where: { domain: { startsWith: TAG } } });
   await prisma.brand.deleteMany({ where: { name: { contains: TAG } } });
-  await prisma.category.deleteMany({ where: { id: categoryId } });
+  await prisma.category.deleteMany({ where: { id: { in: [categoryId, groceryCategoryId] } } });
   await prisma.$disconnect();
 });
 
@@ -179,6 +181,77 @@ describe("Channel3 catalog ingestion", () => {
   it("is pending without an API key and leaves the database alone", async () => {
     const stats = await ingestChannel3Category(prisma, {}, categoryId, { enqueuePriceEvent });
     expect(stats.status).toBe("pending_configuration");
+  });
+});
+
+describe("Kroger grocery ingestion", () => {
+  const K_ENV = { KROGER_CLIENT_ID: "id", KROGER_CLIENT_SECRET: "secret", KROGER_LOCATION_ID: "01400513" };
+  function krogerItem(productId: string, upc: string, price: number) {
+    return {
+      productId,
+      upc,
+      brand: `KBrand ${TAG}`,
+      description: `KBrand ${TAG} Oat Cereal ${productId}`,
+      categories: ["Breakfast"],
+      images: [{ perspective: "front", sizes: [{ size: "large", url: `https://www.kroger.com/product/images/large/front/${upc}` }] }],
+      items: [{ price: { regular: price, promo: 0 }, inventory: { stockLevel: "HIGH" }, size: "12 oz" }],
+      productPageURI: `/p/kbrand-oat-cereal/${productId}`,
+    };
+  }
+  function krogerFetch(items: unknown[]) {
+    return fakeFetch({ "/connect/oauth2/token": () => ({ body: { access_token: "t", expires_in: 1800 } }), "/v1/products": () => ({ body: { data: items } }) });
+  }
+
+  it("creates grocery products with a UPC and a Kroger offer", async () => {
+    const { KrogerAdapter } = await import("@pricora/retailer-adapters");
+    const kroger = new KrogerAdapter({ env: K_ENV, fetch: krogerFetch([krogerItem(`${TAG}-K1`, "0001111041700", 3.29)]), http });
+    const stats = await ingestKrogerCategory(prisma, K_ENV, groceryCategoryId, { kroger, enqueuePriceEvent });
+    expect(stats).toMatchObject({ status: "ok", products: 1, productsCreated: 1, offersUpserted: 1 });
+    const offer = await prisma.offer.findFirstOrThrow({ where: { retailerSku: `${TAG}-K1` }, include: { retailer: true, product: { include: { identifiers: true, images: true } } } });
+    expect(offer).toMatchObject({ priceCents: 329, source: "api", stock: "in_stock", url: `https://www.kroger.com/p/kbrand-oat-cereal/${TAG}-K1`, affiliateUrl: null });
+    expect(offer.retailer.domain).toBe("kroger.com");
+    expect(offer.product).toMatchObject({ status: "active", isDemo: false, categoryId: groceryCategoryId });
+    expect(offer.product.identifiers.map((i) => [i.type, i.value])).toEqual([["GTIN", "00011110417008"]]);
+    expect(offer.product.images).toHaveLength(1);
+  });
+
+  it("updates the same product on the next run", async () => {
+    const { KrogerAdapter } = await import("@pricora/retailer-adapters");
+    const kroger = new KrogerAdapter({ env: K_ENV, fetch: krogerFetch([krogerItem(`${TAG}-K1`, "0001111041700", 2.99)]), http });
+    const stats = await ingestKrogerCategory(prisma, K_ENV, groceryCategoryId, { kroger, enqueuePriceEvent });
+    expect(stats).toMatchObject({ products: 1, productsCreated: 0, productsMatched: 1, priceChanges: 1 });
+    expect((await prisma.offer.findFirstOrThrow({ where: { retailerSku: `${TAG}-K1` } })).priceCents).toBe(299);
+  });
+
+  it("attaches the offer to an existing real product with the same GTIN", async () => {
+    const existing = await prisma.product.create({ data: { slug: `${TAG}-gtin-match`, title: "Existing cereal", isDemo: false, categoryId: groceryCategoryId, identifiers: { create: [{ type: "UPC", value: "016000275287" }] } } });
+    const { KrogerAdapter } = await import("@pricora/retailer-adapters");
+    const kroger = new KrogerAdapter({ env: K_ENV, fetch: krogerFetch([krogerItem(`${TAG}-K2`, "0016000275287", 4.49)]), http });
+    const stats = await ingestKrogerCategory(prisma, K_ENV, groceryCategoryId, { kroger, enqueuePriceEvent });
+    expect(stats).toMatchObject({ products: 1, productsCreated: 0, productsMatched: 1 });
+    expect((await prisma.offer.findFirstOrThrow({ where: { retailerSku: `${TAG}-K2` } })).productId).toBe(existing.id);
+  });
+
+  it("falls back to a simpler search term when the category name finds nothing", async () => {
+    const cat = await prisma.category.create({ data: { slug: `${TAG}-oats`, name: "Oats & Granola Staples", path: `${TAG}-oats`, depth: 0 } });
+    try {
+      const f = fakeFetch({
+        "/connect/oauth2/token": () => ({ body: { access_token: "t", expires_in: 1800 } }),
+        "filter.term=Oats+": () => ({ body: { data: [] } }),
+        "filter.term=Oats&": () => ({ body: { data: [krogerItem(`${TAG}-K3`, "0016000275287", 3.99)] } }),
+      });
+      const { KrogerAdapter } = await import("@pricora/retailer-adapters");
+      const stats = await ingestKrogerCategory(prisma, K_ENV, cat.id, { kroger: new KrogerAdapter({ env: K_ENV, fetch: f, http }), enqueuePriceEvent });
+      expect(stats.products).toBe(1);
+      expect(f.calls.some((u) => u.includes("%26"))).toBe(false);
+    } finally {
+      await prisma.product.updateMany({ where: { categoryId: cat.id }, data: { categoryId: groceryCategoryId } });
+      await prisma.category.delete({ where: { id: cat.id } });
+    }
+  });
+
+  it("is pending without Kroger keys", async () => {
+    expect((await ingestKrogerCategory(prisma, {}, groceryCategoryId, { enqueuePriceEvent })).status).toBe("pending_configuration");
   });
 });
 
