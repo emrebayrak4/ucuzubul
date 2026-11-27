@@ -1,0 +1,68 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": [
+    {
+      "id": 501,
+      "name": "Acme Mug",
+      "sku": "MUG-1",
+      "permalink": "https://shop.example.com/product/acme-mug/",
+      "type": "simple",
+      "status": "publish",
+      "price": "8.99",
+      "regular_price": "12.99",
+      "sale_price": "8.99",
+      "short_description": "<p>Ceramic &amp; dishwasher safe</p>",
+      "description": "<p>Long text</p>",
+      "manage_stock": true,
+      "stock_quantity": 2,
+      "stock_status": "instock",
+      "global_unique_id": "012345678905",
+      "brands": [
+        {
+          "id": 7,
+          "name": "Acme",
+          "slug": "acme"
+        }
+      ],
+      "images": [
+        {
+          "id": 1,
+          "src": "https://shop.example.com/wp-content/uploads/mug.jpg"
+        }
+      ]
+    },
+    {
+      "id": 502,
+      "name": "Acme Poster",
+      "sku": "",
+      "permalink": "https://shop.example.com/product/poster/",
+      "type": "simple",
+      "status": "publish",
+      "price": "",
+      "regular_price": "",
+      "sale_price": "",
+      "manage_stock": false,
+      "stock_quantity": null,
+      "stock_status": "instock",
+      "images": []
+    },
+    {
+      "id": 503,
+      "name": "Acme Tee",
+      "sku": "TEE-1",
+      "permalink": "https://shop.example.com/product/tee/",
+      "type": "variable",
+      "status": "publish",
+      "price": "20.10",
+      "regular_price": "20.10",
+      "sale_price": "",
+      "short_description": "",
+      "description": "",
+      "manage_stock": false,
+      "stock_quantity": null,
+      "stock_status": "outofstock",
+      "global_unique_id": "",
+      "images": []
+    }
+  ]
+}

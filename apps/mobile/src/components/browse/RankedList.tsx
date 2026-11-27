@@ -1,3 +1,5 @@
+import { useLocalSearchParams } from "expo-router";
+import { param } from "@/lib/hooks";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
@@ -13,7 +15,8 @@ const GUTTER = tokens.layout.gutter.base;
 /** Popular / New: one fixed ranking (sort) with a top-level category switcher, like the web ranked pages. */
 export function RankedList({ sort, description }: { sort: SearchSort; description: string }) {
   const { c } = useTheme();
-  const [category, setCategory] = useState<string | undefined>(undefined);
+  const initialCategory = param(useLocalSearchParams<{ category?: string }>().category);
+  const [category, setCategory] = useState<string | undefined>(initialCategory || undefined);
   const cats = useQuery({ queryKey: ["home", "categories"], queryFn: ({ signal }) => api.catalog.categories({ signal }), staleTime: 60 * 60_000 });
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>

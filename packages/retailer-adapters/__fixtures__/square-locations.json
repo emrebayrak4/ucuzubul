@@ -1,0 +1,31 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "locations": [
+      {
+        "id": "L1",
+        "name": "Downtown",
+        "business_name": "Test Coffee",
+        "status": "ACTIVE",
+        "address": {
+          "address_line_1": "1 Main St",
+          "locality": "Austin",
+          "administrative_district_level_1": "TX",
+          "postal_code": "78701",
+          "country": "US"
+        },
+        "coordinates": {
+          "latitude": 30.2669,
+          "longitude": -97.7428
+        },
+        "phone_number": "+1 512-555-0101"
+      },
+      {
+        "id": "L2",
+        "name": "Old Kiosk",
+        "status": "INACTIVE",
+        "address": {}
+      }
+    ]
+  }
+}

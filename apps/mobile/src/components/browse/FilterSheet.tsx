@@ -182,6 +182,22 @@ export function FilterSheet({
         },
       }}
     >
+      {!scope.category && (f?.categories.length ?? 0) > 1 ? (
+        <>
+          <Section title="Category" badge={draft.category ? 1 : undefined} initiallyOpen={!!draft.category}>
+            {f!.categories.slice(0, 20).map((b) => (
+              <CheckRow
+                key={b.value}
+                label={b.label}
+                count={b.count}
+                selected={draft.category === b.value}
+                onPress={() => setDraft((d) => ({ ...d, category: d.category === b.value ? undefined : b.value }))}
+              />
+            ))}
+          </Section>
+          <Divider />
+        </>
+      ) : null}
       {priceMax > priceMin ? (
         <Section title="Price" badge={draft.minPrice !== undefined || draft.maxPrice !== undefined ? 1 : undefined}>
           <PriceRangeSlider
@@ -208,6 +224,18 @@ export function FilterSheet({
           selected={draft.freeShipping}
           onPress={() => setDraft((d) => ({ ...d, freeShipping: !d.freeShipping }))}
         />
+        {scope.zip ? (
+          <CheckRow
+            label={`Available near me (${scope.zip})`}
+            count={f?.nearbyCount ?? undefined}
+            selected={draft.near}
+            onPress={() => setDraft((d) => ({ ...d, near: !d.near }))}
+          />
+        ) : (
+          <AppText variant="caption" color="text-muted">
+            Set your ZIP (Account → ZIP) to see products available at stores near you.
+          </AppText>
+        )}
         <CheckRow
           label="Pay over time available"
           count={f?.payOverTimeCount}
@@ -218,7 +246,7 @@ export function FilterSheet({
           Stores offering pay in 4 or financing at checkout. Subject to approval.
         </AppText>
         <AppText variant="label" style={{ marginTop: sp[1] }}>
-          Below its own price history
+          Below its 30-day typical price
         </AppText>
         <Row gap={2} style={{ flexWrap: "wrap" }}>
           {DISCOUNTS.map((dsc) => (

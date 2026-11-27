@@ -1,3 +1,5 @@
+import { useLocalSearchParams } from "expo-router";
+import { param } from "@/lib/hooks";
 import { useCallback, useState } from "react";
 import type { PriceDropItem, PriceDropsQuery, ConditionGroup } from "@pricora/contracts";
 
@@ -15,7 +17,8 @@ const WINDOWS: readonly { value: Window; label: string }[] = [
 /** Real price drops at the same store (GET /v1/price-drops): previous price struck through, current in drop color. */
 export default function PriceDropsScreen() {
   const [win, setWin] = useState<Window>("7d");
-  const [category, setCategory] = useState<string | undefined>(undefined);
+  const initialCategory = param(useLocalSearchParams<{ category?: string }>().category);
+  const [category, setCategory] = useState<string | undefined>(initialCategory || undefined);
   const [condition, setCondition] = useState<ConditionGroup>("new");
   const toCard = useCallback(
     (d: PriceDropItem) => ({

@@ -6,6 +6,7 @@ import { AffiliateFeedAdapter } from "./feeds/affiliateFeed";
 import { AmazonCreatorsAdapter } from "./retailers/amazon";
 import { BestBuyAdapter, bestBuyMissingEnv } from "./retailers/bestbuy";
 import { EbayBrowseAdapter } from "./retailers/ebay";
+import { EtsyAdapter } from "./retailers/etsy";
 import { KrogerAdapter } from "./retailers/kroger";
 import { WalmartAffiliateAdapter } from "./retailers/walmart";
 import { AmadeusFlightProvider, DuffelFlightProvider, TravelpayoutsFlightProvider } from "./travel/flights";
@@ -158,6 +159,19 @@ export const ADAPTER_REGISTRY: readonly AdapterMetadata[] = [
     goLive: "api_key",
     notes: "Public Products API (OAuth2 client credentials, scope product.compact); store-specific prices via location id; 10,000 calls/day. Affiliate network UNVERIFIED.",
     create: (o) => new KrogerAdapter(o),
+  },
+  {
+    id: "etsy",
+    name: "Etsy",
+    kind: "retailer",
+    dataAccess: "official_api",
+    affiliateNetwork: "Awin (Etsy affiliate program)",
+    docsUrl: "https://developers.etsy.com/documentation/reference#operation/findAllListingsActive",
+    requiredEnv: ["ETSY_API_KEY"],
+    optionalEnv: ["ETSY_SHARED_SECRET"],
+    goLive: "api_key",
+    notes: "Open API v3 public listings (x-api-key; keystring:shared_secret when ETSY_SHARED_SECRET is set). Handmade/supplies = new, vintage = used. Keyword search only (no GTINs).",
+    create: (o) => new EtsyAdapter(o),
   },
   ...FEED_RETAILERS.map(feedMeta),
   {

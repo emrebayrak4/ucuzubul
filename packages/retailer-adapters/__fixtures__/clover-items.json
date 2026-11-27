@@ -1,0 +1,40 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "elements": [
+      {
+        "id": "ITM1",
+        "name": "Batteries AA 4pk",
+        "sku": "BAT-AA4",
+        "code": "012345678905",
+        "price": 599,
+        "priceType": "FIXED",
+        "available": true,
+        "hidden": false,
+        "itemStock": {
+          "item": {
+            "id": "ITM1"
+          },
+          "stockCount": 3,
+          "quantity": 3
+        }
+      },
+      {
+        "id": "ITM2",
+        "name": "Deli by weight",
+        "price": 899,
+        "priceType": "PER_UNIT",
+        "available": true
+      },
+      {
+        "id": "ITM3",
+        "name": "Gum",
+        "alternateName": "Mint gum",
+        "price": 150,
+        "priceType": "FIXED",
+        "available": false
+      }
+    ],
+    "href": "https://api.clover.com/v3/merchants/MID123ABC/items?limit=3"
+  }
+}

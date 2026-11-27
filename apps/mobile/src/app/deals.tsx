@@ -1,3 +1,5 @@
+import { useLocalSearchParams } from "expo-router";
+import { param } from "@/lib/hooks";
 import { useCallback, useState } from "react";
 import type { DealItem, DealsQuery, ConditionGroup } from "@pricora/contracts";
 
@@ -16,7 +18,8 @@ const SORTS: readonly { value: Sort; label: string }[] = [
 /** Deals ranked by Deal Score (GET /v1/deals). Fake-discount flags lower the score server-side. */
 export default function DealsScreen() {
   const [sort, setSort] = useState<Sort>("score");
-  const [category, setCategory] = useState<string | undefined>(undefined);
+  const initialCategory = param(useLocalSearchParams<{ category?: string }>().category);
+  const [category, setCategory] = useState<string | undefined>(initialCategory || undefined);
   const [condition, setCondition] = useState<ConditionGroup>("new");
   const toCard = useCallback(
     (d: DealItem) => ({
@@ -26,6 +29,8 @@ export default function DealsScreen() {
         priceCents: d.offer.priceCents,
         // The card's real previous price belongs to the lowest-price store; only show it when that is this offer.
         previousPriceCents: d.offer.priceCents === d.product.lowestPriceCents ? (d.product.previousPriceCents ?? null) : null,
+        note: [...d.dealScore.reasons].sort((a, b) => b.points - a.points)[0]?.message,
+        warning: d.fakeDiscount.flag ? (d.fakeDiscount.message ?? "Advertised discount looks inflated") : undefined,
       },
       demo: d.offer.source === "demo" || d.product.hasDemoData,
     }),

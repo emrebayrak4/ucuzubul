@@ -198,6 +198,16 @@ export function createApiClient(options: ApiClientOptions) {
     health: noArgs("health.get"),
 
     admin: {
+      local: {
+        merchants: withQuery("admin.local.merchants"),
+        reviewMerchant: (merchantId: string, body: EndpointBody<"admin.local.reviewMerchant">, o?: Opts) =>
+          withParamsBody("admin.local.reviewMerchant")(id(merchantId), body, o),
+        reviewLocation: (locationId: string, body: EndpointBody<"admin.local.reviewLocation">, o?: Opts) =>
+          withParamsBody("admin.local.reviewLocation")(id(locationId), body, o),
+        reviewFeed: (feedId: string, body: EndpointBody<"admin.local.reviewFeed">, o?: Opts) =>
+          withParamsBody("admin.local.reviewFeed")(id(feedId), body, o),
+      },
+      coverage: noArgs("admin.coverage"),
       stats: withQuery("admin.stats"),
       users: {
         list: withQuery("admin.users.list"),
@@ -308,6 +318,35 @@ export function createApiClient(options: ApiClientOptions) {
         create: withBody("merchant.apiKeys.create"),
         revoke: (keyId: string, o?: Opts) => withParams("merchant.apiKeys.revoke")(id(keyId), o),
       },
+      local: {
+        apply: withBody("merchant.local.apply"),
+        status: noArgs("merchant.local.status"),
+      },
+      locations: {
+        list: noArgs("merchant.locations.list"),
+        create: withBody("merchant.locations.create"),
+        update: (locationId: string, body: EndpointBody<"merchant.locations.update">, o?: Opts) =>
+          withParamsBody("merchant.locations.update")(id(locationId), body, o),
+        remove: (locationId: string, o?: Opts) => withParams("merchant.locations.delete")(id(locationId), o),
+        inventoryGet: (locationId: string, o?: Opts) => withParams("merchant.locations.inventoryGet")(id(locationId), o),
+        inventory: (locationId: string, body: EndpointBody<"merchant.locations.inventory">, o?: Opts) =>
+          withParamsBody("merchant.locations.inventory")(id(locationId), body, o),
+      },
+      connections: {
+        list: noArgs("merchant.connections.list"),
+        upsert: withBody("merchant.connections.upsert"),
+        remove: (provider: EndpointParams<"merchant.connections.delete">["provider"], o?: Opts) =>
+          withParams("merchant.connections.delete")({ provider }, o),
+        sync: (provider: EndpointParams<"merchant.connections.sync">["provider"], o?: Opts) =>
+          withParams("merchant.connections.sync")({ provider }, o),
+      },
+    },
+
+    /** Local stores & per-location availability. */
+    local: {
+      nearby: (productSlug: string, query?: EndpointQuery<"products.nearby">, o?: Opts) =>
+        withParamsQuery("products.nearby")(slug(productSlug), query, o),
+      stores: withQuery("local.stores"),
     },
   };
 }

@@ -71,6 +71,9 @@ export async function processMerchantFeed(
   const retailer = feed.retailer;
   const acc = feed.merchantAccount;
   const live = acc?.verificationStatus === "verified";
+  // Local sellers: offers stay offline until an admin approves the feed; shops without a website are listed in-store only.
+  const local = retailer.kind === "local";
+  const feedApproved = feed.reviewStatus === "verified";
   await prisma.retailerFeed.update({ where: { id: feedId }, data: { status: "processing" } });
 
   const errors: FeedRowError[] = parsed.errors.flatMap((e) =>
@@ -100,11 +103,15 @@ export async function processMerchantFeed(
       errors.push({ row, field: "price", message: "Missing or invalid price" });
       continue;
     }
-    const target = o.productUrl ?? listing.product.productUrl;
-    if (!target || !allowed(target, retailer.domain, retailer.allowedRedirectHosts)) {
+    const rawTarget = o.productUrl ?? listing.product.productUrl;
+    const urlOk = Boolean(rawTarget && allowed(rawTarget, retailer.domain, retailer.allowedRedirectHosts));
+    if (!urlOk && !local) {
       errors.push({ row, field: "url", message: `Product URL must be https on ${retailer.domain}` });
       continue;
     }
+    // In-store-only listing (local shop without a matching product URL): never linked out, shown under "Available nearby".
+    const storeOnly = !urlOk;
+    const target = urlOk && rawTarget ? rawTarget : retailer.websiteUrl;
     const title = neutralizeFormula(listing.product.title);
     if (title.changed) errors.push({ row, field: "title", message: "Leading formula character neutralised (row accepted)" });
 
@@ -167,7 +174,7 @@ export async function processMerchantFeed(
         currency: o.currency,
         stock,
         source: "merchant_upload",
-        isActive: live,
+        isActive: live && !storeOnly && (!local || feedApproved),
         feedId,
         merchantAccountId: acc?.id ?? null,
       },

@@ -9,6 +9,7 @@ import { appliedChips, filterCount, SORTS, toQuery, type BrowseFilters, type Bro
 import { haptic } from "@/lib/format";
 import { createLocalStore, useLocalStore } from "@/lib/store";
 import { tokens, useTheme } from "@/lib/theme";
+import { useZip } from "@/lib/zip";
 import { GridSkeleton, ProductRow, ProductTile, RowSkeleton, useGridTileWidth } from "../product";
 import { Sheet } from "../Sheet";
 import { AppText, Chip, Divider, EmptyState, ErrorState, Notice, Row } from "../ui";
@@ -78,7 +79,10 @@ export function ProductBrowser({ scope, initialFilters, initialSort = "relevance
   const layout = useLocalStore(layoutStore);
   const tileW = useGridTileWidth();
 
-  const query = useMemo(() => toQuery(scope, filters, sort), [scope, filters, sort]);
+  const { zip } = useZip();
+  // The user's ZIP rides along on every listing: nearest store on cards, "Near me", distance sort.
+  const fullScope = useMemo(() => ({ ...scope, zip: zip ?? undefined }), [scope, zip]);
+  const query = useMemo(() => toQuery(fullScope, filters, sort), [fullScope, filters, sort]);
   const results = useInfiniteQuery({
     queryKey: ["search", query],
     queryFn: ({ pageParam, signal }) => api.search.search({ ...query, page: pageParam }, { signal }),
@@ -111,7 +115,7 @@ export function ProductBrowser({ scope, initialFilters, initialSort = "relevance
 
   const clearAll = () => setFilters(EMPTY_FILTERS);
   const sortLabel = SORTS.find((s) => s.value === sort)?.label ?? "Sort";
-  const sortOptions = sorts ? SORTS.filter((s) => sorts.includes(s.value)) : SORTS;
+  const sortOptions = (sorts ? SORTS.filter((s) => sorts.includes(s.value)) : SORTS).filter((s) => s.value !== "distance" || !!zip);
 
   const listHeader = (
     <View style={{ paddingHorizontal: GUTTER }}>
@@ -218,7 +222,7 @@ export function ProductBrowser({ scope, initialFilters, initialSort = "relevance
         visible={filterOpen}
         onClose={() => setFilterOpen(false)}
         facets={first?.facets}
-        scope={scope}
+        scope={fullScope}
         sort={sort}
         value={filters}
         onApply={(f) => {

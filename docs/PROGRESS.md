@@ -296,3 +296,73 @@ Playwright audit (20 pages × 375/768/1280/1440/1920) with programmatic checks (
 - ✅ **Deals / Price drops:** New is the default. Refurbished / Used / Open box are separate views with a notice that they're compared only with each other.
 - ✅ **Fixes:** `cardFromDetail` (recently viewed) uses default-condition offers only. `relative()` falls back to a plain formatter when Hermes lacks `Intl.RelativeTimeFormat` ("Updated …" was blank in Expo Go). The product subtitle counts offers in the current tab.
 - ✅ typecheck, lint, smoke 37/37 (new condition step), `expo export` android + ios. Checked in the emulator (Expo Go, :8082) on TCL QM7: New 3 / Refurbished 1 / Used 2 tabs; the Used tab shows a used-only chart and amber badges. Screenshots: `mobile-emulator-product-*.png` in the shared notes folder.
+
+### 2026-11-27 — Mobile: compare overhaul, Home header, web gap analysis (mobile session)
+- ✅ **Home** shows no logo anymore; the search bar is the first element under the status bar.
+  - In Expo Go the header leaves the top-right corner free for Expo Go's floating developer button (`DEV_TOOLS_INSET_RIGHT`, using `isRunningInExpoGo()` — in SDK 58 Expo Go reports `executionEnvironment: "bare"`, so the Constants check fails). Development and production builds don't have that button, and the inset is 0 there.
+  - On the emulator, Expo Go → dev menu → "Tools button" is switched off. The dev menu still opens with `adb shell input keyevent 82`.
+- ✅ **Compare** works as a full feature:
+  - The product header row (image, name, lowest price, Deal Score, Visit store via `/v1/go`, Remove) stays pinned while you scroll the specs. The table scrolls sideways, and rows are grouped by section.
+  - "Only show differences" switch. The best value per row is highlighted (lowest price/total/lowest ever/median, highest Deal Score, most stores, in stock).
+  - Products can be added from search, and the list is persisted.
+  - Entry points: card/PDP toggles, the floating tray, Account and Saved ("Compare (n)").
+- ✅ **New screens and features:**
+  - Smart Basket `/basket` (qty, ZIP, memberships, allow second-hand, scenarios with Visit per line; PDP "Add to basket").
+  - Shopping assistant `/assistant` (shows an honest disabled notice while no AI provider is configured).
+  - Best-of lists `/best/[slug]` and `/best/<cat>-under-<N>` with budget chips.
+  - `/brands/<b>/<c>` deep link.
+  - Category page: "Best deals / Popular in / Price drops" links and a collapsible buying guide.
+  - Filter sheet: Category facet (search/brand/store) and "below 30-day typical" set to 10/20/30% (same as web).
+  - ZIP works signed out (device storage) through `ZipSheet` (Use my location + confidence) in Account, PDP and Basket.
+  - DSAR form for signed-out users (`POST /privacy/requests`).
+  - Coupon submission sheet (`POST /coupons`).
+  - `/reset-password?token` screen.
+  - Account rows: About, How we compare, Editorial policy, Contact and Accessibility (in-app browser).
+  - Saved → Recent.
+  - PDP: 6M history range, −5/−10/−20% alert presets, identifiers, out-of-stock and stale-price notices.
+  - Deals tiles show the top Deal Score reason and the fake-discount warning.
+- ✅ **Fixes:**
+  - Device stores (compare/basket/zip/privacy) could overwrite persisted data if written before AsyncStorage finished loading; writes now wait for the load.
+  - Compare add-sheet search text didn't reset.
+- ✅ `apps/mobile/PARITY.md` — feature | web | mobile | status for every shopping/account/coupons/privacy route (travel out of scope).
+- ✅ typecheck, lint, smoke 37/37, `expo export` android + ios. Each feature was checked on the emulator; screenshots are in `%TEMP%\claude\ecbafb045093e37e\d3804b2a-…\scratchpad\mobile\` (01–17).
+- ⚠️ **API bug found (not mobile):** `POST /v1/basket/optimize` ignores `allowConditions`. With `["new"]` it still returns a used eBay offer for `tcl-65-class-qm7-qled-4k-mini-led-google-tv`, the same result as with no field. The fix belongs to whoever owns `basket` in apps/api.
+
+## 2026-11-27 — Grocery (CPG) unit pricing + local sellers & many stores (grocery-local session)
+**Done**
+- ✅ Algorithms: `parseNetQuantity` / `parseMeasures` / `computeUnitPrice` / `bestValueIndex` (`packages/algorithms/src/normalize/netQuantity.ts`): oz, fl oz, lb, g, kg, ml, L, gal, qt, pt, count, sheets (per roll/box × rolls), loads; "Family Size 18.8 oz", "2 x 12 oz", "Pack of 4", "12 fl oz, 12 Pack", "12 Packs of 56"; explicit "N Count" beats nouns. Unit price = integer millicents per basis unit; label "34.4¢/oz", "$2.15/100 sheets". Tests 159/159.
+- ✅ Prisma (`grocery_local_stores`): Product `netQuantity/netUnit/packCount/sizeLabel`; Category `unitPricing`; Retailer `kind` (national/marketplace/local) + `pickupMinimumCents/deliveryMinimumCents`; RetailerFeed `reviewStatus`; MerchantAccount local-seller fields (legalName, businessPhone, businessCategory, einLast4 only, submitted/reviewed/note); new `StoreLocation`, `StoreInventory`, `CommerceConnection`.
+- ✅ Contracts `grocery.ts` + `local.ts` (+ catalog/search/basket fields, 18 endpoints) and api-client groups `local.*`, `merchant.{local,locations,connections}`, `admin.{local,coverage}`. Mobile contract handed over (shared notes `grocery-local-mobile-contract.md`).
+- ✅ API: unit prices on cards/offers/basket lines; product `netQuantity`, `sizeFamily` (best value, same basis only), `unitPricing`; search sort `unit_price` (Meili `unitPriceMilli`) and `distance`, `near` filter + `nearbyCount` + card `nearest` (in-memory path keyed by shopper ZIP / saved ZIP); multi-valued spec facets (Dietary). `GET /v1/products/:slug/nearby` (set_zip / unknown_zip / ok; organic by distance, out-of-stock last; separate max-1 Sponsored slot from active `nearby` campaigns; online lowest for comparison), `GET /v1/local/stores`. Merchant: `POST /merchant/local/apply` (any signed-in user → inactive local retailer + pending location at ZIP centroid, role → MERCHANT), status checklist, locations CRUD (address change → re-verify), per-location inventory, connections (encrypted secrets, sync one page through `processMerchantFeed` + StoreInventory). Admin: moderation queue with data-quality flags (ZIP/state mismatch, approx location, missing hours/phone, no/stale inventory, duplicate address, rejected rows, missing GTIN, connector errors), approve/reject merchant (toggles retailer visibility), verify location, approve/reject feed (offers on/off), audit log; `GET /v1/admin/coverage`. Basket `fulfillment` + `orderMinimum` (only published minimums).
+- ✅ Connectors (`packages/retailer-adapters/src/commerce`): Shopify (Admin GraphQL + OAuth URL/HMAC/code exchange), WooCommerce, Square, Clover, Google Merchant feed (SSRF guard, 20 MB, daily schedule helper); eBay `searchLocalPickup`; Etsy adapter; Kroger `locationsNear` + `fetchProductsAtLocation`. pending_configuration without credentials. Tests 162/162 (41 new, fixtures).
+- ✅ Seed `pnpm -C packages/database seed:grocery`: categories Breakfast & Cereal, Beverages, Pantry, Household Essentials (Laundry, Cleaning, Paper goods, Personal care) + unit pricing on grocery/household/diapering/pet food; 87 real-brand demo products (20 size families, club packs at Costco/Sam's), 352 demo offers incl. new retailers Kroger, Sam's Club, Walgreens, CVS (+ Etsy row); 18 "Demo store" chain locations (NYC, Chicago, Austin, Cincinnati) + 5 "Demo" local shops (one with a labeled promoted listing) → 902 store-inventory rows; 2 pending demo applications. Dietary only from package claims.
+- ✅ Web: PDP unit price under the lowest price, "Compare sizes" (best value), offer-table unit prices, "Available nearby" (store, distance "approx.", stock, store price + unit price, pickup today, delivers to you, Sponsored slot with note, Leaflet + OSM map with attribution, set-ZIP prompt); cards show unit price + nearest store; search "Near me (25 mi)" toggle + chip, sorts "Unit price" / "Distance"; `/sell` landing + footer link.
+- ✅ Admin (subagent): `/merchant/apply` (reachable for signed-in non-merchants), dashboard onboarding card, `/merchant/locations`, `/merchant/connections`, `/admin/local-merchants`, `/admin/coverage`; tsc + lint clean.
+- ✅ Docs: DATA_SOURCES "Grocery, local stores and how coverage grows", DECISIONS (3 entries).
+- ✅ Checks: API 12 files / 135 tests incl. new `test/grocery-local.test.ts` (13; `shopping-catalog.test.ts` now expects 17 top-level categories because seed:grocery adds Household Essentials), api/web/admin/worker/mobile/database tsc clean, web + admin eslint clean, algorithms 159, retailer-adapters 162; screenshots `web-0*.png`, `admin-*.png`, `merchant-*.png` in the grocery-local scratchpad.
+
+**Pending / honest gaps**
+- Kroger per-store prices are not ingested yet (adapter methods exist; needs keys + a worker job writing StoreInventory). No other chain has store-level data → those show online prices only.
+- Precise geocoding provider: pending configuration (ZIP centroids, "approx.").
+- Connector sync runs one page on demand; scheduled/background sync with cursors in the worker is pending. Shopify one-click app install needs our app credentials.
+- Retailer pickup/delivery minimums are null for chains (never guessed) → basket minimums only appear when published/entered.
+- Local shops without a website: product URLs fail the outbound allow-list in `processMerchantFeed` (only store-level inventory shows); a "go to store page" outbound path is a follow-up.
+- Existing (non-local) merchants can't convert to local sellers (apply returns 409).
+- Size facet sorts by the first number in the label ("2 × 20.35 oz" sorts as 2).
+- Full apply → approve flow was not clicked through end to end in the browser (it would change shared seed accounts); covered by API code paths + auth-gate tests only.
+
+### 2026-11-27 — Mobile: grocery unit prices + local stores (mobile session)
+- ✅ **Listings:** every listing sends the user's ZIP (account or device). Cards show the unit price and size (size only when it isn't already in key specs) and the nearest store with distance, "(approx.)" and stock. Sorts added: "Unit price (lowest)" and "Nearest store" (the latter only when a ZIP is set). Filter sheet has "Available near me (ZIP)" with `facets.nearbyCount`, an applied chip, and `near=true` deep links.
+- ✅ **PDP:**
+  - Unit price line, prominent when `unitPricing`.
+  - "Compare sizes" chips from `sizeFamily` with price and unit price; the best value is marked. The duplicate size variant row is hidden.
+  - Unit price per offer in the store table.
+  - New `NearbySection` (`api.local.nearby`):
+    - shows a set-ZIP prompt or an unknown-ZIP state when needed;
+    - lists organic stores by distance with stock, pickup today, delivers to you, price or "Ask store", unit price, Demo/Unverified labels and Call store;
+    - shows at most one separately labeled Sponsored listing, plus the online price for comparison.
+- ✅ **Basket:** fulfillment choice (Shipping / Store pickup / Local delivery). Per-store order minimum shows "met", "add $X" or "unknown — check with the store". Lines show size and unit price.
+- ✅ typecheck, lint, smoke 38/38 (new grocery step: unit-price sort, near-me search, nearby ok/set_zip, size family, local stores), `expo export` android + ios. Checked on the emulator with Cheerios 18 oz and "diapers near me" at ZIP 10001. Screenshots 19–21 are in the shared mobile screenshot folder. PARITY.md updated.
+- ✅ **End-to-end seller flow wired and verified in the browser (2026-11-27, ORCH request).** Playwright (Chrome) run with a throwaway local test account: `/sell` → "List your store — free" → `/sell/start` → `/signup?next=/sell/start` → merchant portal `/merchant/apply` (form filled + submitted) → `/merchant/connections` (5 providers, honest "Not connected / pending configuration") → `/merchant/feeds` CSV upload (2 GTIN rows + 1 without GTIN; no `url` column for a shop without website) → admin `/admin/local-merchants`: Verify location, Approve feed, Approve merchant → shopper product page (ZIP 10011) "Available nearby" shows the new store ("Local seller", < 0.1 mi approx., In stock, $329.00) and `near=true&sort=distance` search returns it. Screenshots `e2e-01…10` in the grocery-local scratchpad. The E2E accounts/retailers were deleted from the dev DB afterwards.
+  - New for this: `/sell/start` funnel (signed-out → web signup with return, signed-in → portal); admin login "New local store? Create a free account" link; merchant **Manage stock** page `/merchant/locations/[id]/stock` + `GET /v1/merchant/locations/:id/inventory` (contract `MerchantLocationInventoryResponse`); local sellers' approved catalog auto-fills store inventory at their locations (`core/local-inventory.ts`: on feed approval, merchant approval, inline upload, connector sync, new location; never overwrites per-store rows; rejected feed removes its rows); local shops may upload without `url` (client check + `processMerchantFeed`) → in-store-only listings that never link out; local feed offers stay offline until the feed is approved; merchant approval toggles offers + retailer visibility; editor approval of an unmatched merchant listing in Matching review now creates the merchant offer (`createOfferFromMatch`); "Available nearby" lists source status (Local stores · connected, Kroger / eBay local pickup / Etsy · pending configuration) and, when eBay keys exist, live eBay local-pickup listings (`EbayBrowseAdapter#searchLocalPickup`); near-me text search keeps Meilisearch relevance; admin queue cards carry `data-testid="local-merchant-card"`.
+  - Pending: production needs the session cookie shared between web and admin domains (works on localhost); web caches nearby results 120 s, so a newly approved store appears within ~2 minutes; Etsy listings aren't shown on product pages yet (status only); Kroger store-price ingestion job still to build.

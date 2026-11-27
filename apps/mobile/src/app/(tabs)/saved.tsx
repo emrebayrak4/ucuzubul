@@ -5,10 +5,11 @@ import { Alert, FlatList, RefreshControl, Switch, View } from "react-native";
 import type { PriceAlert } from "@pricora/contracts";
 import { ProductRow, RowSkeleton } from "@/components/product";
 import { Sheet } from "@/components/Sheet";
-import { AppText, Button, Divider, EmptyState, ErrorState, Field, IconButton, ListRow, Screen, Segmented } from "@/components/ui";
+import { AppText, Button, Divider, EmptyState, ErrorState, Field, IconButton, ListRow, Row, Screen, Segmented } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useCompare } from "@/lib/compare";
 import { money } from "@/lib/format";
 import { useRecentlyViewed } from "@/lib/recent";
 import { ALERTS_KEY, FAVORITES_KEY, LISTS_KEY, useAlerts, useFavorites, useLists } from "@/lib/saved";
@@ -18,7 +19,7 @@ import { tokens, useTheme } from "@/lib/theme";
 const sp = tokens.spacing;
 /** Clears the floating tab bar (+ typical home-indicator inset). */
 const TAB_SPACE = TAB_BAR_CLEARANCE + 58;
-type Tab = "favorites" | "alerts" | "lists";
+type Tab = "favorites" | "alerts" | "lists" | "recent";
 
 export default function SavedScreen() {
   const { user, loading } = useAuth();
@@ -28,9 +29,7 @@ export default function SavedScreen() {
   if (!user) {
     return (
       <Screen>
-        <AppText variant="h2" style={{ marginTop: sp[3] }} accessibilityRole="header">
-          Saved
-        </AppText>
+        <SavedHeader />
         {loading ? (
           <RowSkeleton count={3} />
         ) : (
@@ -63,22 +62,56 @@ export default function SavedScreen() {
 
   return (
     <Screen>
-      <AppText variant="h2" style={{ marginTop: sp[3], marginBottom: sp[3] }} accessibilityRole="header">
-        Saved
-      </AppText>
+      <SavedHeader />
       <Segmented
         options={[
           { value: "favorites", label: "Favorites" },
           { value: "alerts", label: "Alerts" },
           { value: "lists", label: "Lists" },
+          { value: "recent", label: "Recent" },
         ]}
         value={tab}
         onChange={setTab}
       />
       <View style={{ flex: 1, marginTop: sp[2] }}>
-        {tab === "favorites" ? <Favorites /> : tab === "alerts" ? <Alerts /> : <Lists />}
+        {tab === "favorites" ? <Favorites /> : tab === "alerts" ? <Alerts /> : tab === "lists" ? <Lists /> : <Recent />}
       </View>
     </Screen>
+  );
+}
+
+/** Title row with the compare entry point (count badge). */
+function SavedHeader() {
+  const compare = useCompare();
+  return (
+    <Row style={{ justifyContent: "space-between", marginTop: sp[3], marginBottom: sp[3] }}>
+      <AppText variant="h2" accessibilityRole="header">
+        Saved
+      </AppText>
+      <Button
+        title={compare.length ? `Compare (${compare.length})` : "Compare"}
+        icon="git-compare-outline"
+        variant={compare.length >= 2 ? "primary" : "secondary"}
+        size="sm"
+        onPress={() => router.push("/compare")}
+      />
+    </Row>
+  );
+}
+
+/** Recently viewed on this device (also kept offline in the query cache). */
+function Recent() {
+  const recent = useRecentlyViewed();
+  if (!recent.items.length) return <EmptyState icon="time-outline" title="Nothing viewed yet" message="Products you open show up here, on this device only." />;
+  return (
+    <FlatList
+      contentContainerStyle={{ paddingBottom: TAB_SPACE }}
+      data={recent.items}
+      keyExtractor={(p) => p.id}
+      ItemSeparatorComponent={Divider}
+      ListFooterComponent={<Button title="Clear recently viewed" variant="ghost" onPress={recent.clear} />}
+      renderItem={({ item }) => <ProductRow p={item} />}
+    />
   );
 }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { CsvList, MAX_PAGE_SIZE, QueryBoolean, Slug } from "./common";
+import { CsvList, MAX_PAGE_SIZE, QueryBoolean, Slug, UsZip } from "./common";
+import { ZipOrigin } from "./local";
 import { BrandSummary, CategorySummary, ProductCard } from "./catalog";
 
 export const SearchSort = z.enum([
@@ -11,6 +12,10 @@ export const SearchSort = z.enum([
   "popular",
   "newest",
   "biggest_drop",
+  /** Lowest price per unit (¢/oz, ¢/ct…); products without a known size go last. */
+  "unit_price",
+  /** Nearest store first (needs a ZIP). */
+  "distance",
 ]);
 export type SearchSort = z.infer<typeof SearchSort>;
 
@@ -38,6 +43,12 @@ export const SearchQuery = z.object({
   minDiscount: z.coerce.number().min(0).max(1).optional(),
   /** Spec filters as `key.value-slug` items, e.g. `ram.16-gb,ram.32-gb,cpu-brand.intel` (OR within a key, AND across keys). */
   spec: CsvList.optional(),
+  /** "Near me": only products in stock (or stock unknown) at a store within `radius` miles of `zip`. */
+  near: QueryBoolean.optional(),
+  /** Shopper ZIP for near-me / distance (falls back to the signed-in user's saved ZIP). */
+  zip: UsZip.optional(),
+  /** Miles (default 25). */
+  radius: z.coerce.number().int().min(1).max(100).optional(),
   sort: SearchSort.default("relevance"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(24),
@@ -86,6 +97,8 @@ export const SearchFacets = z.object({
   payIn4Count: z.number().int().nonnegative(),
   /** Category spec filters (only when a category with facet definitions is selected). */
   specs: z.array(SpecFacet),
+  /** Products available at a store within the radius (only when a ZIP is known). */
+  nearbyCount: z.number().int().nonnegative().optional(),
 });
 export type SearchFacets = z.infer<typeof SearchFacets>;
 
@@ -102,6 +115,8 @@ export const ParsedQuery = z.object({
 export type ParsedQuery = z.infer<typeof ParsedQuery>;
 
 export const SearchResponse = z.object({
+  /** ZIP used for near-me / distance (null when none known). */
+  location: ZipOrigin.nullable().optional(),
   items: z.array(ProductCard),
   facets: SearchFacets,
   total: z.number().int().nonnegative(),

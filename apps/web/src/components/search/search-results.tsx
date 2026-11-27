@@ -3,7 +3,7 @@ import { SearchX, Sparkles } from "lucide-react";
 import type { SearchQueryInput } from "@pricora/contracts";
 import { Badge, Button, CategoryIcon } from "@pricora/ui";
 import { formatPrice } from "@pricora/ui/utils";
-import { load, serverApi } from "@/lib/api-server";
+import { getZip, load, serverApi } from "@/lib/api-server";
 import type { SearchParams } from "@/lib/nav";
 import { hrefWith, parseSearchParams, viewMode } from "@/lib/search-params";
 import { ApiErrorPanel } from "@/components/api-error";
@@ -28,7 +28,9 @@ export async function SearchResults({
   fixed?: Partial<SearchQueryInput>;
   hide?: Partial<Record<"category" | "brand" | "retailer", boolean>>;
 }) {
-  const query = parseSearchParams(searchParams, fixed);
+  const zip = await getZip();
+  // Shopper ZIP (cookie) enables "Near me", distance sort and the nearest-store line on cards.
+  const query = { ...parseSearchParams(searchParams, fixed), ...(zip ? { zip } : {}) };
   const view = viewMode(searchParams);
   const api = await serverApi({ revalidate: 120 });
   const res = await load(() => api.search.search(query));

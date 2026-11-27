@@ -1,0 +1,28 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "data": [
+      {
+        "locationId": "01400943",
+        "storeNumber": "00943",
+        "divisionNumber": "014",
+        "chain": "KROGER",
+        "address": { "addressLine1": "100 Test Pike", "city": "Cincinnati", "state": "OH", "zipCode": "45202", "county": "Hamilton" },
+        "geolocation": { "latitude": 39.1031, "longitude": -84.512, "latLng": "39.1031,-84.512" },
+        "name": "Kroger - Test Pike",
+        "hours": { "timezone": "America/New_York", "open24": false },
+        "phone": "5135550100",
+        "departments": [{ "departmentId": "09", "name": "Pharmacy" }]
+      },
+      {
+        "locationId": "01400376",
+        "chain": "KROGER",
+        "address": { "addressLine1": "200 Example Ave", "city": "Cincinnati", "state": "OH", "zipCode": "45206" },
+        "geolocation": { "latitude": 39.12, "longitude": -84.49 },
+        "name": "Kroger - Example Ave"
+      },
+      { "chain": "KROGER", "name": "Missing id is skipped" }
+    ],
+    "meta": { "pagination": { "start": 0, "limit": 10, "total": 3 } }
+  }
+}

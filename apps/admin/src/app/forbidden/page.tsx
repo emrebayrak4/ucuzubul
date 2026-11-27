@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ShieldX } from "lucide-react";
 import { getServerSession } from "@/lib/session-server";
-import { ROLE_LABEL, homeForRole } from "@/lib/roles";
+import { MERCHANT_APPLY_PATH, ROLE_LABEL, homeForRole } from "@/lib/roles";
 import { LogoutButton } from "./logout-button";
 
 export const metadata: Metadata = { title: "Access denied" };
@@ -31,6 +31,10 @@ export default async function ForbiddenPage() {
         {home ? (
           <a href={home} className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg">
             Go to your portal
+          </a>
+        ) : user ? (
+          <a href={MERCHANT_APPLY_PATH} className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg">
+            List your local store (free)
           </a>
         ) : null}
         {user ? <LogoutButton /> : (

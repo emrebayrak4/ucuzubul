@@ -1,11 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { Platform } from "react-native";
 import { api } from "./api";
-import { EAS_PROJECT_ID } from "./config";
+import { EAS_PROJECT_ID, IN_EXPO_GO } from "./config";
 
 /**
  * Push notifications.
@@ -16,7 +15,7 @@ import { EAS_PROJECT_ID } from "./config";
  */
 const TOKEN_KEY = "pricora.push.token";
 /** Expo Go has no remote push on Android (SDK 53+) — skip token work there; a dev build is needed. */
-export const IN_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+export { IN_EXPO_GO };
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

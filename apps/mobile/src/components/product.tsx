@@ -23,6 +23,10 @@ export interface CardExtras {
   previousPriceCents?: number | null;
   storeName?: string;
   dropRatio?: number;
+  /** One-line context (e.g. the top Deal Score reason on deals). */
+  note?: string;
+  /** Fake-discount warning text. */
+  warning?: string;
 }
 
 export function ProductImage({ uri, size, alt, height }: { uri: string | null | undefined; size: number; alt?: string; height?: number }) {
@@ -80,6 +84,7 @@ function PriceLine({ p, x }: { p: ProductCard; x?: CardExtras }) {
       {/* payIn4 is computed at the lowest-price store, so only next to that price. */}
       {x?.priceCents === undefined ? <PayIn4Line payIn4={p.payIn4} compact /> : null}
       <OtherConditionsLine p={p} />
+      <UnitAndNearestLines p={p} />
     </View>
   );
 }
@@ -98,6 +103,28 @@ function OtherConditionsLine({ p }: { p: ProductCard }) {
       {headlineNotNew && cheapest ? " · " : ""}
       {cheapest ? `${conditionGroupLabel[cheapest.condition]} from ${money(cheapest.lowestPriceCents, p.currency)}` : ""}
     </AppText>
+  );
+}
+
+const LOCAL_STOCK: Record<string, string> = { in_stock: "In stock", limited: "Limited stock", out_of_stock: "Out of stock", unknown: "Stock unknown" };
+
+/** Grocery unit price + size, and the nearest store when the listing had a ZIP. */
+function UnitAndNearestLines({ p }: { p: ProductCard }) {
+  if (!p.unitPrice && !p.sizeLabel && !p.nearest) return null;
+  const showUnit = !!p.unitPrice || (!!p.sizeLabel && !p.keySpecs?.includes(p.sizeLabel));
+  return (
+    <>
+      {showUnit ? (
+        <AppText variant="caption" color="text-muted" numberOfLines={1}>
+          {[p.unitPrice?.label, p.sizeLabel && !p.keySpecs?.includes(p.sizeLabel) ? p.sizeLabel : null].filter(Boolean).join(" · ")}
+        </AppText>
+      ) : null}
+      {p.nearest ? (
+        <AppText variant="caption" color={p.nearest.stock === "out_of_stock" ? "warning" : "success"} numberOfLines={1}>
+          {p.nearest.storeName} · {p.nearest.distanceMi.toFixed(1)} mi{p.nearest.approximate ? " (approx.)" : ""} · {LOCAL_STOCK[p.nearest.stock]}
+        </AppText>
+      ) : null}
+    </>
   );
 }
 
@@ -167,6 +194,16 @@ export const ProductTile = memo(function ProductTile({ p, x, width = TILE_W }: {
       ) : null}
       <PriceLine p={p} x={x} />
       <Badges p={p} x={x} />
+      {x?.note ? (
+        <AppText variant="caption" color="text-muted" numberOfLines={2}>
+          {x.note}
+        </AppText>
+      ) : null}
+      {x?.warning ? (
+        <AppText variant="caption" color="warning" numberOfLines={2}>
+          ⚠ {x.warning}
+        </AppText>
+      ) : null}
     </PressableRow>
   );
 });

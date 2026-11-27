@@ -1,0 +1,18 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "id": "MID123ABC",
+    "name": "Corner Store",
+    "phoneNumber": "512-555-0102",
+    "address": {
+      "address1": "500 Lamar Blvd",
+      "city": "Austin",
+      "state": "TX",
+      "zip": "78703",
+      "country": "US"
+    },
+    "properties": {
+      "defaultCurrency": "USD"
+    }
+  }
+}

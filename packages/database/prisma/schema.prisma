@@ -541,6 +541,8 @@ model Category {
   facets      Json?
   /// Longer SEO intro / buying-guide text rendered on the category page (plain text, paragraphs split by blank lines).
   seoText     String?
+  /// Grocery / household categories: show unit price prominently and offer the unit-price sort.
+  unitPricing Boolean  @default(false)
   sortOrder   Int      @default(0)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now()) @db.Timestamptz(3)
@@ -589,6 +591,14 @@ model Product {
   status      ProductStatus    @default(active)
   /// True for seeded demo catalog rows (UI must label "Demo data").
   isDemo      Boolean          @default(false)
+  /// Net quantity in `netUnit`, total across a multipack (grocery / everyday items). Drives unit pricing.
+  netQuantity Float?
+  /// Unit-price basis: oz | fl_oz | ct | sheet | load (see @pricora/algorithms UnitBasis).
+  netUnit     String?          @db.VarChar(8)
+  /// Multipack count as sold (1 = single item). Different pack sizes are different products.
+  packCount   Int?
+  /// Size as sold, e.g. "18.8 oz", "2 × 12 oz", "198 ct".
+  sizeLabel   String?
   releasedAt  DateTime?        @db.Timestamptz(3)
   createdAt   DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
@@ -611,6 +621,7 @@ model Product {
   anomalies      PriceAnomaly[]
   coupons        Coupon[]
   translations   ProductTranslation[]
+  storeInventory StoreInventory[]
 
   @@index([categoryId, status])
   @@index([brandId])
@@ -707,6 +718,11 @@ model Retailer {
   /// Null until computed from real signals (returns, fulfilment, complaints). Never invented.
   trustScore                 Int?
   freeShippingThresholdCents Int?
+  /// national chain | marketplace | local independent seller.
+  kind                       RetailerKind      @default(national)
+  /// Order minimums for store pickup / delivery when the retailer publishes them (null = unknown, never guessed).
+  pickupMinimumCents         Int?
+  deliveryMinimumCents       Int?
   membershipName             String?
   membershipKey              String?
   returnPolicyUrl            String?
@@ -740,6 +756,7 @@ model Retailer {
   couponEvents      CouponEvent[]
   checkoutConfig    RetailerCheckoutConfig?
   paymentOptions    RetailerPaymentOption[]
+  locations         StoreLocation[]
 
   @@index([isActive])
   @@index([homeMarketId, isActive])
@@ -769,22 +786,24 @@ model RetailerIntegration {
 }
 
 model RetailerFeed {
-  id                String     @id @default(cuid())
+  id                String             @id @default(cuid())
   retailerId        String
   merchantAccountId String?
   name              String
-  format            FeedFormat @default(csv)
+  format            FeedFormat         @default(csv)
   /// Remote URL (scheduled feeds) or null for uploads.
   url               String?
   /// Object-storage key for uploaded files.
   fileKey           String?
-  status            JobStatus  @default(queued)
+  status            JobStatus          @default(queued)
   rowsTotal         Int?
   rowsAccepted      Int?
   rowsRejected      Int?
   errors            Json?
-  uploadedAt        DateTime   @default(now()) @db.Timestamptz(3)
-  completedAt       DateTime?  @db.Timestamptz(3)
+  /// Moderation for self-serve (local) merchant feeds: pending until an admin reviews the first import.
+  reviewStatus      VerificationStatus @default(verified)
+  uploadedAt        DateTime           @default(now()) @db.Timestamptz(3)
+  completedAt       DateTime?          @db.Timestamptz(3)
 
   retailer        Retailer           @relation(fields: [retailerId], references: [id], onDelete: Cascade)
   merchantAccount MerchantAccount?   @relation(fields: [merchantAccountId], references: [id], onDelete: SetNull)
@@ -951,7 +970,7 @@ model PriceAlert {
   productId        String
   type             AlertType
   /// Which offers the alert watches (default new — used/refurbished never trigger a new-condition alert).
-  condition        ProductCondition @default(new)
+  condition        ProductCondition      @default(new)
   targetPriceCents Int?
   dropPercentBp    Int?
   retailerId       String?
@@ -1407,16 +1426,29 @@ model MerchantAccount {
   contactEmail       String
   website            String?
   verificationStatus VerificationStatus @default(unverified)
+  /// Self-serve local shop (free listing) vs. national retailer account.
+  isLocalSeller      Boolean            @default(false)
+  legalName          String?
+  businessPhone      String?
+  /// e.g. "grocery", "convenience", "pharmacy", "hardware", "electronics", "general".
+  businessCategory   String?
+  /// Last 4 digits of the EIN only (verification hint). The full EIN is never stored.
+  einLast4           String?            @db.Char(4)
+  submittedAt        DateTime?          @db.Timestamptz(3)
+  reviewedAt         DateTime?          @db.Timestamptz(3)
+  reviewNote         String?
   createdAt          DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
 
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  retailer  Retailer?           @relation(fields: [retailerId], references: [id], onDelete: SetNull)
-  apiKeys   ApiKey[]
-  feeds     RetailerFeed[]
-  offers    Offer[]
-  campaigns SponsoredCampaign[]
-  coupons   Coupon[]
+  locations   StoreLocation[]
+  connections CommerceConnection[]
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  retailer    Retailer?            @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  apiKeys     ApiKey[]
+  feeds       RetailerFeed[]
+  offers      Offer[]
+  campaigns   SponsoredCampaign[]
+  coupons     Coupon[]
 
   @@map("merchant_accounts")
 }
@@ -1973,20 +2005,20 @@ model CategoryTranslation {
 /// US ZIP Code Tabulation Areas (Census Gazetteer ZCTA centroids — public domain). Imported by `pnpm -C packages/database zip:import`.
 /// ZCTAs approximate USPS ZIP delivery areas; PO-box-only ZIPs have no ZCTA.
 model ZipCode {
-  zip        String   @id @db.Char(5)
+  zip         String   @id @db.Char(5)
   /// Internal point (INTPTLAT/INTPTLONG) of the ZCTA.
-  lat        Float
-  lng        Float
+  lat         Float
+  lng         Float
   /// USPS state code from the ZCTA→county relationship file (largest land overlap).
-  state      String?  @db.Char(2)
+  state       String?  @db.Char(2)
   /// County with the largest land overlap.
-  county     String?
+  county      String?
   /// Nearest Census place (incorporated place / CDP) in the same state — an approximation, not the USPS city name.
-  city       String?
+  city        String?
   /// 2020 Decennial Census total population (P1_001N) when available.
-  population Int?
+  population  Int?
   landAreaKm2 Float?
-  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([lat, lng])
   @@index([state])
@@ -2075,4 +2107,104 @@ model RetailerPaymentOption {
   @@unique([retailerId, provider, planType])
   @@index([retailerId, isActive])
   @@map("retailer_payment_options")
+}
+
+// ───────────────────────────── Local stores & per-location inventory ─────────────────────────────
+
+enum RetailerKind {
+  national
+  marketplace
+  local
+}
+
+/// A physical store (chain location or local shop). Coordinates are approximate (ZIP centroid) unless the
+/// source or a geocoding provider supplied them — `geoPrecision` says which; the UI says "approx." for zip_centroid.
+model StoreLocation {
+  id                   String             @id @default(cuid())
+  retailerId           String
+  merchantAccountId    String?
+  /// Location id at the source (Kroger locationId, Shopify location gid, Square location id…).
+  externalId           String?
+  name                 String
+  address1             String?
+  city                 String?
+  state                String?            @db.Char(2)
+  zip                  String             @db.Char(5)
+  lat                  Float
+  lng                  Float
+  /// zip_centroid | provider | source
+  geoPrecision         String             @default("zip_centroid") @db.VarChar(16)
+  phone                String?
+  /// Opening hours: [{day:0-6, open:"09:00", close:"21:00"}] (contracts StoreHours).
+  hours                Json?
+  pickup               Boolean            @default(true)
+  deliveryRadiusMiles  Int?
+  pickupMinimumCents   Int?
+  deliveryMinimumCents Int?
+  source               DataSource
+  verificationStatus   VerificationStatus @default(unverified)
+  isActive             Boolean            @default(true)
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+
+  retailer        Retailer         @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  merchantAccount MerchantAccount? @relation(fields: [merchantAccountId], references: [id], onDelete: SetNull)
+  inventory       StoreInventory[]
+
+  @@unique([retailerId, externalId])
+  @@index([lat, lng])
+  @@index([zip])
+  @@index([merchantAccountId])
+  @@map("store_locations")
+}
+
+/// Price / stock of a product at one store location (only where the source provides it).
+/// Kept apart from Offer so store-level prices never mix into national price stats or Deal Score.
+model StoreInventory {
+  id              String      @id @default(cuid())
+  storeLocationId String
+  productId       String
+  retailerSku     String?
+  /// Null when the source gives stock but not a store price.
+  priceCents      Int?
+  currency        String      @default("USD") @db.Char(3)
+  stock           StockStatus @default(unknown)
+  quantity        Int?
+  pickupToday     Boolean     @default(false)
+  source          DataSource
+  lastCheckedAt   DateTime    @default(now()) @db.Timestamptz(3)
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+
+  location StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([storeLocationId, productId])
+  @@index([productId])
+  @@map("store_inventory")
+}
+
+/// A merchant's connected store platform (Shopify, WooCommerce, Square, Clover, Google Merchant feed).
+/// Secrets are AES-256-GCM encrypted (same envelope as IntegrationCredential) and never returned.
+model CommerceConnection {
+  id                String            @id @default(cuid())
+  merchantAccountId String
+  /// shopify | woocommerce | square | clover | google_merchant
+  provider          String            @db.VarChar(24)
+  status            IntegrationStatus @default(pending_configuration)
+  /// Non-secret settings: shop domain, store URL, feed URL, sync interval.
+  config            Json?
+  ciphertext        String?
+  lastSyncAt        DateTime?         @db.Timestamptz(3)
+  nextSyncAt        DateTime?         @db.Timestamptz(3)
+  lastError         String?
+  itemsSynced       Int?
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @db.Timestamptz(3)
+
+  merchantAccount MerchantAccount @relation(fields: [merchantAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantAccountId, provider])
+  @@index([nextSyncAt])
+  @@map("commerce_connections")
 }

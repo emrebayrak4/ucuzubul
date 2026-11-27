@@ -12,6 +12,10 @@ import { API_URL, brand } from "@/lib/config";
 import { useCouponFollows } from "@/lib/coupons";
 import { openWebPath } from "@/lib/links";
 import { usePrivacy } from "@/lib/privacy";
+import { useBasket } from "@/lib/basket";
+import { useZip } from "@/lib/zip";
+import { ZipSheet } from "@/components/ZipSheet";
+import { useState } from "react";
 import { useTabBarSpace } from "@/lib/tabBar";
 import { useAlerts, useFavorites, useLists } from "@/lib/saved";
 import { tokens, useTheme, type ThemePreference } from "@/lib/theme";
@@ -43,6 +47,9 @@ export default function AccountScreen() {
   const compare = useCompare();
   const privacy = usePrivacy();
   const tabSpace = useTabBarSpace();
+  const basket = useBasket();
+  const zip = useZip();
+  const [zipOpen, setZipOpen] = useState(false);
 
   const syncTheme = useMutation({ mutationFn: (theme: ThemePreference) => api.me.updatePreferences({ theme }) });
   const changeTheme = (p: ThemePreference) => {
@@ -99,6 +106,12 @@ export default function AccountScreen() {
         <Divider />
         <ListRow icon="grid-outline" title="All categories" onPress={() => router.push("/categories")} />
         <Divider />
+        <ListRow icon="basket-outline" title="Smart Basket" subtitle={basket.length ? `${basket.length} ${basket.length === 1 ? "item" : "items"}` : "Cheapest way to buy several items"} onPress={() => router.push("/basket")} />
+        <Divider />
+        <ListRow icon="chatbubbles-outline" title="Shopping assistant" subtitle="Experimental" onPress={() => router.push("/assistant")} />
+        <Divider />
+        <ListRow icon="trophy-outline" title="Popular & new" subtitle="Most-stocked and newly added products" onPress={() => router.push("/popular")} />
+        <Divider />
         <ListRow icon="git-compare-outline" title="Compare" subtitle={compare.length ? `${compare.length} selected` : "Pick up to 5 products"} onPress={() => router.push("/compare")} />
         {TRAVEL_ENABLED ? (
           <>
@@ -136,6 +149,8 @@ export default function AccountScreen() {
             <Divider />
           </>
         ) : null}
+        <ListRow icon="location-outline" title="ZIP for tax estimates" subtitle={zip.zip ? `${zip.zip} · ${zip.source === "account" ? "account" : "this device"}` : "Not set"} onPress={() => setZipOpen(true)} />
+        <Divider />
         <ListRow
           icon="shield-checkmark-outline"
           title="Privacy choices"
@@ -158,13 +173,23 @@ export default function AccountScreen() {
       />
 
       <Group title="About">
-        <ListRow icon="images-outline" title="Photo credits" onPress={() => router.push("/credits")} />
+        <ListRow icon="information-circle-outline" title={`About ${brand.name}`} onPress={() => void openWebPath("/about")} />
+        <Divider />
+        <ListRow icon="analytics-outline" title="How we compare prices" subtitle="Deal Score, fake-discount checks" onPress={() => void openWebPath("/how-we-compare")} />
+        <Divider />
+        <ListRow icon="newspaper-outline" title="Editorial policy" onPress={() => void openWebPath("/editorial-policy")} />
+        <Divider />
+        <ListRow icon="mail-outline" title="Contact" onPress={() => void openWebPath("/contact")} />
+        <Divider />
+        <ListRow icon="images-outline" title="Photo credits & data sources" onPress={() => router.push("/credits")} />
         <Divider />
         <ListRow icon="document-text-outline" title="Privacy policy" onPress={() => void openWebPath("/legal/privacy")} />
         <Divider />
         <ListRow icon="document-text-outline" title="Terms" onPress={() => void openWebPath("/legal/terms")} />
         <Divider />
         <ListRow icon="information-circle-outline" title="Affiliate disclosure" onPress={() => void openWebPath("/legal/affiliate-disclosure")} />
+        <Divider />
+        <ListRow icon="accessibility-outline" title="Accessibility" onPress={() => void openWebPath("/legal/accessibility")} />
       </Group>
 
       {user ? (
@@ -183,6 +208,7 @@ export default function AccountScreen() {
         {brand.name} {Constants.expoConfig?.version ?? ""} · {brand.legalEntity}
         {__DEV__ ? `\nAPI ${API_URL}` : ""}
       </AppText>
+      <ZipSheet visible={zipOpen} onClose={() => setZipOpen(false)} />
     </Screen>
   );
 }

@@ -17,7 +17,11 @@ export interface BrowseFilters {
   freeShipping: boolean;
   /** Store offers pay-over-time (BNPL / financing) at checkout. */
   payOverTime: boolean;
+  /** Only products available at a store near the user's ZIP (needs a ZIP). */
+  near: boolean;
   minDiscount?: number;
+  /** Category picked in the filter sheet when the screen has no fixed category (search, brand, store). */
+  category?: string;
 }
 
 export type ConditionFilter = ConditionGroup | "all";
@@ -38,7 +42,7 @@ export function toggleCondition(c: ConditionFilter[], g: ConditionGroup): Condit
   return CONDITION_GROUPS.filter((x) => next.includes(x));
 }
 
-export const EMPTY_FILTERS: BrowseFilters = { brand: [], retailer: [], condition: [], spec: [], inStock: false, freeShipping: false, payOverTime: false };
+export const EMPTY_FILTERS: BrowseFilters = { brand: [], retailer: [], condition: [], spec: [], inStock: false, freeShipping: false, payOverTime: false, near: false };
 
 export const SORTS: { value: SearchSort; label: string }[] = [
   { value: "relevance", label: "Relevance" },
@@ -49,9 +53,12 @@ export const SORTS: { value: SearchSort; label: string }[] = [
   { value: "biggest_drop", label: "Biggest price drop" },
   { value: "popular", label: "Most stores" },
   { value: "newest", label: "Newest" },
+  { value: "unit_price", label: "Unit price (lowest)" },
+  { value: "distance", label: "Nearest store" },
 ];
 
-export const DISCOUNTS = [0.1, 0.25, 0.5] as const;
+/** "Below its 30-day typical price" thresholds (same as the web filter). */
+export const DISCOUNTS = [0.1, 0.2, 0.3] as const;
 
 /** Fixed scope a screen imposes (category page, brand page…). The user can't remove it from the chips. */
 export interface BrowseScope {
@@ -59,6 +66,8 @@ export interface BrowseScope {
   category?: string;
   brand?: string;
   retailer?: string;
+  /** User ZIP (account or device): enables nearest-store info, "Near me" and distance sort. */
+  zip?: string;
 }
 
 export function toQuery(scope: BrowseScope, f: BrowseFilters, sort: SearchSort, pageSize = 24): SearchQueryInput {
@@ -66,7 +75,7 @@ export function toQuery(scope: BrowseScope, f: BrowseFilters, sort: SearchSort, 
   const retailer = [...new Set([...(scope.retailer ? [scope.retailer] : []), ...f.retailer])];
   return {
     q: scope.q || undefined,
-    category: scope.category,
+    category: scope.category ?? f.category,
     brand: brand.length ? brand.join(",") : undefined,
     retailer: retailer.length ? retailer.join(",") : undefined,
     minPrice: f.minPrice,
@@ -76,6 +85,8 @@ export function toQuery(scope: BrowseScope, f: BrowseFilters, sort: SearchSort, 
     inStock: f.inStock ? "true" : undefined,
     freeShipping: f.freeShipping ? "true" : undefined,
     payOverTime: f.payOverTime ? "true" : undefined,
+    near: f.near && scope.zip ? "true" : undefined,
+    zip: scope.zip,
     minDiscount: f.minDiscount,
     sort,
     pageSize,
@@ -92,7 +103,9 @@ export function filterCount(f: BrowseFilters): number {
     (f.inStock ? 1 : 0) +
     (f.freeShipping ? 1 : 0) +
     (f.payOverTime ? 1 : 0) +
-    (f.minDiscount ? 1 : 0)
+    (f.near ? 1 : 0) +
+    (f.minDiscount ? 1 : 0) +
+    (f.category ? 1 : 0)
   );
 }
 
@@ -134,7 +147,9 @@ export function appliedChips(f: BrowseFilters, facets: SearchFacets | undefined)
   }
   if (f.inStock) chips.push({ key: "stock", label: "In stock", remove: (x) => ({ ...x, inStock: false }) });
   if (f.freeShipping) chips.push({ key: "ship", label: "Free shipping", remove: (x) => ({ ...x, freeShipping: false }) });
+  if (f.near) chips.push({ key: "near", label: "Near me", remove: (x) => ({ ...x, near: false }) });
   if (f.payOverTime) chips.push({ key: "pay", label: "Pay over time", remove: (x) => ({ ...x, payOverTime: false }) });
+  if (f.category) chips.push({ key: "cat", label: label(facets?.categories, f.category), remove: (x) => ({ ...x, category: undefined }) });
   if (f.minDiscount)
     chips.push({ key: "disc", label: `${Math.round(f.minDiscount * 100)}%+ off`, remove: (x) => ({ ...x, minDiscount: undefined }) });
   return chips;
@@ -158,6 +173,7 @@ export function filtersFromParams(p: Record<string, string | undefined>): Browse
     inStock: p.inStock === "true",
     freeShipping: p.freeShipping === "true",
     payOverTime: p.payOverTime === "true",
+    near: p.near === "true",
     minDiscount: num(p.minDiscount),
   };
 }

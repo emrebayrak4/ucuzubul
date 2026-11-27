@@ -5,6 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { ViewTransition, useState, type ReactNode } from "react";
 import {
   Activity,
+  BadgeCheck,
+  ChartPie,
+  MapPin,
+  Plug,
   BookOpen,
   Cable,
   MapPinned,
@@ -83,6 +87,10 @@ const ICONS: Record<IconName, LucideIcon> = {
   coupons: TicketPercent,
   guides: MapPinned,
   checkout: ScanSearch,
+  locations: MapPin,
+  connections: Plug,
+  localSellers: BadgeCheck,
+  coverage: ChartPie,
 };
 
 function NavList({ groups, role, onNavigate }: { groups: NavGroup[]; role: PublicUser["role"]; onNavigate?: () => void }) {
