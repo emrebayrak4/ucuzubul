@@ -64,6 +64,9 @@ const AVAILABILITY: Readonly<Record<string, Availability>> = {
   BackOrder: "backorder",
 };
 
+/** Conditions that get their own SKU (a different item from the new one). */
+const SECOND_HAND: ReadonlySet<Condition> = new Set<Condition>(["used", "refurbished", "open_box", "for_parts"]);
+
 export interface Channel3SearchQuery {
   query: string;
   limit?: number;
@@ -133,11 +136,17 @@ export class Channel3Client extends AdapterCore {
       ...(pageToken ? { page_token: pageToken } : {}),
       ...(Object.keys(filters).length ? { filters } : {}),
     };
-    const res = await this.guard(() => this.http.json({ url: `${BASE}/search`, method: "POST", headers, body: JSON.stringify(body), retries: 1 }));
+    // No retry: every search request costs a credit, and a timed-out POST may already have been billed.
+    const res = await this.guard(() => this.http.json({ url: `${BASE}/search`, method: "POST", headers, body: JSON.stringify(body), retries: 0 }));
     const warnings: string[] = [];
-    const items = arr(get(res, "products"))
-      .map((p) => this.normalize(p, warnings))
-      .filter((p): p is Channel3Product => p !== null && p.offers.length > 0);
+    const items: Channel3Product[] = [];
+    for (const raw of arr(get(res, "products"))) {
+      const p = this.normalize(raw, warnings);
+      const label = str(get(raw, "id")) ?? "without id";
+      if (!p) warnings.push(`Channel3 product ${label}: dropped (missing id or title)`);
+      else if (!p.offers.length) warnings.push(`Channel3 product ${label}: dropped (no priced offer)`);
+      else items.push(p);
+    }
     return { items, next: str(get(res, "next_page_token")), warnings };
   }
 
@@ -153,12 +162,23 @@ export class Channel3Client extends AdapterCore {
     }
   }
 
-  /** One normalized listing per offer, keyed by our retailer id (or the store domain when untracked). */
+  /**
+   * One normalized listing per (retailer, SKU), keyed by our retailer id (or the store domain when untracked).
+   * The SKU only carries the condition for second-hand offers, so a missing/added `condition` field never
+   * changes the key of a new item. Several offers from one store under one key keep the cheapest
+   * (the offer keeps its own condition, so "unknown" never counts as new).
+   */
   toListings(p: Channel3Product): NormalizedListing[] {
     const observedAt = new Date(this.clock.now()).toISOString();
-    return p.offers.map((o) => {
+    const best = new Map<string, { retailerId: string; retailerSku: string; offer: Channel3Offer }>();
+    for (const o of p.offers) {
       const retailerId = o.retailerId ?? o.domain;
-      const retailerSku = o.condition === "new" ? `c3:${p.id}` : `c3:${p.id}:${o.condition}`;
+      const retailerSku = SECOND_HAND.has(o.condition) ? `c3:${p.id}:${o.condition}` : `c3:${p.id}`;
+      const key = `${retailerId}\u0000${retailerSku}`;
+      const prev = best.get(key);
+      if (!prev || o.priceCents < prev.offer.priceCents) best.set(key, { retailerId, retailerSku, offer: o });
+    }
+    return [...best.values()].map(({ retailerId, retailerSku, offer: o }) => {
       return {
         product: {
           retailerId,
@@ -228,7 +248,8 @@ export class Channel3Client extends AdapterCore {
     const domainRaw = str(raw.domain);
     const url = str(raw.url);
     const priceCents = toCents(get(raw, "price.price") ?? get(raw, "price.amount"));
-    if (!domainRaw || !url || priceCents === null || priceCents <= 0) return null;
+    const currency = (str(get(raw, "price.currency")) ?? "USD").toUpperCase();
+    if (!domainRaw || !url || priceCents === null || priceCents <= 0 || !/^[A-Z]{3}$/.test(currency)) return null;
     const compareAt = toCents(get(raw, "price.compare_at_price"));
     const domain = cleanDomain(domainRaw);
     const rate = raw.max_commission_rate;
@@ -237,7 +258,7 @@ export class Channel3Client extends AdapterCore {
       retailerId: channel3RetailerId(domain),
       priceCents,
       listPriceCents: compareAt !== null && compareAt > priceCents ? compareAt : null,
-      currency: (str(get(raw, "price.currency")) ?? "USD").toUpperCase(),
+      currency,
       availability: AVAILABILITY[str(raw.availability) ?? ""] ?? "unknown",
       condition: mapCondition(raw.condition),
       affiliateUrl: url,

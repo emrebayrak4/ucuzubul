@@ -91,7 +91,7 @@ export class IcecatClient extends AdapterCore {
       } catch (err) {
         if (err instanceof AdapterHttpError) {
           if (/user is unknown/i.test(err.bodySnippet)) throw new AdapterHttpError(this.id, 401, "Icecat user (ICECAT_SHOPNAME) is unknown", false);
-          if (err.status === 400 && /can not be found|not yet released|"StatusCode":\s*16/i.test(err.bodySnippet)) return null;
+          if (err.status === 400 && /can not be found|not yet released|"StatusCode":\s*16\b/i.test(err.bodySnippet)) return null;
           // Product exists only in paid Full Icecat: not available to an Open Icecat account (not a credentials problem).
           if (err.status === 403 && /Full Icecat/i.test(err.bodySnippet)) return null;
         }

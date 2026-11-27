@@ -71,12 +71,59 @@ describe("Channel3 (multi-retailer product search)", () => {
     expect(listings.map((l) => [l.product.retailerId, l.product.retailerSku])).toEqual([
       ["macys", "c3:TstA001"],
       ["smallshop.example", "c3:TstA001:used"],
-      ["bestbuy", "c3:TstA001:unknown"],
+      ["bestbuy", "c3:TstA001"],
     ]);
     const first = listings[0]!;
     expect(first.offer).toMatchObject({ priceCents: 30041, listPriceCents: 39800, source: "affiliate", sellerName: "macys.com", productUrl: null, affiliateUrl: "https://buy.example.test/c3/aaa111", observedAt: "2026-11-26T12:00:00.000Z" });
     expect(first.product.gtin).toBeNull();
     for (const l of listings) expect(validateListing(l).valid).toBe(true);
+  });
+
+  it("keeps one listing per retailer + SKU (the cheapest) and keeps SKUs stable when condition is missing", async () => {
+    const body = {
+      products: [
+        {
+          id: "Dup1",
+          title: "Acme Speaker",
+          offers: [
+            { url: "https://buy.example.test/1", domain: "amazon.com", price: { price: 24.99, currency: "USD" }, availability: "InStock", condition: "new" },
+            { url: "https://buy.example.test/2", domain: "amazon.com", price: { price: 19.99, currency: "USD" }, availability: "InStock", condition: null },
+            { url: "https://buy.example.test/3", domain: "amazon.com", price: { price: 15, currency: "USD" }, availability: "InStock", condition: "refurbished" },
+          ],
+        },
+      ],
+      next_page_token: null,
+    };
+    const f = mockFetch([{ match: "/v1/search", body }]);
+    const c = new Channel3Client({ env: C3_ENV, fetch: f, clock: fakeClock(), http: rl });
+    const [p] = (await c.search({ query: "acme" })).items;
+    const listings = c.toListings(p!);
+    expect(listings.map((l) => [l.product.retailerSku, l.offer?.priceCents, l.offer?.condition])).toEqual([
+      ["c3:Dup1", 1999, "unknown"],
+      ["c3:Dup1:refurbished", 1500, "refurbished"],
+    ]);
+  });
+
+  it("drops offers with an invalid currency and reports dropped products", async () => {
+    const body = {
+      products: [
+        { id: "Cur1", title: "Acme Lamp", offers: [{ url: "https://buy.example.test/c", domain: "target.com", price: { price: 10, currency: "US$" }, availability: "InStock" }] },
+        { id: "Bad", title: "x", offers: [] },
+      ],
+    };
+    const f = mockFetch([{ match: "/v1/search", body }]);
+    const c = new Channel3Client({ env: C3_ENV, fetch: f, clock: fakeClock(), http: rl });
+    const page = await c.search({ query: "acme" });
+    expect(page.items).toHaveLength(0);
+    expect(page.warnings.some((w) => w.includes("target.com"))).toBe(true);
+    expect(page.warnings.some((w) => w.includes("Bad"))).toBe(true);
+  });
+
+  it("does not retry a failed search (each search costs a credit)", async () => {
+    const f = mockFetch([{ match: "/v1/search", status: 503, body: "busy" }]);
+    const c = new Channel3Client({ env: C3_ENV, fetch: f, clock: fakeClock(), http: { rateLimit: rl.rateLimit } });
+    await expect(c.search({ query: "x" })).rejects.toThrow();
+    expect(f.calls).toHaveLength(1);
   });
 
   it("maps known store domains to our retailer ids", () => {
@@ -157,6 +204,12 @@ describe("Open Icecat (product specs and licensed images)", () => {
       const c = new IcecatClient({ env: ICECAT_ENV, fetch: f, clock: fakeClock(), http: rl });
       expect(await c.lookup({ gtin: "0012345678905" })).toBeNull();
     }
+  });
+
+  it("does not swallow other 400 errors as 'not found'", async () => {
+    const f = mockFetch([{ match: "live.icecat.biz/api", status: 400, body: { StatusCode: 160, Code: 400, Message: "Invalid language" } }]);
+    const c = new IcecatClient({ env: ICECAT_ENV, fetch: f, clock: fakeClock(), http: rl });
+    await expect(c.lookup({ gtin: "0012345678905" })).rejects.toThrow();
   });
 
   it("returns null for Full-Icecat-only products without flagging the account", async () => {
