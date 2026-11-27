@@ -31,7 +31,7 @@ Code: `packages/retailer-adapters/src/sources/` (registry `PRODUCT_SOURCE_REGIST
 affiliate network, so they have their own registry. Ingestion, enrichment and Admin → Integrations wiring are A04 work (see TASKS.md Requests).
 
 ### Channel3 — product search across many US stores (`channel3`)
-- **API: Verified** against the live API on 2026-11-27 with a free developer account (afterwishinc@gmail.com).
+- **API: Verified** against the live API on 2026-11-27 with a free developer account.
   - `POST https://api.trychannel3.com/v1/search` `{query, limit?, page_token?, filters?}` with header `x-api-key` ([search](https://docs.trychannel3.com/guides/search)).
   - `GET /v1/products/{id}` is free; use it to refresh offers before display ([product detail](https://docs.trychannel3.com/guides/product-detail)).
   - `GET /v1/websites/search?query=` is free; the client uses it as the health check.
@@ -48,7 +48,7 @@ affiliate network, so they have their own registry. Ingestion, enrichment and Ad
 - **Env:** `CHANNEL3_API_KEY`.
 
 ### Open Icecat — specs and licensed product images (`icecat`)
-- **API: Verified** live on 2026-11-27 with a free Open Icecat account (user `afterwishinc`).
+- **API: Verified** live on 2026-11-27 with a free Open Icecat account.
   - `GET https://live.icecat.biz/api?lang=&shopname=&GTIN=` (or `Brand=&ProductCode=`, or `icecat_id=`) ([JSON manual](https://iceclog.com/manual-for-icecat-json-product-requests/)).
   - Auth is the Icecat user name (`shopname`); there is no secret.
 - **Content only:** title, brand, MPN, GTINs, category, summary, description, gallery images (up to 4500 px) and specs. No prices.
