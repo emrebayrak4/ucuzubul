@@ -11,6 +11,7 @@ import type { ConsentState } from "@pricora/contracts";
 import { ZipProvider, type EdgeZipGuess } from "@/components/zip-provider";
 import { ConsentProvider } from "@/components/privacy/consent-provider";
 import { NavProgress } from "@/components/nav-progress";
+import { IntentPrefetch } from "@/components/intent-prefetch";
 
 export function Providers({
   children,
@@ -47,7 +48,8 @@ export function Providers({
             <ZipProvider edgeGuess={edgeZip}>
               <TooltipProvider>
                 <NavProgress />
-              <MotionGovernor />
+                <MotionGovernor />
+                <IntentPrefetch />
                 {children}
                 <Toaster />
               </TooltipProvider>

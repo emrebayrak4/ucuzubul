@@ -15,8 +15,11 @@ const FILTER_PARAMS = ["brand", "retailer", "minPrice", "maxPrice", "condition",
 function useParamUpdater() {
   const router = useRouter();
   const pathname = usePathname() ?? "/search";
-  const params = useSearchParams();
+  const urlParams = useSearchParams();
   const [pending, start] = React.useTransition();
+  // Optimistic: controls reflect the new value on click instead of after the server round trip (the URL — and so
+  // the checkbox state — only changes when the navigation commits). Reverts automatically if it fails.
+  const [params, setOptimisticParams] = React.useOptimistic<URLSearchParams | ReturnType<typeof useSearchParams>, URLSearchParams>(urlParams, (_current, next) => next);
   const update = React.useCallback(
     (changes: Record<string, string | null>, opts: { keepPage?: boolean } = {}) => {
       const next = new URLSearchParams(params.toString());
@@ -26,9 +29,12 @@ function useParamUpdater() {
       }
       if (!opts.keepPage) next.delete("page");
       const s = next.toString();
-      start(() => router.push(s ? `${pathname}?${s}` : pathname, { scroll: false }));
+      start(() => {
+        setOptimisticParams(next);
+        router.push(s ? `${pathname}?${s}` : pathname, { scroll: false });
+      });
     },
-    [params, pathname, router],
+    [params, pathname, router, setOptimisticParams],
   );
   return { params, update, pending };
 }

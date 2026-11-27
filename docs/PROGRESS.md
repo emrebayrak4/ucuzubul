@@ -255,3 +255,15 @@ Playwright audit (20 pages × 375/768/1280/1440/1920) with programmatic checks (
 - ✅ `pnpm -C e2e test`: 75 passed, 0 failed, 6 skipped (travel hidden). Consent pre-set fixture, Demo chip assertions, travel-flag redirect test.
 - ✅ Extension rebuilt with logo v2: 50/50 tests.
 - Sessions this round: shopping (Akakçe-depth catalog, filters, compare, BNPL), hotels, flights (now hidden), integrations (network clients, affiliate links, onboarding doc), zip-privacy (auto ZIP + US privacy/cookies), mobile parity + liquid-glass tabs, perf, seo, align. Multi-market groundwork dormant.
+
+## 2026-11-27 — Click → response latency (perf session, follow-up)
+**Done & verified** (numbers: docs/TEST_REPORT.md §6.3; prod build on :3190, stopped afterwards; dev :3100)
+- **Bug:** the top progress bar never showed on `<Link>` clicks (next/link prevents default; the bar skipped prevented clicks). Now starts on pointerdown — painted 2 ms after press (`components/nav-progress.tsx`).
+- Filters/sort optimistic via `useOptimistic` in the existing transition: checkbox ticks in 4 ms prod / 10 ms dev (was: only after the navigation committed, 59 / 221 ms) (`components/search/filters.tsx`, shopping-owned, hook only).
+- `components/intent-prefetch.tsx` (new, mounted in `providers.tsx`): full prefetch on 60 ms hover / touchstart, prod only; skips account/auth/api and, for signed-in users, product pages (avoids recording "recently viewed" on hover).
+- Click → first visual change, prod: nav 70 → 26 ms, category tile 50 → 26 ms, product tile 27 → 11 ms, pagination 47 → 6 ms. Complete with 250 ms hover: product 121 ms, category 194 ms, nav 173 ms; filter/sort/pagination 39–64 ms. Dev first visual change: category tile 128 → 66 ms, product tile 127 → 18 ms, pagination 229 → 8 ms.
+- Checks: web tsc 0 errors, eslint clean, vitest 12 passed / 4 skipped.
+
+**Decided not to / pending**
+- No new segment `loading.tsx`: measured React's ≥ 300 ms Suspense reveal throttle makes warm prod navigations slower with a skeleton (/deals: content 400 ms although data arrived at 150 ms); BUG-W01 forbids it on slug routes anyway. Consider removing `deals/price-drops/search` `loading.tsx` — would cut /deals from ~200–400 ms to ~150 ms warm, but loses the skeleton on slow/cold loads (founder call).
+- `intent-prefetch.tsx` imports `PrefetchKind` from `next/dist/...` (internal path; re-check on Next upgrades).

@@ -183,6 +183,33 @@ Mobile main-thread work during the Lighthouse load: home 12.4 s → **1.7 s**, c
 - Several sessions run builds, tests and Lighthouse on the same laptop at the same time.
 - The animation load (fixed above) was real in production too — that part was not dev-only.
 
+### 6.3 Click → visible response (perf session, 2026-11-27, "when I click something it opens late")
+
+Method (`click.mjs`, Playwright, desktop 1366×860, no CPU throttle, warm caches, median of 3 runs after 1 warm-up; dev: 2 runs): `first` = pointerdown → first painted DOM change (any visible feedback); `complete` = pointerdown → URL changed, new `<main>` content, no `aria-busy` (for Show code: code visible). Prod = `next build` + `next start :3190` (stopped afterwards); dev = shared `next dev :3100`. Raw: `%TEMP%\claude\ecbafb045093e37e\d3804b2a-da00-41e5-94ac-6d358a667f38\scratchpad\perf\click-*.json`.
+
+| Interaction | Prod before (first / complete) | Prod after | Prod after, 250 ms hover before click | Dev before | Dev after |
+|---|---|---|---|---|---|
+| Header nav item → /deals | 70 / 410 ms | **26 / 197 ms** | 19 / 173 ms | 63 / 378 ms | 55 / 748 ms¹ |
+| Home category tile → category | 50 / 247 ms | **26** / 278 ms | 20 / 194 ms | 128 / 786 ms | **66** / 811 ms |
+| Category product tile → product | 27 / 166 ms | **11** / 184 ms | 7 / **121 ms** | 127 / 483 ms | **18** / 533 ms |
+| Filter checkbox (category) | 6 / 62 ms² | 9 / 69 ms (box ticks at **4 ms**) | 8 / 64 ms | 15 / 382 ms² | 19 / 407 ms (box ticks at **10 ms**) |
+| Sort change (search) | 7 / 48 ms | 4 / 52 ms | 4 / 49 ms | 6 / 245 ms | 7 / 235 ms |
+| Pagination → page 2 | 47 / 51 ms | **6** / 54 ms | 6 / 39 ms | 229 / 231 ms | **8** / 243 ms |
+| "Show code" (coupons) | 27 ms³ | 20 ms³ | 21 / 40 ms | 21 ms³ | 23 ms³ |
+
+¹ one run 748 ms, the other 359 ms (dev recompile noise). ² Before the fix the checkbox itself did **not** tick until the navigation committed (URL change 59 ms prod / 221 ms dev); the early "first" was an unrelated DOM change. ³ Show code opens the store in a new tab; while that tab has focus the page's timers are throttled to 1 s, so runs where the popup took focus read ~1000 ms (artifact, not user-visible). Runs without the popup taking focus: shown value.
+
+**Findings & fixes**
+1. **The top progress bar never appeared on `<Link>` clicks** (verified on the previous build: no `.nav-progress` element after a category-tile click). next/link calls `preventDefault()` on its own clicks and the bar ignored `defaultPrevented` clicks. Now it starts on **pointerdown** (painted 2 ms after press, before the click and router transition run), is confirmed by the click, cancelled on drag/pointercancel/no click in 1 s, and auto-clears after 10 s without a URL change (`components/nav-progress.tsx`).
+2. **Filters were not optimistic**: checkbox/switch/sort state is read from the URL, which only changes when the navigation commits. `useParamUpdater` now uses `useOptimistic` inside the existing transition — controls change in 4 ms (prod) / 10 ms (dev), revert automatically on failure (`components/search/filters.tsx`).
+3. **Dynamic pages had no useful prefetch** (nonce CSP → every page dynamic → viewport prefetch fetches only the shared layout). New `components/intent-prefetch.tsx` (mounted in `providers.tsx`) does a full `router.prefetch(href, { kind: FULL })` after 60 ms of mouse hover or on touchstart, production only, max once per 30 s per URL, skipping /account, /login, /signup, /api and — for signed-in visitors or before session is known — `/products/*` (a full prefetch looks like a navigation to the server and would record "recently viewed"). With a 250 ms hover: product tile complete 166 → 121 ms, category 247 → 194 ms, nav 410 → 173 ms.
+4. Not changed, with reasons (measured):
+   - **More `loading.tsx` skeletons were not added.** On /deals the skeleton paints at ~105 ms, the RSC response is done at ~150 ms, but the content appears at ~400 ms: React deliberately holds a Suspense fallback ≥ 300 ms before revealing content (anti-flicker throttle). On a warm production server a segment skeleton therefore makes navigation *slower* overall; routes without one (category, product) completed in 166–278 ms. BUG-W01 also rules out segment `loading.tsx` on slug routes. The pointerdown progress bar gives the instant feedback instead.
+   - **SSR waterfalls**: product page = one API call (history loads client-side), category = category → (popular + drops in parallel), all through the URL-keyed data cache; warm server TTFB 8–80 ms prod (target < 200 ms ✅), so no extra Suspense split was needed.
+   - Priority+ nav / CountUp / PriceRoll: no work on click paths after the earlier fixes (no long task > 50 ms on any measured click in prod).
+
+**How much is dev-mode only:** warm (already-compiled) dev navigations complete in 230–810 ms vs 40–280 ms in production for the same clicks; SSR of an already-compiled page is 80–230 ms in dev vs 8–80 ms in prod (`/brands/sony`: dev first hit 764 ms, second 228 ms, prod 79 ms). After any file save by any parallel session the next click on an affected route waits for a recompile (dev TTFB 250–1850 ms measured in the Lighthouse dev runs). None of that exists in production. Before this change the user also saw **no feedback at all** during that wait (bug 1).
+
 ## 7. Not verified ❌
 - Production builds (web, admin, API) and Lighthouse or load numbers on them. Behaviour behind a real reverse proxy (trust proxy, Secure cookies, HSTS).
 - `apps/mobile` (A03 still building): no e2e, only turbo typecheck and lint.
