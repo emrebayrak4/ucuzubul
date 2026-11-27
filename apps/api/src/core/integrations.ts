@@ -3,7 +3,7 @@
  * Adapter entries are derived from @pricora/retailer-adapters ADAPTER_REGISTRY; app integrations
  * (OAuth, payments, email, AI, monitoring, affiliate network reporting APIs) are declared here.
  */
-import { ADAPTER_REGISTRY, NETWORK_REGISTRY } from "@pricora/retailer-adapters";
+import { ADAPTER_REGISTRY, NETWORK_REGISTRY, PRODUCT_SOURCE_REGISTRY } from "@pricora/retailer-adapters";
 
 export type IntegrationGroup = "retail" | "affiliate" | "travel_flight" | "travel_hotel" | "auth" | "payments" | "email" | "ai" | "monitoring" | "branding";
 
@@ -23,6 +23,8 @@ export interface IntegrationDef {
   adapterId: string | null;
   /** Affiliate-network client id (NETWORK_REGISTRY), when the integration is a network publisher API. */
   networkId?: string;
+  /** Catalog source id (PRODUCT_SOURCE_REGISTRY: channel3, icecat), when the integration feeds the catalog. */
+  productSourceId?: string;
   fields: IntegrationField[];
   docsUrl: string | null;
   goLive: string;
@@ -208,7 +210,20 @@ const fromNetworks: IntegrationDef[] = NETWORK_REGISTRY.map((n) => ({
     .join(", ")}. Sign up: ${n.signupUrl}`,
 }));
 
-export const INTEGRATION_CATALOG: readonly IntegrationDef[] = [...fromAdapters, ...fromNetworks, ...APP_INTEGRATIONS];
+/** Catalog sources: multi-retailer product search (Channel3) and product content (Open Icecat). */
+const fromProductSources: IntegrationDef[] = PRODUCT_SOURCE_REGISTRY.map((s) => ({
+  id: s.id,
+  name: s.name,
+  group: "retail" as const,
+  adapterId: null,
+  productSourceId: s.id,
+  fields: s.requiredEnv.map((k) => field(k, true, null, isSecretKey(k))),
+  docsUrl: s.docsUrl,
+  goLive: GO_LIVE.api_key ?? "api_key",
+  notes: `${s.notes} Sign up: ${s.signupUrl}`,
+}));
+
+export const INTEGRATION_CATALOG: readonly IntegrationDef[] = [...fromAdapters, ...fromProductSources, ...fromNetworks, ...APP_INTEGRATIONS];
 
 export function getIntegration(id: string): IntegrationDef | undefined {
   return INTEGRATION_CATALOG.find((i) => i.id === id);

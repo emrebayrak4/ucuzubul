@@ -27,8 +27,16 @@ Each client's header comment lists the verified endpoints, auth, paging and rate
 Signup and credential steps: [AFFILIATE_ONBOARDING.md](AFFILIATE_ONBOARDING.md).
 
 ## Multi-retailer search and product content (2026-11-27)
-Code: `packages/retailer-adapters/src/sources/` (registry `PRODUCT_SOURCE_REGISTRY`). Neither source is a single retailer or an
-affiliate network, so they have their own registry. Ingestion, enrichment and Admin → Integrations wiring are A04 work (see TASKS.md Requests).
+Code: `packages/retailer-adapters/src/sources/` (registry `PRODUCT_SOURCE_REGISTRY`); ingestion in `apps/api/src/core/catalog-sources.ts`,
+scheduled by the worker queue `catalog-sources`. Neither source is a single retailer or an affiliate network, so they have their own registry.
+
+**How the catalog uses them (founder decisions 2026-11-27):**
+- Channel3 creates ACTIVE products: one search per leaf category per day (category name as the query, in-stock only; ≤30/day).
+- Offers attach to the product by Channel3 id (`c3:<id>` SKU). Stores we don't have are added as retailers with a US market row.
+- The Channel3 buy-link host is added to each retailer's redirect allow-list.
+- A category that gets real products has its demo products archived (reversible: set `status` back to `active` for `isDemo` rows).
+- Prices refresh every 6 h through the free product-detail call; offers that vanish are deactivated.
+- Icecat adds images (source `api`) and specs (attributes group `Icecat`) to products with a UPC/EAN/GTIN.
 
 ### Channel3 — product search across many US stores (`channel3`)
 - **API: Verified** against the live API on 2026-11-27 with a free developer account.
