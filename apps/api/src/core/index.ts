@@ -7,6 +7,7 @@ export * from "./crypto";
 export * from "./integrations";
 export * from "./integration-config";
 export * from "./integrations-ingest";
+export * from "./catalog-sources";
 export * from "./storage";
 export * from "./images";
 export * from "./logos";

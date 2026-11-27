@@ -111,4 +111,18 @@ export class AffiliateProgramsController {
     const j = await this.queues.networkIngest.add(kind, job, { removeOnComplete: 200, removeOnFail: 200 });
     return { queued: true, jobId: j.id ?? null, message: `Queued ${meta.name} ${kind}; results appear in data ingestion jobs` };
   }
+
+  /** Queue a catalog-source job now instead of waiting for its daily/6-hourly schedule. */
+  @Post("catalog-sources/:job/run")
+  @HttpCode(200)
+  @Auth("admin")
+  async runCatalogSource(@Param() params: unknown): Promise<AdminNetworkRunResponse> {
+    const { job } = input("admin.catalogSources.run", "params", params);
+    const required = job.startsWith("channel3") ? ["CHANNEL3_API_KEY"] : job === "icecat-enrich" ? ["ICECAT_SHOPNAME"] : ["KROGER_CLIENT_ID", "KROGER_CLIENT_SECRET", "KROGER_LOCATION_ID"];
+    const env = await this.integrations.env();
+    const missing = required.filter((k) => !env[k]);
+    if (missing.length) return { queued: false, jobId: null, message: `Pending configuration — missing ${missing.join(", ")}` };
+    const j = await this.queues.catalogSources.add(job, {}, { removeOnComplete: 100, removeOnFail: 100 });
+    return { queued: true, jobId: j.id ?? null, message: `Queued ${job}; results appear in data ingestion jobs` };
+  }
 }

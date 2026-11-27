@@ -169,6 +169,7 @@ import {
   AffiliateProgramIdParam,
   AdminUpdateAffiliateProgramRequest,
   NetworkRunParam,
+  CatalogSourceRunParam,
   AdminNetworkRunRequest,
   AdminNetworkRunResponse,
   AdminUpdateIntegrationRequest,
@@ -383,6 +384,7 @@ export const endpoints = {
   "admin.affiliatePrograms.list": def({ method: "GET", path: "/admin/affiliate-programs", auth: "admin", query: AdminAffiliateProgramListQuery, response: AdminAffiliateProgramListResponse, description: "Network advertisers/programs and their retailer mapping" }),
   "admin.affiliatePrograms.update": def({ method: "PATCH", path: "/admin/affiliate-programs/:id", auth: "admin", params: AffiliateProgramIdParam, body: AdminUpdateAffiliateProgramRequest, response: AdminAffiliateProgram, description: "Link a network program to a retailer / enable-disable" }),
   "admin.affiliateNetworks.run": def({ method: "POST", path: "/admin/affiliate-networks/:network/run", auth: "admin", params: NetworkRunParam, body: AdminNetworkRunRequest, response: AdminNetworkRunResponse, description: "Queue a network ingestion job now (coupons, products or conversions)" }),
+  "admin.catalogSources.run": def({ method: "POST", path: "/admin/catalog-sources/:job/run", auth: "admin", params: CatalogSourceRunParam, response: AdminNetworkRunResponse, description: "Queue a catalog-source job now (Channel3 catalog or price refresh, Kroger grocery catalog, Icecat enrichment)" }),
   "admin.integrations.clear": def({ method: "DELETE", path: "/admin/integrations/:id", auth: "admin", params: IntegrationIdParam, response: OkResponse, description: "Delete stored credentials (env fallback applies)" }),
   "admin.openapi": def({ method: "GET", path: "/admin/openapi.json", auth: "staff", response: z.record(z.string(), z.unknown()), description: "Full OpenAPI 3.1 spec (available in production)" }),
 
