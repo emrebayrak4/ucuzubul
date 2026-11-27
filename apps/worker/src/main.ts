@@ -272,13 +272,21 @@ async function main(): Promise<void> {
         const runEnv = await integrations.env();
         const deps = { enqueuePriceEvent: async (ev: PriceEventJob) => void (await priceEvents.add("price-change", ev, { removeOnComplete: 1000, removeOnFail: 1000 })) };
         const ingest = await prisma.dataIngestionJob.create({ data: { kind: job.name, status: "processing", startedAt: new Date() } });
-        const r =
-          job.name === "channel3-catalog"
-            ? await runChannel3Catalog(prisma, runEnv, deps)
-            : job.name === "channel3-refresh"
-              ? await refreshChannel3Offers(prisma, runEnv, deps)
-              : await enrichWithIcecat(prisma, runEnv, deps);
-        await prisma.dataIngestionJob.update({ where: { id: ingest.id }, data: { status: "completed", finishedAt: new Date(), stats: JSON.parse(JSON.stringify(r)) as object } });
+        let r: Awaited<ReturnType<typeof runChannel3Catalog | typeof refreshChannel3Offers | typeof enrichWithIcecat>>;
+        try {
+          r =
+            job.name === "channel3-catalog"
+              ? await runChannel3Catalog(prisma, runEnv, deps)
+              : job.name === "channel3-refresh"
+                ? await refreshChannel3Offers(prisma, runEnv, deps)
+                : await enrichWithIcecat(prisma, runEnv, deps);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await prisma.dataIngestionJob.update({ where: { id: ingest.id }, data: { status: "failed", finishedAt: new Date(), stats: { error: message.slice(0, 1000) } } });
+          await prisma.integrationError.create({ data: { provider: job.name.startsWith("icecat") ? "icecat" : "channel3", code: `${job.name}_failed`, message: message.slice(0, 1000) } });
+          throw err;
+        }
+        await prisma.dataIngestionJob.update({ where: { id: ingest.id }, data: { status: r.status === "error" ? "failed" : "completed", finishedAt: new Date(), stats: JSON.parse(JSON.stringify(r)) as object } });
         log("catalog-sources", `${job.name}: ${r.status} — ${r.message}`);
         if (r.status === "ok") await searchIndex.add("reindex", {}, { removeOnComplete: 100, removeOnFail: 100 });
         return r;
