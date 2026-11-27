@@ -16,6 +16,7 @@ import {
   AdapterHttpError,
   Channel3Client,
   IcecatClient,
+  channel3RetailerId,
   type Channel3Product,
   type EnvLike,
   type NormalizedListing,
@@ -45,6 +46,8 @@ const C3_SKU = /^c3:([^:]+)/;
 const DEFAULT_MIN_REAL_PRODUCTS = 3;
 /** Channel3 free tier is 1,000 searches/month; keep headroom. */
 const DEFAULT_MONTHLY_SEARCH_CAP = 900;
+/** Adapter id → our retailer slug where they differ (same map as the worker's price refresh). */
+const TRACKED_RETAILER_SLUG: Readonly<Record<string, string>> = { bestbuy: "best-buy", homedepot: "home-depot", bhphoto: "bh-photo", samsclub: "sams-club" };
 /** Stop a daily run after this many consecutive failed searches (rate limit / outage). */
 const MAX_CONSECUTIVE_ERRORS = 3;
 
@@ -99,7 +102,10 @@ async function retailerForDomain(prisma: PrismaClient, domain: string, cache: Ma
   const find = () => prisma.retailer.findFirst({ where: { OR: [{ domain }, { domain: `www.${domain}` }] }, select: RETAILER_SELECT });
   let r = await find();
   if (!r) {
-    const base = slugify(domain.replace(/\./g, "-"), { maxLength: 60 }) || "store";
+    // A store we already track by id (Sam's Club, Target…) gets our own retailer slug, so a later official
+    // retailer row (seed / admin, upserted by slug) updates this row instead of colliding on the domain.
+    const known = channel3RetailerId(domain);
+    const base = known ? (TRACKED_RETAILER_SLUG[known] ?? known) : slugify(domain.replace(/\./g, "-"), { maxLength: 60 }) || "store";
     const taken = await prisma.retailer.findUnique({ where: { slug: base }, select: { id: true } });
     const slug = taken ? `${base}-${shortHash(domain)}` : base;
     const websiteUrl = `https://${domain}`;

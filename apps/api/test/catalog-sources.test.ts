@@ -139,6 +139,20 @@ describe("Channel3 catalog ingestion", () => {
     expect(await prisma.retailer.count({ where: { domain: { contains: "evil" } } })).toBe(0);
   });
 
+  it("gives an auto-created store we track our own retailer slug", async () => {
+    const pre = await prisma.retailer.findUnique({ where: { domain: "walgreens.com" }, select: { id: true } });
+    const product = { ...c3Product("WAG1", 12), offers: [{ url: `${BUY}/wag`, domain: "www.walgreens.com", price: { price: 12, currency: "USD" }, availability: "InStock", condition: "new" }] };
+    const f = fakeFetch({ "/v1/search": () => ({ body: { products: [product], next_page_token: null } }) });
+    const channel3 = new Channel3Client({ env: C3_ENV, fetch: f, http });
+    try {
+      await ingestChannel3Category(prisma, C3_ENV, categoryId, { channel3, enqueuePriceEvent });
+      const r = await prisma.retailer.findUniqueOrThrow({ where: { domain: "walgreens.com" } });
+      if (!pre) expect(r.slug).toBe("walgreens");
+    } finally {
+      if (!pre) await prisma.retailer.deleteMany({ where: { domain: "walgreens.com" } });
+    }
+  });
+
   it("matches the exact Channel3 id, never a longer id with the same prefix", async () => {
     const f = fakeFetch({ "/v1/search": () => ({ body: { products: [c3Product("AAA", 70)], next_page_token: null } }) });
     const channel3 = new Channel3Client({ env: C3_ENV, fetch: f, http });
