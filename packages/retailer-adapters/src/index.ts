@@ -26,3 +26,6 @@ export * from "./travel/flights";
 export * from "./travel/hotels";
 export * from "./registry";
 export * from "./commerce/index";
+export * from "./sources/channel3";
+export * from "./sources/icecat";
+export * from "./sources/registry";

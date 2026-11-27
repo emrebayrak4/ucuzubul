@@ -1,0 +1,44 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented Icecat Live JSON response (GET live.icecat.biz/api, observed 2026-11-27); all values are synthetic and must never be shown as real data.",
+  "response": {
+    "msg": "OK",
+    "data": {
+      "GeneralInfo": {
+        "IcecatId": 987654321,
+        "ReleaseDate": "15-01-2026",
+        "Title": "Acme Phone X1 15.8 cm (6.2\") 8 GB 128 GB Black",
+        "TitleInfo": { "GeneratedIntTitle": "Acme Phone X1" },
+        "Brand": "Acme",
+        "BrandPartCode": "AX1-128-BK",
+        "ProductName": "Phone X1",
+        "GTIN": ["0012345678905", "12345"],
+        "Category": { "CategoryID": "1893", "Name": { "Value": "Smartphones", "Language": "EN" } },
+        "Description": { "LongDesc": "<b>Synthetic</b> long description for tests.", "MiddleDesc": "Middle description." },
+        "SummaryDescription": { "ShortSummaryDescription": "Acme Phone X1, 6.2\", 8 GB, 128 GB, Black", "LongSummaryDescription": "Acme Phone X1. Display diagonal: 15.8 cm (6.2\")." }
+      },
+      "Image": { "HighPic": "https://images.example.test/high/x1.jpg", "HighPicWidth": "1200", "HighPicHeight": "1200", "ThumbPic": "https://images.example.test/thumb/x1.jpg" },
+      "Gallery": [
+        { "ID": "1", "Pic": "https://images.example.test/gallery/x1-front.jpg", "PicWidth": "4500", "PicHeight": "3000", "ThumbPic": "https://images.example.test/gallery_thumbs/x1-front.jpg", "IsMain": "Y" },
+        { "ID": "2", "Pic": "https://images.example.test/gallery/x1-back.jpg", "PicWidth": "4500", "PicHeight": "3000", "ThumbPic": "https://images.example.test/gallery_thumbs/x1-back.jpg", "IsMain": "N" },
+        { "ID": "3", "Pic": "", "PicWidth": "0", "PicHeight": "0" }
+      ],
+      "FeaturesGroups": [
+        {
+          "FeatureGroup": { "ID": "5", "Name": { "Value": "Display", "Language": "EN" } },
+          "Features": [
+            { "PresentationValue": "15.8 cm (6.2\")", "Value": "6.2", "Feature": { "Name": { "Value": "Display diagonal", "Language": "EN" } } },
+            { "PresentationValue": "2340 x 1080 pixels", "Value": "2340 x 1080", "Feature": { "Name": { "Value": "Display resolution", "Language": "EN" } } }
+          ]
+        },
+        {
+          "FeatureGroup": { "ID": "9", "Name": { "Value": "Memory", "Language": "EN" } },
+          "Features": [
+            { "PresentationValue": "8 GB", "Value": "8", "Feature": { "Name": { "Value": "RAM capacity", "Language": "EN" } } },
+            { "PresentationValue": "", "Value": "", "Feature": { "Name": { "Value": "Empty feature", "Language": "EN" } } }
+          ]
+        }
+      ],
+      "DemoAccount": false
+    }
+  }
+}
