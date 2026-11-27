@@ -21,6 +21,8 @@ export * from "./retailers/walmart";
 export * from "./retailers/bestbuy";
 export * from "./retailers/ebay";
 export * from "./retailers/kroger";
+export * from "./retailers/etsy";
 export * from "./travel/flights";
 export * from "./travel/hotels";
 export * from "./registry";
+export * from "./commerce/index";

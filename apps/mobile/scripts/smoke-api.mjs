@@ -157,6 +157,16 @@ await step("conditions: default new vs all, used deals, per-condition product + 
   }
   return `default ${dflt.total} vs all ${all.total} [${groups}]; used deals ${used.total}; refurb drops ${drops.total}; ${detail}`;
 });
+await step("grocery: unit price sort, near-me search, product nearby + size family, local stores", async () => {
+  const u = await api.search.search({ category: "breakfast-cereal", sort: "unit_price", pageSize: 3 });
+  const n = await api.search.search({ q: "diapers", near: "true", zip: "10001", sort: "distance", pageSize: 3 });
+  const slug = "cheerios-heart-healthy-cereal-family-size-18-oz";
+  const d = await api.catalog.product(slug, { zip: "10001" });
+  const nb = await api.local.nearby(slug, { zip: "10001" });
+  const noZip = await api.local.nearby(slug);
+  const st = await api.local.stores({ zip: "10001" });
+  return `unit sort ${u.total} (${u.items[0]?.unitPrice?.label ?? "no unit"}); near ${n.total}, nearbyCount ${n.facets.nearbyCount ?? "-"}, nearest ${n.items[0]?.nearest?.storeName ?? "-"}; sizes ${d.sizeFamily?.length ?? 0}, unitPricing ${d.unitPricing}; nearby ${nb.status} ${nb.items.length}+${nb.sponsored.length} sponsored; no-zip ${noZip.status}; stores ${JSON.stringify(st).length > 2 ? "ok" : "-"}`;
+});
 await step("popular / new (search sorts)", async () => {
   const p = await api.search.search({ sort: "popular", pageSize: 6 });
   const n = await api.search.search({ sort: "newest", pageSize: 6 });

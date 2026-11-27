@@ -8,6 +8,7 @@ import { slugify } from "@pricora/utils";
 import { CONDITION_ORDER, computeProductMetrics, type ProductMetrics } from "./metrics";
 import type { ConditionGroup } from "@pricora/contracts";
 import { applicableOptions, loadPaymentIndex, payIn4For } from "./payment-options";
+import { netQuantityOf, unitPriceFor } from "./grocery";
 
 export const PRODUCTS_INDEX = "products";
 
@@ -57,6 +58,10 @@ export interface ProductSearchDoc {
   specs: string[];
   /** Display labels for `specs`, same order (not filterable; used for facet labels and key specs). */
   specLabels: string[];
+  /** Millicents per basis unit of the headline (new) price; null without a known net quantity. Sort "unit_price". */
+  unitPriceMilli: number | null;
+  /** Unit basis of unitPriceMilli (oz | fl_oz | ct | sheet | load). */
+  unitBasis: string | null;
   /** First-listed time (earliest offer) — drives "Newly added". */
   createdAt: number;
   updatedAt: number;
@@ -132,10 +137,11 @@ export const SEARCH_SETTINGS = {
     "dealScore",
     "specs",
     "conditions",
+    "unitBasis",
     ...PRICE_FIELDS,
     "id",
   ],
-  sortableAttributes: ["lowestPriceCents", "lowestTotalCents", "dealScore", "dropRatio", "storeCount", "createdAt", "updatedAt", ...PRICE_FIELDS],
+  sortableAttributes: ["lowestPriceCents", "lowestTotalCents", "dealScore", "dropRatio", "storeCount", "createdAt", "updatedAt", "unitPriceMilli", ...PRICE_FIELDS],
   synonyms: {
     tv: ["television", "televisions", "tvs"],
     television: ["tv"],
@@ -196,11 +202,16 @@ export async function buildSearchDocuments(
     const specs: string[] = [];
     const specLabels: string[] = [];
     for (const d of defs) {
-      const a = p.attributes.find((x) => x.name === d.attribute);
-      if (!a) continue;
-      specs.push(`${d.key}.${specSlug(a.value)}`);
-      specLabels.push(a.value);
+      // Multi-valued attributes (e.g. several "Dietary" rows: Organic, Gluten-free) each become a facet value.
+      for (const a of p.attributes) {
+        if (a.name !== d.attribute) continue;
+        const key = `${d.key}.${specSlug(a.value)}`;
+        if (specs.includes(key)) continue;
+        specs.push(key);
+        specLabels.push(a.value);
+      }
     }
+    const unit = unitPriceFor(pm?.lowestPriceCents ?? null, netQuantityOf(p));
     return {
       id: p.id,
       slug: p.slug,
@@ -231,6 +242,8 @@ export async function buildSearchDocuments(
       specLabels,
       conditions: pm ? CONDITION_ORDER.filter((g) => pm.groups[g]) : [],
       ...maskPrices(pm),
+      unitPriceMilli: unit?.millicentsPerUnit ?? null,
+      unitBasis: unit?.basis ?? null,
       createdAt: p.createdAt.getTime(),
       updatedAt: p.updatedAt.getTime(),
     };

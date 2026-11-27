@@ -10,6 +10,8 @@ import { useApiMutation } from "@/lib/mutation";
 import { dateTime } from "@/lib/format";
 import { PageHeader } from "@/components/page-header";
 import { Field, issuesToFieldErrors } from "@/components/field";
+import { LocalSellerStatus } from "@/components/local-seller-status";
+import { isNotAvailable } from "@/lib/local";
 
 const VERIFICATION: Record<MerchantProfile["verificationStatus"], { label: string; text: string; icon: typeof CheckCircle2; cls: string }> = {
   verified: { label: "Verified", text: "Your business is verified. Offers from your feeds are eligible to appear on the site.", icon: CheckCircle2, cls: "border-success/30 bg-success-soft text-success" },
@@ -25,6 +27,7 @@ export default function MerchantProfilePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Merchant profile" description="Your business details and verification status." />
+      <LocalOnboardingCard />
       {q.error ? (
         <ErrorState description={errorMessage(q.error)} onRetry={() => void q.refetch()} className="rounded-md border border-border bg-surface" />
       ) : q.isLoading ? (
@@ -48,6 +51,30 @@ export default function MerchantProfilePage() {
           </aside>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Local seller onboarding checklist — only for local-seller accounts (the endpoint answers 404/409 otherwise → hidden). */
+function LocalOnboardingCard() {
+  const q = useQuery({
+    queryKey: ["merchant", "local", "status"],
+    queryFn: ({ signal }) => getApi().merchant.local.status({ signal }),
+    retry: false,
+  });
+  if (q.isLoading) return null;
+  if (q.error) {
+    if (isNotAvailable(q.error)) return null;
+    return (
+      <p role="alert" className="max-w-4xl rounded-md border border-error/30 bg-error-soft px-3 py-2 text-sm text-error">
+        Could not load local seller onboarding: {errorMessage(q.error)}
+      </p>
+    );
+  }
+  if (!q.data?.merchant.isLocalSeller) return null;
+  return (
+    <div className="max-w-4xl">
+      <LocalSellerStatus status={q.data} />
     </div>
   );
 }

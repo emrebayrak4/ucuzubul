@@ -7,11 +7,15 @@
  * Headers: X-EBAY-C-MARKETPLACE-ID: EBAY_US, X-EBAY-C-ENDUSERCTX: affiliateCampaignId=<EPN campaign>
  * Commission requires sending buyers through `itemAffiliateWebUrl`.
  * Default Browse quota: 5,000 calls/day (raise via Application Growth Check).
+ * Local pickup: item_summary/search with
+ *   filter=deliveryOptions:{SELLER_ARRANGED_LOCAL_PICKUP},pickupCountry:US,pickupPostalCode:<zip>,
+ *          pickupRadius:<miles>,pickupRadiusUnit:mi,itemLocationCountry:US
+ *   (see searchLocalPickup / ebayLocalPickupFilter).
  */
 import { BaseRetailerAdapter, type AdapterOptions } from "../base";
 import { ResponseShapeError } from "../errors";
 import { TokenCache } from "../oauth";
-import type { AffiliateLinkOptions, Availability, Condition, FetchResult, NormalizedListing, ProductQuery } from "../types";
+import type { AffiliateLinkOptions, Availability, Condition, FetchResult, NormalizedListing, NormalizedOffer, NormalizedProduct, ProductQuery } from "../types";
 import { arr, base64, cleanGtin, compactAttrs, get, isObject, mapCondition, str, toCents } from "../util";
 
 /** eBay conditionId -> our condition enum. */
@@ -25,6 +29,48 @@ export function ebayCondition(conditionId: unknown, label: unknown): Condition {
     if (id >= 2750) return "used";
   }
   return mapCondition(typeof label === "string" ? label : "");
+}
+
+export interface EbayLocalPickupParams {
+  keywords?: string;
+  gtin?: string;
+  /** 5-digit US ZIP the buyer will pick up near. */
+  zip: string;
+  /** Pickup radius in miles (1–500). */
+  radiusMiles: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface EbayItemLocation {
+  postalCode: string | null;
+  city: string | null;
+  stateOrProvince: string | null;
+  country: string | null;
+}
+
+export interface EbayLocalPickupOffer {
+  product: NormalizedProduct;
+  offer: NormalizedOffer;
+  sellerName: string | null;
+  itemLocation: EbayItemLocation;
+  /** True: the deliveryOptions filter only returns items offering seller-arranged local pickup. */
+  pickupAvailable: boolean;
+}
+
+/** Browse API filter value for seller-arranged local pickup near a US ZIP. */
+export function ebayLocalPickupFilter(zip: string, radiusMiles: number): string {
+  const z = zip.trim();
+  if (!/^\d{5}$/.test(z)) throw new RangeError("zip must be a 5-digit US ZIP code");
+  if (!Number.isInteger(radiusMiles) || radiusMiles < 1 || radiusMiles > 500) throw new RangeError("radiusMiles must be an integer 1-500");
+  return [
+    "deliveryOptions:{SELLER_ARRANGED_LOCAL_PICKUP}",
+    "pickupCountry:US",
+    `pickupPostalCode:${z}`,
+    `pickupRadius:${radiusMiles}`,
+    "pickupRadiusUnit:mi",
+    "itemLocationCountry:US",
+  ].join(",");
 }
 
 export class EbayBrowseAdapter extends BaseRetailerAdapter {
@@ -107,6 +153,38 @@ export class EbayBrowseAdapter extends BaseRetailerAdapter {
       .map((i) => this.normalizeProduct(i))
       .filter((l): l is NormalizedListing => l !== null);
     return this.result(listings, this.source);
+  }
+
+  /** Fixed-price US listings offering seller-arranged local pickup within `radiusMiles` of `zip`. */
+  async searchLocalPickup(p: EbayLocalPickupParams): Promise<FetchResult<EbayLocalPickupOffer[]>> {
+    this.requireEnv();
+    if (!p.keywords && !p.gtin) throw new RangeError("keywords or gtin required");
+    const params = new URLSearchParams();
+    if (p.keywords) params.set("q", p.keywords);
+    if (p.gtin) params.set("gtin", p.gtin);
+    params.set("limit", String(Math.min(200, Math.max(1, p.limit ?? 50))));
+    params.set("offset", String(Math.max(0, p.offset ?? 0)));
+    params.set("filter", `${ebayLocalPickupFilter(p.zip, p.radiusMiles)},buyingOptions:{FIXED_PRICE},priceCurrency:USD`);
+    const headers = await this.headers();
+    const res = await this.guard(() => this.http.json({ url: `${this.apiBase}/buy/browse/v1/item_summary/search?${params.toString()}`, headers }));
+    const out: EbayLocalPickupOffer[] = [];
+    for (const raw of arr(get(res, "itemSummaries"))) {
+      const l = this.normalizeProduct(raw);
+      if (!l?.offer) continue;
+      out.push({
+        product: l.product,
+        offer: l.offer,
+        sellerName: l.offer.sellerName,
+        itemLocation: {
+          postalCode: str(get(raw, "itemLocation.postalCode")),
+          city: str(get(raw, "itemLocation.city")),
+          stateOrProvince: str(get(raw, "itemLocation.stateOrProvince")),
+          country: str(get(raw, "itemLocation.country")),
+        },
+        pickupAvailable: true,
+      });
+    }
+    return this.result(out, this.source);
   }
 
   async fetchProductDetails(itemId: string): Promise<FetchResult<NormalizedListing | null>> {

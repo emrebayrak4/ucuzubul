@@ -1,10 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { computeOfferTotal } from "@pricora/algorithms";
-import { conditionGroupOf, type ConditionGroup, type DealItem, type Offer, type ProductCard } from "@pricora/contracts";
+import { conditionGroupOf, type ConditionGroup, type DealItem, type NetQuantity, type Offer, type ProductCard } from "@pricora/contracts";
 import type { Prisma } from "@pricora/database";
 import { CONDITION_ORDER, computeProductMetrics, EMPTY_FAKE_DISCOUNT, emptyStats, type ProductMetrics } from "../core/metrics";
 import { applicableOptions, loadPaymentIndex, payIn4For, type PaymentIndex } from "../core/payment-options";
 import { PRISMA, type PrismaClient } from "../common/infra";
+import { netQuantityOf, unitPriceFor } from "../core/grocery";
 
 const CACHE_TTL_MS = 2 * 60_000;
 
@@ -140,11 +141,13 @@ export class CatalogService {
       priceCondition: m?.condition ?? "new",
       otherConditions,
       keySpecs: keySpecs(p.attributes),
+      unitPrice: unitPriceFor(m?.lowestPriceCents ?? null, netQuantityOf(p)),
+      sizeLabel: p.sizeLabel,
       updatedAt: (m?.lastCheckedAt ?? p.updatedAt).toISOString(),
     };
   }
 
-  toOffer(o: OfferWithRetailer, zip?: string | null, pay?: PaymentIndex): Offer {
+  toOffer(o: OfferWithRetailer, zip?: string | null, pay?: PaymentIndex, qty?: NetQuantity | null): Offer {
     const total = computeOfferTotal({ priceCents: o.priceCents, quantity: 1, shippingCents: o.shippingCents, zip: zip ?? null });
     const taxKnown = Boolean(zip) && total.taxCents !== null;
     const shippingKind = o.shippingCents === null ? "unknown" : o.shippingCents === 0 ? "free" : "paid";
@@ -182,6 +185,7 @@ export class CatalogService {
       refurbishedBy: o.refurbishedBy,
       seller: o.sellerType ? { name: o.sellerName, type: o.sellerType } : null,
       returnPolicy: o.returnPolicy,
+      ...(qty ? { unitPrice: unitPriceFor(o.priceCents, qty) } : {}),
       ...(pay
         ? {
             // Basis = price + known shipping (tax excluded; providers finance the checkout total).

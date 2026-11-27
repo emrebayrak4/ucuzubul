@@ -1,0 +1,79 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "count": 3,
+    "results": [
+      {
+        "listing_id": 1111111111,
+        "title": "Handmade Ceramic Mug",
+        "state": "active",
+        "shop_id": 555,
+        "quantity": 12,
+        "url": "https://www.etsy.com/listing/1111111111/handmade-ceramic-mug",
+        "price": {
+          "amount": 2450,
+          "divisor": 100,
+          "currency_code": "USD"
+        },
+        "who_made": "i_did",
+        "when_made": "made_to_order",
+        "is_supply": false,
+        "description": "Wheel-thrown stoneware mug.",
+        "images": [
+          {
+            "listing_image_id": 1,
+            "url_570xN": "https://i.etsystatic.com/test/il_570xN.1.jpg",
+            "url_fullxfull": "https://i.etsystatic.com/test/il_fullxfull.1.jpg"
+          }
+        ],
+        "shop": {
+          "shop_id": 555,
+          "shop_name": "TestClayStudio"
+        }
+      },
+      {
+        "listing_id": 2222222222,
+        "title": "Vintage 1970s Brass Lamp",
+        "state": "active",
+        "shop_id": 556,
+        "quantity": 1,
+        "url": "https://www.etsy.com/listing/2222222222/vintage-brass-lamp",
+        "price": {
+          "amount": 8900,
+          "divisor": 100,
+          "currency_code": "USD"
+        },
+        "who_made": "someone_else",
+        "when_made": "1970s",
+        "is_supply": false,
+        "description": "Original wiring replaced.",
+        "images": [],
+        "shop": {
+          "shop_id": 556,
+          "shop_name": "TestVintageFinds"
+        }
+      },
+      {
+        "listing_id": 3333333333,
+        "title": "UK Shop Print",
+        "state": "active",
+        "shop_id": 557,
+        "quantity": 5,
+        "url": "https://www.etsy.com/listing/3333333333/print",
+        "price": {
+          "amount": 1500,
+          "divisor": 100,
+          "currency_code": "GBP"
+        },
+        "who_made": "i_did",
+        "when_made": "2020_2025",
+        "is_supply": false,
+        "images": [],
+        "shop": {
+          "shop_id": 557,
+          "shop_name": "TestUkPrints"
+        }
+      }
+    ]
+  }
+}

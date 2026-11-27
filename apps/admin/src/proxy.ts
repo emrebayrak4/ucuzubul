@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { PATHNAME_HEADER } from "@/lib/roles";
+
 const SESSION_COOKIE = "pc_session";
 
 /** Cheap pre-check: no session cookie → straight to /login. Role checks happen in the portal layouts. */
@@ -10,7 +12,10 @@ export function proxy(request: NextRequest) {
     url.search = `?next=${encodeURIComponent(request.nextUrl.pathname + request.nextUrl.search)}`;
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  // Always overwrite (never trust a client-sent value).
+  const headers = new Headers(request.headers);
+  headers.set(PATHNAME_HEADER, request.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {

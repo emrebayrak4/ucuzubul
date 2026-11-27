@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Cents, DataSource, Id, ProductCondition, Slug, UsZip } from "./common";
+import { UnitPrice } from "./grocery";
 
 export const BasketItemInput = z.object({
   productId: Id,
@@ -14,6 +15,8 @@ export const BasketOptimizeRequest = z.object({
   memberships: z.array(z.string().max(40)).max(20).optional(),
   allowConditions: z.array(ProductCondition).optional(),
   preferPickup: z.boolean().optional(),
+  /** How the shopper gets groceries: shipping (default), store pickup or local delivery — store minimums apply to pickup/delivery. */
+  fulfillment: z.enum(["shipping", "pickup", "delivery"]).optional(),
   maxStores: z.number().int().min(1).max(10).optional(),
 });
 export type BasketOptimizeRequest = z.infer<typeof BasketOptimizeRequest>;
@@ -31,6 +34,9 @@ export const BasketLine = z.object({
   lineTotalCents: Cents,
   condition: ProductCondition,
   source: DataSource,
+  /** Price per unit of measure (¢/oz…) when the product has a known net quantity. */
+  unitMeasurePrice: UnitPrice.nullable().optional(),
+  sizeLabel: z.string().nullable().optional(),
 });
 export type BasketLine = z.infer<typeof BasketLine>;
 
@@ -45,6 +51,8 @@ export const BasketStoreGroup = z.object({
   freeShippingApplied: z.boolean(),
   /** Amount needed to reach free shipping, if close. */
   freeShippingGapCents: Cents.nullable(),
+  /** Pickup / delivery order minimum at this store (only when published; null = unknown, not assumed). */
+  orderMinimum: z.object({ kind: z.enum(["pickup", "delivery"]), minimumCents: Cents, met: z.boolean(), gapCents: Cents }).nullable().optional(),
 });
 export type BasketStoreGroup = z.infer<typeof BasketStoreGroup>;
 

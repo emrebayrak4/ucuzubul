@@ -25,7 +25,11 @@ export type IconName =
   | "docs"
   | "coupons"
   | "guides"
-  | "checkout";
+  | "checkout"
+  | "locations"
+  | "connections"
+  | "localSellers"
+  | "coverage";
 
 export interface NavItem {
   href: string;
@@ -60,6 +64,8 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { href: "/admin/matching", label: "Matching review", icon: "matching" },
       { href: "/admin/anomalies", label: "Price anomalies", icon: "anomalies" },
+      { href: "/admin/local-merchants", label: "Local sellers", icon: "localSellers" },
+      { href: "/admin/coverage", label: "Coverage", icon: "coverage" },
     ],
   },
   {
@@ -94,6 +100,8 @@ export const MERCHANT_NAV: NavGroup[] = [
     label: "Merchant",
     items: [
       { href: "/merchant", label: "Profile", icon: "profile" },
+      { href: "/merchant/locations", label: "Store locations", icon: "locations" },
+      { href: "/merchant/connections", label: "Connections", icon: "connections" },
       { href: "/merchant/feeds", label: "Feed upload", icon: "feeds" },
       { href: "/merchant/offers", label: "Offers", icon: "offers" },
       { href: "/merchant/coupons", label: "Coupons", icon: "coupons" },

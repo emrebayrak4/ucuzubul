@@ -11,7 +11,7 @@ export class SearchController {
   @Get()
   @Auth("optional")
   run(@Query() query: unknown, @Req() req: AuthedRequest): Promise<SearchResponse> {
-    return this.search.search(input("search.search", "query", query), req.user?.id);
+    return this.search.search(input("search.search", "query", query), req.user?.id, req.user);
   }
 
   @Get("suggest")

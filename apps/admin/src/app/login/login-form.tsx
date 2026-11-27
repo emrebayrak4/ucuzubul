@@ -8,6 +8,8 @@ import { LoginRequest } from "@pricora/contracts";
 import { ApiError, errorMessage, getApi } from "@/lib/api";
 import { homeForRole, safeNext } from "@/lib/roles";
 
+const WEB_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3100").replace(/\/+$/, "");
+
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -111,6 +113,12 @@ export function LoginForm() {
       <Button type="submit" fullWidth loading={busy}>
         Log in
       </Button>
+      <p className="text-center text-sm text-text-muted">
+        New local store?{" "}
+        <a href={`${WEB_URL}/sell/start`} className="font-medium text-primary underline underline-offset-2">
+          Create a free account
+        </a>
+      </p>
     </form>
   );
 }

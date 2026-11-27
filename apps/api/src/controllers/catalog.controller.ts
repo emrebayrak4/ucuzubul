@@ -105,6 +105,7 @@ export class CatalogController {
       }),
       facets: effectiveFacets(pathSlugs, facetsBySlug),
       seoText: cat.seoText,
+      unitPricing: cat.unitPricing,
     };
   }
 

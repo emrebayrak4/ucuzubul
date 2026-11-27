@@ -4,6 +4,8 @@ export * from "./guides";
 export * from "./extension";
 export * from "./auth";
 export * from "./catalog";
+export * from "./grocery";
+export * from "./local";
 export * from "./search";
 export * from "./home";
 export * from "./user";

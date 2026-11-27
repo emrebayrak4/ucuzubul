@@ -42,6 +42,7 @@ const columns: Array<{ title: string; links: Array<{ href: string; label: string
       { href: "/editorial-policy", label: "Editorial policy" },
       { href: "/legal/affiliate-disclosure", label: "How we make money" },
       { href: "/contact", label: "Contact" },
+      { href: "/sell", label: "List your store (free)" },
       { href: "/sitemap", label: "Site map" },
       { href: "/credits", label: "Credits" },
     ],

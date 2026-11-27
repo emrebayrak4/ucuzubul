@@ -3,7 +3,8 @@ import * as Sharing from "expo-sharing";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Alert, Share, Switch, View } from "react-native";
-import { AppText, Button, Card, Divider, Field, ListRow, Notice, Screen } from "@/components/ui";
+import type { PrivacyRequestResponse, PrivacyRequestType } from "@pricora/contracts";
+import { AppText, Button, Card, Chip, Divider, Field, ListRow, Notice, Row, Screen } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -158,10 +159,71 @@ export default function PrivacyScreen() {
           </Card>
         </>
       ) : (
-        <Notice tone="info">Log in to export or delete account data.</Notice>
+        <PrivacyRequestForm />
       )}
 
       <Button title="Privacy policy" variant="ghost" icon="document-text-outline" style={{ marginTop: sp[4] }} onPress={() => void openWebPath("/legal/privacy")} />
     </Screen>
+  );
+}
+
+const REQUEST_TYPES: { value: PrivacyRequestType; label: string }[] = [
+  { value: "access", label: "Access my data" },
+  { value: "delete", label: "Delete my data" },
+  { value: "correct", label: "Correct my data" },
+  { value: "opt_out", label: "Opt out of sale/sharing" },
+];
+
+/** Signed-out data rights request (POST /v1/privacy/requests). Signed-in users use export/delete above. */
+function PrivacyRequestForm() {
+  const [type, setType] = useState<PrivacyRequestType>("access");
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState("");
+  const [details, setDetails] = useState("");
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState<PrivacyRequestResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const emailOk = /^\S+@\S+\.\S+$/.test(email.trim());
+  const stateOk = state === "" || /^[A-Za-z]{2}$/.test(state);
+
+  const submit = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      setDone(await api.privacy.createRequest({ type, email: email.trim(), state: state ? state.toUpperCase() : undefined, details: details.trim() || undefined }));
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <Card style={{ marginTop: sp[4], gap: sp[2] }}>
+        <AppText variant="h4">Request received</AppText>
+        <AppText color="text-muted">{done.message}</AppText>
+        <AppText variant="caption" color="text-muted">
+          We’ll respond by {new Date(done.dueAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.
+          {done.verification === "not_configured" ? " Email verification isn’t set up on this server yet, so no email was sent." : " Check your email to verify the request."}
+        </AppText>
+      </Card>
+    );
+  }
+  return (
+    <Card style={{ marginTop: sp[4], gap: sp[3] }}>
+      <AppText variant="h4">Your privacy rights</AppText>
+      <AppText color="text-muted">No account? Send a request and we’ll verify it by email. Signed-in users can export or delete their data directly.</AppText>
+      <Row gap={2} style={{ flexWrap: "wrap" }}>
+        {REQUEST_TYPES.map((t) => (
+          <Chip key={t.value} label={t.label} selected={type === t.value} onPress={() => setType(t.value)} />
+        ))}
+      </Row>
+      <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+      <Field label="State (optional)" placeholder="CA" value={state} onChangeText={(v) => setState(v.replace(/[^A-Za-z]/g, "").slice(0, 2))} autoCapitalize="characters" error={stateOk ? null : "Use the 2-letter state code"} />
+      <Field label="Details (optional)" value={details} onChangeText={setDetails} multiline maxLength={2000} />
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      <Button title="Send request" loading={sending} disabled={!emailOk || !stateOk} onPress={() => void submit()} />
+    </Card>
   );
 }

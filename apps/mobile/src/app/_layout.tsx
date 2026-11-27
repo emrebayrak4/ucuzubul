@@ -90,7 +90,12 @@ function AppNavigator() {
         <Stack.Screen name="popular" options={{ title: "Popular" }} />
         <Stack.Screen name="new" options={{ title: "New products" }} />
         <Stack.Screen name="coupons" options={{ title: "Coupons" }} />
-        <Stack.Screen name="credits" options={{ title: "Photo credits" }} />
+        <Stack.Screen name="credits" options={{ title: "Credits" }} />
+        <Stack.Screen name="basket" options={{ title: "Smart Basket" }} />
+        <Stack.Screen name="assistant" options={{ title: "Shopping assistant" }} />
+        <Stack.Screen name="best/[slug]" options={{ title: "" }} />
+        <Stack.Screen name="brands/[slug]/[category]" options={{ title: "" }} />
+        <Stack.Screen name="reset-password" options={{ title: "New password", presentation: "modal" }} />
         <Stack.Screen name="account/alerts" options={{ title: "Price alerts" }} />
         <Stack.Screen name="account/followed-stores" options={{ title: "Followed stores" }} />
         <Stack.Screen name="login" options={{ title: "Log in", presentation: "modal" }} />

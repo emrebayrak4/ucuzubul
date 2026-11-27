@@ -6,7 +6,6 @@ import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { DealItem } from "@pricora/contracts";
-import { BrandLogo } from "@/components/BrandLogo";
 import { CategoryCircle, CategoryCircleLink, PhotoCredit, StoreMark } from "@/components/common";
 import { CouponCard } from "@/components/CouponCard";
 import { ProductRail, RailSkeleton } from "@/components/product";
@@ -14,7 +13,6 @@ import { AppText, Button, ErrorState, Notice, OfflineBanner, Row, SectionHeader,
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { TRAVEL_ENABLED } from "@/lib/features";
-import { openWebPath } from "@/lib/links";
 import { photoSrc, promoPhoto } from "@/lib/photos";
 import { useRecentlyViewed } from "@/lib/recent";
 import { useTabBarSpace } from "@/lib/tabBar";
@@ -36,7 +34,7 @@ const PROMOS: { photo: string; title: string; sub: string; cta: string; tone: To
     go: () => router.push({ pathname: "/browse", params: { maxPrice: "2500", sort: "best_deal", title: "Under $25" } }),
   },
   { photo: "coupons", title: "Coupons", sub: "Promo codes with real success reports", cta: "Get codes", tone: { bg: "success-soft", fg: "text" }, go: () => router.push("/coupons") },
-  { photo: "smart-basket", title: "Smart Basket", sub: "Cheapest way to buy several items", cta: "Try it", tone: { bg: "primary-soft", fg: "primary-soft-fg" }, go: () => void openWebPath("/basket") },
+  { photo: "smart-basket", title: "Smart Basket", sub: "Cheapest way to buy several items", cta: "Try it", tone: { bg: "primary-soft", fg: "primary-soft-fg" }, go: () => router.push("/basket") },
 ];
 
 const DISCOUNT_TILES = [
@@ -159,16 +157,17 @@ export default function HomeScreen() {
           />
         }
       >
-        <Row style={{ justifyContent: "space-between", marginTop: sp[2] }}>
-          <BrandLogo height={26} />
-          {TRAVEL_ENABLED ? <Button title="Travel" variant="ghost" size="sm" icon="airplane-outline" onPress={() => router.push("/flights")} /> : null}
-        </Row>
+        {TRAVEL_ENABLED ? (
+          <Row style={{ justifyContent: "flex-end", marginTop: sp[2] }}>
+            <Button title="Travel" variant="ghost" size="sm" icon="airplane-outline" onPress={() => router.push("/flights")} />
+          </Row>
+        ) : null}
         <Pressable
           onPress={() => router.push({ pathname: "/search", params: { focus: "1" } })}
           accessibilityRole="search"
           accessibilityLabel="Search products, brands, UPC"
           style={{
-            marginTop: sp[3],
+            marginTop: sp[2],
             flexDirection: "row",
             alignItems: "center",
             gap: sp[2],

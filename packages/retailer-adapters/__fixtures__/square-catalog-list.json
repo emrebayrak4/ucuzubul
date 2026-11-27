@@ -1,0 +1,99 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "objects": [
+      {
+        "type": "ITEM",
+        "id": "ITEM1",
+        "is_deleted": false,
+        "item_data": {
+          "name": "Cold Brew",
+          "description_plain": "Slow-steeped coffee",
+          "image_ids": [
+            "IMG1"
+          ],
+          "ecom_uri": "https://test-coffee.square.site/product/cold-brew/1",
+          "variations": [
+            {
+              "type": "ITEM_VARIATION",
+              "id": "VAR1",
+              "is_deleted": false,
+              "item_variation_data": {
+                "item_id": "ITEM1",
+                "name": "Small",
+                "sku": "CB-S",
+                "upc": "012345678905",
+                "pricing_type": "FIXED_PRICING",
+                "price_money": {
+                  "amount": 450,
+                  "currency": "USD"
+                },
+                "track_inventory": true
+              }
+            },
+            {
+              "type": "ITEM_VARIATION",
+              "id": "VAR2",
+              "is_deleted": false,
+              "item_variation_data": {
+                "item_id": "ITEM1",
+                "name": "Growler",
+                "pricing_type": "VARIABLE_PRICING"
+              }
+            },
+            {
+              "type": "ITEM_VARIATION",
+              "id": "VAR3",
+              "is_deleted": false,
+              "item_variation_data": {
+                "item_id": "ITEM1",
+                "name": "Medium",
+                "sku": "CB-M",
+                "pricing_type": "FIXED_PRICING",
+                "price_money": {
+                  "amount": 525,
+                  "currency": "USD"
+                },
+                "track_inventory": true
+              }
+            },
+            {
+              "type": "ITEM_VARIATION",
+              "id": "VAR4",
+              "is_deleted": false,
+              "item_variation_data": {
+                "item_id": "ITEM1",
+                "name": "Large",
+                "sku": "CB-L",
+                "pricing_type": "FIXED_PRICING",
+                "price_money": {
+                  "amount": 600,
+                  "currency": "USD"
+                },
+                "track_inventory": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "ITEM",
+        "id": "ITEM2",
+        "is_deleted": true,
+        "item_data": {
+          "name": "Deleted",
+          "variations": []
+        }
+      },
+      {
+        "type": "IMAGE",
+        "id": "IMG1",
+        "image_data": {
+          "name": "cold-brew",
+          "url": "https://items-images-production.s3.us-west-2.amazonaws.com/files/test/cold-brew.jpg"
+        }
+      }
+    ],
+    "cursor": "CURSOR-PAGE-2"
+  }
+}

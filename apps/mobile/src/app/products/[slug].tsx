@@ -7,6 +7,8 @@ import { Alert, FlatList, Pressable, RefreshControl, ScrollView, View, useWindow
 import { conditionGroupOf, type ConditionGroup, type DealScoreReason, HistoryRange, ProductAttribute, ProductDetailResponse, ProductVariantLink } from "@pricora/contracts";
 import { PriceWithPrevious } from "@/components/common";
 import { PayIn4Line } from "@/components/payments";
+import { NearbySection } from "@/components/NearbySection";
+import { ZipSheet } from "@/components/ZipSheet";
 import { CouponCard, CouponChip } from "@/components/CouponCard";
 import { HistoryChart } from "@/components/HistoryChart";
 import { OfferList } from "@/components/OfferList";
@@ -36,6 +38,8 @@ import { cardFromDetail, conditionGroupLabel, haptic, money, relative } from "@/
 import { param } from "@/lib/hooks";
 import { shareProduct } from "@/lib/links";
 import { addRecentlyViewed } from "@/lib/recent";
+import { addToBasket } from "@/lib/basket";
+import { useZip } from "@/lib/zip";
 import { LISTS_KEY, requireLogin, useCreateAlert, useFavoriteToggle, useLists } from "@/lib/saved";
 import { tokens, useTheme } from "@/lib/theme";
 
@@ -45,6 +49,7 @@ const RANGES = [
   { value: "7d", label: "7D" },
   { value: "30d", label: "30D" },
   { value: "90d", label: "90D" },
+  { value: "180d", label: "6M" },
   { value: "365d", label: "1Y" },
   { value: "all", label: "All" },
 ] as const satisfies readonly { value: HistoryRange; label: string }[];
@@ -53,11 +58,12 @@ export default function ProductScreen() {
   const { c } = useTheme();
   const slug = param(useLocalSearchParams<{ slug: string }>().slug) ?? "";
   const { user } = useAuth();
-  const zip = user?.zip ?? undefined;
+  const zip = useZip().zip ?? undefined;
   const [range, setRange] = useState<(typeof RANGES)[number]["value"]>("90d");
   const [alertOpen, setAlertOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [couponsOpen, setCouponsOpen] = useState(false);
+  const [zipOpen, setZipOpen] = useState(false);
   const [condPick, setCondPick] = useState<ConditionGroup | null>(null);
 
   const product = useQuery({
@@ -118,6 +124,8 @@ export default function ProductScreen() {
   const fakeDiscount = view?.fakeDiscount ?? d.fakeDiscount;
   const prevLowest = view ? view.previousLowestPriceCents : d.previousLowestPriceCents;
   const condTabs = (d.conditionSummary ?? []).filter((x) => x.offerCount > 0);
+  const stale = isStale(d.lastUpdatedAt);
+  const allOut = offers.length > 0 && offers.every((o) => o.stock === "out_of_stock");
   const lowest = offers.find((o) => o.id === lowestOfferId) ?? [...offers].sort((a, b) => a.estimatedTotalCents - b.estimatedTotalCents)[0];
   const upc = p.identifiers.find((i) => i.type === "UPC" || i.type === "EAN" || i.type === "GTIN");
   const stats = history.data?.stats ?? priceStats;
@@ -183,7 +191,8 @@ export default function ProductScreen() {
           ) : null}
         </Row>
 
-        <Variants variants={p.variants} />
+        <Variants variants={p.variants} exclude={d.sizeFamily && d.sizeFamily.length > 1 ? ["size"] : []} />
+        {d.sizeFamily && d.sizeFamily.length > 1 ? <SizeFamily members={d.sizeFamily} /> : null}
 
         {d.hasDemoData ? (
           <View style={{ marginTop: sp[3] }}>
@@ -212,6 +221,12 @@ export default function ProductScreen() {
           </ScrollView>
         ) : null}
 
+        {allOut ? (
+          <View style={{ marginTop: sp[3] }}>
+            <Notice tone="warning">Out of stock at every store we track. Set a back-in-stock alert to hear when it returns.</Notice>
+          </View>
+        ) : null}
+
         {/* Lowest price block */}
         <Card style={{ marginTop: sp[4], gap: sp[2] }}>
           <AppText variant="overline" color="text-muted">
@@ -232,14 +247,25 @@ export default function ProductScreen() {
             </View>
             {dealScore ? <DealScoreBadge score={dealScore.score} size="lg" /> : null}
           </Row>
-          <PayIn4Line payIn4={lowest?.payIn4} />
-          {lowest?.tax.status === "unknown_set_zip" ? (
-            <AppText variant="caption" color="text-muted" onPress={() => router.push(user ? "/account/profile" : "/login")}>
-              Totals exclude tax. <AppText variant="caption" color="primary">Set your ZIP</AppText> for estimates.
+          {lowest?.unitPrice ? (
+            <AppText variant={d.unitPricing ? "label" : "caption"} color={d.unitPricing ? "text" : "text-muted"}>
+              Unit price {lowest.unitPrice.label}
+              {d.netQuantity ? ` · ${d.netQuantity.label ?? ""}` : ""}
             </AppText>
           ) : null}
-          <AppText variant="caption" color="text-muted">
+          <PayIn4Line payIn4={lowest?.payIn4} />
+          {lowest?.tax.status === "unknown_set_zip" ? (
+            <AppText variant="caption" color="text-muted" onPress={() => setZipOpen(true)}>
+              Totals exclude tax. <AppText variant="caption" color="primary">Set your ZIP</AppText> for estimates.
+            </AppText>
+          ) : zip ? (
+            <AppText variant="caption" color="text-muted" onPress={() => setZipOpen(true)}>
+              Est. tax for ZIP {zip} · <AppText variant="caption" color="primary">change</AppText>
+            </AppText>
+          ) : null}
+          <AppText variant="caption" color={stale ? "warning" : "text-muted"}>
             Updated {relative(d.lastUpdatedAt)}
+            {stale ? " · prices may have changed since" : ""}
           </AppText>
           <Row gap={2} style={{ marginTop: sp[1], flexWrap: "wrap" }}>
             <IconButton icon={fav.isFavorite ? "heart" : "heart-outline"} label={fav.isFavorite ? "Remove from favorites" : "Add to favorites"} active={fav.isFavorite} onPress={fav.toggle} />
@@ -251,6 +277,17 @@ export default function ProductScreen() {
               onPress={() => toggleCompare({ id: p.id, slug: p.slug, title: p.title, imageUrl: p.images[0]?.url ?? null })}
             />
             <IconButton icon="list-outline" label="Add to list" onPress={() => (user ? setListOpen(true) : requireLogin("Log in to keep shopping lists."))} />
+            <IconButton
+              icon="basket-outline"
+              label="Add to Smart Basket"
+              onPress={() => {
+                const r = addToBasket({ id: p.id, slug: p.slug, title: p.title, imageUrl: p.images[0]?.url ?? null });
+                Alert.alert(r === "added" ? "Added to Smart Basket" : "Quantity increased", "Find the cheapest way to buy everything in your basket.", [
+                  { text: "Keep shopping", style: "cancel" },
+                  { text: "View basket", onPress: () => router.push("/basket") },
+                ]);
+              }}
+            />
             <IconButton icon="share-social-outline" label="Share" onPress={() => void shareProduct(p.slug, p.title)} />
           </Row>
         </Card>
@@ -276,6 +313,8 @@ export default function ProductScreen() {
             </ScrollView>
           </>
         ) : null}
+
+        <NearbySection slug={p.slug} />
 
         {/* Store table */}
         <SectionHeader title={`Compare ${offers.length} ${offers.length === 1 ? "offer" : "offers"}${hasGroups ? ` · ${conditionGroupLabel[cond]}` : ""}`} />
@@ -319,6 +358,12 @@ export default function ProductScreen() {
 
         {p.attributes.length ? <SpecTable attributes={p.attributes} /> : null}
 
+        {p.identifiers.length ? (
+          <AppText variant="caption" color="text-muted" selectable style={{ marginTop: sp[2] }}>
+            Identifiers: {p.identifiers.map((i) => `${i.type} ${i.value}${i.retailerSlug ? ` (${i.retailerSlug})` : ""}`).join(" · ")}
+          </AppText>
+        ) : null}
+
         {p.description ? (
           <>
             <SectionHeader title="About this product" />
@@ -357,6 +402,7 @@ export default function ProductScreen() {
       </ScrollView>
 
       <AlertSheet visible={alertOpen} onClose={() => setAlertOpen(false)} productId={p.id} currentCents={lowest?.priceCents ?? null} condition={cond} />
+      <ZipSheet visible={zipOpen} onClose={() => setZipOpen(false)} />
       <ListSheet visible={listOpen} onClose={() => setListOpen(false)} productId={p.id} />
       <Sheet visible={couponsOpen} onClose={() => setCouponsOpen(false)} title="Coupons for this product">
         {d.coupons.map((cp) => (
@@ -365,6 +411,11 @@ export default function ProductScreen() {
       </Sheet>
     </View>
   );
+}
+
+/** Older than 48 h → "prices may have changed" (outside render so the compiler's purity rule holds). */
+function isStale(iso: string): boolean {
+  return Date.now() - new Date(iso).getTime() > 48 * 3600_000;
 }
 
 function Gallery({ d }: { d: ProductDetailResponse }) {
@@ -410,15 +461,19 @@ function Gallery({ d }: { d: ProductDetailResponse }) {
 }
 
 /** Variant switcher: one chip row per differing attribute (falls back to variant labels). */
-function Variants({ variants }: { variants: ProductVariantLink[] }) {
+function Variants({ variants, exclude = [] }: { variants: ProductVariantLink[]; exclude?: string[] }) {
+  const excludeKey = exclude.join(",");
   const groups = useMemo(() => {
+    const excluded = excludeKey ? excludeKey.split(",") : [];
     if (variants.length < 2) return [];
     const keys = [...new Set(variants.flatMap((v) => Object.keys(v.attributes)))].filter(
-      (k) => new Set(variants.map((v) => v.attributes[k])).size > 1,
+      (k) => !excluded.includes(k.toLowerCase()) && new Set(variants.map((v) => v.attributes[k])).size > 1,
     );
     return keys;
-  }, [variants]);
+  }, [variants, excludeKey]);
   if (variants.length < 2) return null;
+  // Every differing attribute is shown elsewhere (e.g. sizes under "Compare sizes").
+  if (!groups.length && exclude.length) return null;
   const current = variants.find((v) => v.current);
   const go = (v: ProductVariantLink) => {
     if (v.current) return;
@@ -466,6 +521,32 @@ function Variants({ variants }: { variants: ProductVariantLink[] }) {
           </View>
         );
       })}
+    </View>
+  );
+}
+
+/** "Compare sizes": other sizes of the same product line (separate products), best unit price marked. */
+function SizeFamily({ members }: { members: NonNullable<ProductDetailResponse["sizeFamily"]> }) {
+  return (
+    <View style={{ marginTop: sp[3], gap: sp[1] }}>
+      <AppText variant="label" color="text-muted">
+        Compare sizes
+      </AppText>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -GUTTER }} contentContainerStyle={{ gap: sp[2], paddingHorizontal: GUTTER }}>
+        {members.map((m) => (
+          <Chip
+            key={m.slug}
+            icon={m.bestValue ? "ribbon-outline" : undefined}
+            label={[m.label, m.lowestPriceCents !== null ? money(m.lowestPriceCents, "USD", "auto") : null, m.unitPrice?.label, m.bestValue ? "Best value" : null].filter(Boolean).join(" · ")}
+            selected={m.current}
+            onPress={() => {
+              if (m.current) return;
+              haptic.toggle();
+              router.replace({ pathname: "/products/[slug]", params: { slug: m.slug } });
+            }}
+          />
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -667,6 +748,13 @@ function AlertSheet({
           onChangeText={setTarget}
           hint={currentCents ? `Current lowest price: ${money(currentCents)}` : undefined}
         />
+      ) : null}
+      {kind === "below_price" && currentCents ? (
+        <Row gap={2} style={{ flexWrap: "wrap" }}>
+          {[5, 10, 20].map((pct) => (
+            <Chip key={pct} label={`−${pct}%`} onPress={() => setTarget(String(Math.floor((currentCents * (100 - pct)) / 100) / 100))} />
+          ))}
+        </Row>
       ) : null}
       {kind === "drop_percent" ? (
         <Row gap={2} style={{ flexWrap: "wrap" }}>

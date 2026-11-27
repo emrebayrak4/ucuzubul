@@ -1,0 +1,23 @@
+{
+  "_fixture": "TEST-ONLY recorded-shape fixture. Field names follow the provider's documented response; all values are synthetic and must never be shown as real data.",
+  "response": {
+    "counts": [
+      {
+        "catalog_object_id": "VAR1",
+        "catalog_object_type": "ITEM_VARIATION",
+        "state": "IN_STOCK",
+        "location_id": "L1",
+        "quantity": "7",
+        "calculated_at": "2026-11-26T11:00:00Z"
+      },
+      {
+        "catalog_object_id": "VAR3",
+        "catalog_object_type": "ITEM_VARIATION",
+        "state": "IN_STOCK",
+        "location_id": "L1",
+        "quantity": "1",
+        "calculated_at": "2026-11-26T11:00:00Z"
+      }
+    ]
+  }
+}
